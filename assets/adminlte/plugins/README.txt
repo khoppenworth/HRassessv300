@@ -1,0 +1,1 @@
+Place AdminLTE 3.2 plugins here (Bootstrap, jQuery, etc.).

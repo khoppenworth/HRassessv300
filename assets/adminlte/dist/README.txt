@@ -1,0 +1,1 @@
+Place AdminLTE 3.2 dist files here (css/js/img).

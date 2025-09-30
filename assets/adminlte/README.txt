@@ -1,0 +1,1 @@
+Place AdminLTE 3.2 assets here: keep `dist/` and `plugins/` directories as in the official release.
