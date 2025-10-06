@@ -1,0 +1,191 @@
+.qb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.qb-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.qb-message {
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+  min-height: 1.5rem;
+}
+
+.qb-message[data-state="error"] {
+  color: #b00020;
+}
+
+.qb-message[data-state="success"] {
+  color: #0f7a0f;
+}
+
+.qb-list {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.qb-questionnaire {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.qb-questionnaire-header,
+.qb-section-header,
+.qb-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.qb-questionnaire-header {
+  flex-wrap: wrap;
+}
+
+.qb-questionnaire-fields,
+.qb-section-fields {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.qb-questionnaire-actions,
+.qb-section-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.qb-section {
+  border-left: 4px solid #4f80ff;
+  padding-left: 0.75rem;
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.qb-section:first-of-type {
+  margin-top: 0.5rem;
+}
+
+.qb-section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.qb-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.qb-root-items {
+  margin-top: 1rem;
+}
+
+.qb-inline-heading {
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+}
+
+.qb-input,
+.qb-textarea,
+.qb-select {
+  width: 100%;
+  font: inherit;
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.qb-textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.qb-select {
+  height: 2.5rem;
+}
+
+.qb-item {
+  align-items: center;
+  background: rgba(79, 128, 255, 0.05);
+  border: 1px solid rgba(79, 128, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.qb-item .qb-input,
+.qb-item .qb-select {
+  flex: 1 1 150px;
+}
+
+.qb-item .qb-weight {
+  max-width: 120px;
+}
+
+.qb-handle {
+  cursor: move;
+  user-select: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.qb-card-handle::before,
+.qb-section .qb-handle::before,
+.qb-item .qb-handle::before {
+  content: '\2630';
+}
+
+.qb-danger {
+  background: #ffe4e4;
+  color: #b00020;
+}
+
+.qb-action {
+  background: #e7efff;
+  color: #2a4fbf;
+}
+
+.qb-import-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (max-width: 720px) {
+  .qb-questionnaire-actions,
+  .qb-section-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .qb-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .qb-item .qb-input,
+  .qb-item .qb-select,
+  .qb-item .qb-weight {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+}
