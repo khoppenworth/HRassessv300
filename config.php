@@ -3,6 +3,32 @@
 declare(strict_types=1);
 session_start();
 
+const WORK_FUNCTIONS = [
+    'finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification',
+    'records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics'
+];
+
+const WORK_FUNCTION_LABELS = [
+    'finance' => 'Finance',
+    'general_service' => 'General Service',
+    'hrm' => 'HRM',
+    'ict' => 'ICT',
+    'leadership_tn' => 'Leadership TN',
+    'legal_service' => 'Legal Service',
+    'pme' => 'PME',
+    'quantification' => 'Quantification',
+    'records_documentation' => 'Records & Documentation',
+    'security_driver' => 'Security & Driver',
+    'security' => 'Security',
+    'tmd' => 'TMD',
+    'wim' => 'WIM',
+    'cmd' => 'CMD',
+    'communication' => 'Communication',
+    'dfm' => 'DFM',
+    'driver' => 'Driver',
+    'ethics' => 'Ethics',
+];
+
 define('DB_HOST','127.0.0.1');
 define('DB_NAME','epss_v300');
 define('DB_USER','epss_user');
@@ -33,6 +59,15 @@ function csrf_check() {
     }
 }
 
+function refresh_current_user(PDO $pdo): void {
+    if (!isset($_SESSION['user']['id'])) { return; }
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+    $stmt->execute([$_SESSION['user']['id']]);
+    if ($row = $stmt->fetch()) {
+        $_SESSION['user'] = $row;
+    }
+}
+
 function auth_required(array $roles = []): void {
     if (!isset($_SESSION['user'])) { header('Location: ' . BASE_URL . 'index.php'); exit; }
     if ($roles && !in_array($_SESSION['user']['role'], $roles, true)) {
@@ -40,6 +75,14 @@ function auth_required(array $roles = []): void {
     }
 }
 function current_user() { return $_SESSION['user'] ?? null; }
+
+function require_profile_completion(PDO $pdo, string $redirect = 'profile.php'): void {
+    if (!isset($_SESSION['user']['id'])) { return; }
+    if (($_SESSION['user']['profile_completed'] ?? 0) == 1) { return; }
+    if (basename($_SERVER['SCRIPT_NAME']) === basename($redirect)) { return; }
+    header('Location: ' . BASE_URL . $redirect);
+    exit;
+}
 
 require_once __DIR__.'/i18n.php';
 

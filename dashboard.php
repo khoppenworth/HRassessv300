@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__.'/config.php';
 auth_required();
+refresh_current_user($pdo);
+require_profile_completion($pdo);
 $t = load_lang($_SESSION['lang'] ?? 'en');
 $user = current_user();
 $cfg = get_site_config($pdo);

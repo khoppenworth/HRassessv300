@@ -2,7 +2,7 @@
 require_once __DIR__.'/utils.php';
 if ($_SERVER['REQUEST_METHOD']==='GET') {
   $entries = [];
-  $rs = $pdo->query("SELECT * FROM questionnaire_response ORDER BY id DESC");
+  $rs = $pdo->query("SELECT qr.*, pp.label AS period_label FROM questionnaire_response qr JOIN performance_period pp ON pp.id = qr.performance_period_id ORDER BY qr.id DESC");
   foreach ($rs as $r) {
     $items = $pdo->prepare("SELECT linkId, answer FROM questionnaire_response_item WHERE response_id=?");
     $items->execute([$r['id']]);
@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD']==='GET') {
       "questionnaire"=>$r['questionnaire_id'],
       "status"=>$r['status'],
       "authored"=>$r['created_at'],
+      "performancePeriod"=>$r['period_label'],
       "item"=>array_map(function($it){ return ["linkId"=>$it['linkId'],"answer"=>json_decode($it['answer'], true)]; }, $items->fetchAll())
     ]];
   }
@@ -23,10 +24,26 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   $uid = (int)($data['user_id'] ?? 0);
   $qid = (int)($data['questionnaire'] ?? 0);
   if (!$uid || !$qid) { http_response_code(400); echo json_encode(["error"=>"user_id and questionnaire required"]); exit; }
+  $periodId = (int)($data['performance_period_id'] ?? 0);
+  if (!$periodId && !empty($data['performance_period'])) {
+    $label = (string)$data['performance_period'];
+    $lookup = $pdo->prepare('SELECT id FROM performance_period WHERE label = ?');
+    $lookup->execute([$label]);
+    $periodId = (int)($lookup->fetchColumn() ?: 0);
+  }
+  if (!$periodId) {
+    $current = date('Y');
+    $lookup = $pdo->prepare('SELECT id FROM performance_period WHERE label = ?');
+    $lookup->execute([$current]);
+    $periodId = (int)($lookup->fetchColumn() ?: 0);
+  }
+  if (!$periodId) {
+    http_response_code(400); echo json_encode(["error"=>"performance_period_id required"]); exit;
+  }
 
   $pdo->beginTransaction();
   try {
-    $pdo->prepare("INSERT INTO questionnaire_response (user_id, questionnaire_id, status, created_at) VALUES (?,?, 'submitted', NOW())")->execute([$uid,$qid]);
+    $pdo->prepare("INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, created_at) VALUES (?,?,?, 'submitted', NOW())")->execute([$uid,$qid,$periodId]);
     $rid = (int)$pdo->lastInsertId();
 
     // Calculate weighted score

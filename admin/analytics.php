@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__.'/../config.php';
 auth_required(['admin']);
+refresh_current_user($pdo);
+require_profile_completion($pdo);
 $t = load_lang($_SESSION['lang'] ?? 'en');
 
 $avg = $pdo->query("SELECT u.username, AVG(score) avg_score, COUNT(*) cnt FROM questionnaire_response qr JOIN users u ON u.id=qr.user_id GROUP BY u.id ORDER BY avg_score DESC")->fetchAll();
