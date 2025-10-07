@@ -1,18 +1,41 @@
 <?php
 require_once __DIR__.'/config.php';
 auth_required(['staff','supervisor','admin']);
+refresh_current_user($pdo);
+require_profile_completion($pdo);
 $t = load_lang($_SESSION['lang'] ?? 'en');
+$err = '';
 
-$q = $pdo->query("SELECT id, title FROM questionnaire ORDER BY id DESC")->fetchAll();
+$user = current_user();
+$questionnaireSql = "SELECT DISTINCT q.id, q.title FROM questionnaire q";
+if ($user['role'] === 'staff') {
+    $questionnaireSql .= " JOIN questionnaire_work_function qw ON qw.questionnaire_id = q.id WHERE qw.work_function = :wf";
+    $questionnaireSql .= " ORDER BY q.title";
+    $stmt = $pdo->prepare($questionnaireSql);
+    $stmt->execute(['wf' => $user['work_function']]);
+    $q = $stmt->fetchAll();
+} else {
+    $q = $pdo->query("SELECT id, title FROM questionnaire ORDER BY title")->fetchAll();
+}
+$periods = $pdo->query("SELECT id, label FROM performance_period ORDER BY period_start DESC")->fetchAll();
 $qid = (int)($_GET['qid'] ?? ($q[0]['id'] ?? 0));
+$periodId = (int)($_GET['performance_period_id'] ?? ($periods[0]['id'] ?? 0));
 
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     csrf_check();
     $qid = (int)($_POST['qid'] ?? 0);
+    $periodId = (int)($_POST['performance_period_id'] ?? 0);
+    $check = $pdo->prepare('SELECT COUNT(*) FROM questionnaire_response WHERE user_id=? AND questionnaire_id=? AND performance_period_id=?');
+    $check->execute([$user['id'], $qid, $periodId]);
+    if ($check->fetchColumn() > 0) {
+        $err = t($t,'duplicate_submission','A submission already exists for the selected performance period.');
+    } elseif (!$periodId) {
+        $err = t($t,'select_period','Please select a performance period.');
+    } else {
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare("INSERT INTO questionnaire_response (user_id, questionnaire_id, status, created_at) VALUES (?,?, 'submitted', NOW())");
-        $stmt->execute([$_SESSION['user']['id'], $qid]);
+        $stmt = $pdo->prepare("INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, created_at) VALUES (?,?,?, 'submitted', NOW())");
+        $stmt->execute([$user['id'], $qid, $periodId]);
         $rid = (int)$pdo->lastInsertId();
 
         // Fetch items with weights
@@ -47,21 +70,31 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         $pct = $weight_sum > 0 ? (int)round(($score_sum / $weight_sum) * 100) : null;
         $pdo->prepare("UPDATE questionnaire_response SET score=? WHERE id=?")->execute([$pct, $rid]);
         $pdo->commit();
-        header("Location: performance.php?msg=submitted");
+        header("Location: my_performance.php?msg=submitted");
         exit;
     } catch (Exception $e) {
         $pdo->rollBack();
         $err = 'Error: ' . $e->getMessage();
     }
+    }
 }
 
 // Load selected questionnaire with sections and items
 $sections = []; $items = [];
+$availablePeriods = $periods;
+$taken = [];
 if ($qid) {
     $s = $pdo->prepare("SELECT * FROM questionnaire_section WHERE questionnaire_id=? ORDER BY order_index ASC");
     $s->execute([$qid]); $sections = $s->fetchAll();
     $i = $pdo->prepare("SELECT * FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC");
     $i->execute([$qid]); $items = $i->fetchAll();
+    $takenStmt = $pdo->prepare('SELECT performance_period_id FROM questionnaire_response WHERE user_id=? AND questionnaire_id=?');
+    $takenStmt->execute([$user['id'], $qid]);
+    $taken = array_column($takenStmt->fetchAll(), 'performance_period_id');
+    $availablePeriods = array_values(array_filter($periods, static fn($p) => !in_array($p['id'], $taken, true)));
+    if (!$periodId || in_array($periodId, $taken, true)) {
+        $periodId = $availablePeriods[0]['id'] ?? 0;
+    }
 }
 ?>
 <!doctype html><html><head>
@@ -84,11 +117,23 @@ if ($qid) {
         <?php endforeach; ?>
       </select>
     </label>
+    <label class="md-field">
+      <span><?=t($t,'performance_period','Performance Period')?></span>
+      <select name="performance_period_id" onchange="this.form.submit()">
+        <?php foreach ($periods as $period): ?>
+          <?php $disabled = in_array($period['id'], $taken, true); ?>
+          <option value="<?=$period['id']?>" <?=($period['id']==$periodId?'selected':'')?> <?=$disabled?'disabled':''?>><?=htmlspecialchars($period['label'])?><?=$disabled?' · '.t($t,'already_submitted','Submitted'):''?></option>
+        <?php endforeach; ?>
+      </select>
+    </label>
   </form>
-  <?php if ($qid): ?>
+  <?php if ($qid && empty($availablePeriods)): ?>
+    <p><?=t($t,'all_periods_used','You have already submitted for every period available for this questionnaire.')?></p>
+  <?php elseif ($qid): ?>
   <form method="post">
     <input type="hidden" name="csrf" value="<?=csrf_token()?>">
     <input type="hidden" name="qid" value="<?=$qid?>">
+    <input type="hidden" name="performance_period_id" value="<?=$periodId?>">
     <?php foreach ($sections as $sec): ?>
       <h3 class="md-section-title"><?=htmlspecialchars($sec['title'])?></h3>
       <p class="md-muted"><?=htmlspecialchars($sec['description'])?></p>

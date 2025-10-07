@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__.'/../config.php';
 auth_required(['admin']);
+refresh_current_user($pdo);
+require_profile_completion($pdo);
 $t = load_lang($_SESSION['lang'] ?? 'en');
 $users = $pdo->query("SELECT COUNT(*) c FROM users")->fetch()['c'] ?? 0;
 $q = $pdo->query("SELECT COUNT(*) c FROM questionnaire")->fetch()['c'] ?? 0;

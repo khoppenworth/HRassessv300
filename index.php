@@ -11,14 +11,18 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $stmt->execute([$username]);
     $u = $stmt->fetch();
     if ($u && password_verify($password, $u['password'])) {
-        $_SESSION['user'] = ['id'=>$u['id'], 'username'=>$u['username'], 'role'=>$u['role'], 'full_name'=>$u['full_name']];
+        if (empty($u['first_login_at'])) {
+            $pdo->prepare('UPDATE users SET first_login_at = NOW() WHERE id = ?')->execute([$u['id']]);
+        }
+        $_SESSION['user'] = $u;
+        $_SESSION['lang'] = $u['language'] ?? ($_SESSION['lang'] ?? 'en');
         header('Location: dashboard.php'); exit;
     } else {
         $err = t($t,'invalid_login','Invalid username or password');
     }
 }
 $logo = $cfg['logo_path'] ? htmlspecialchars($cfg['logo_path']) : 'assets/img/epss-logo.svg';
-$site_name = htmlspecialchars($cfg['site_name'] ?? 'EPSS Self-Assessment');
+$site_name = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
 $landing_text = htmlspecialchars($cfg['landing_text'] ?? '');
 $address = htmlspecialchars($cfg['address'] ?? '');
 $contact = htmlspecialchars($cfg['contact'] ?? '');
@@ -68,5 +72,6 @@ $contact = htmlspecialchars($cfg['contact'] ?? '');
       </div>
     </div>
   </div>
+  <script src="assets/js/app.js"></script>
 </body>
 </html>

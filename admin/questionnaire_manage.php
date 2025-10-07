@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__.'/../config.php';
 auth_required(['admin']);
+refresh_current_user($pdo);
+require_profile_completion($pdo);
 $t = load_lang($_SESSION['lang'] ?? 'en');
 
 function send_json(array $payload, int $status = 200): void {
@@ -47,6 +49,7 @@ if ($action === 'fetch') {
     $qsRows = $pdo->query('SELECT * FROM questionnaire ORDER BY id DESC')->fetchAll();
     $sectionsRows = $pdo->query('SELECT * FROM questionnaire_section ORDER BY questionnaire_id, order_index, id')->fetchAll();
     $itemsRows = $pdo->query('SELECT * FROM questionnaire_item ORDER BY questionnaire_id, order_index, id')->fetchAll();
+    $wfRows = $pdo->query('SELECT questionnaire_id, work_function FROM questionnaire_work_function')->fetchAll();
 
     $sectionsByQuestionnaire = [];
     foreach ($sectionsRows as $section) {
@@ -82,6 +85,12 @@ if ($action === 'fetch') {
         }
     }
 
+    $workFunctionsByQuestionnaire = [];
+    foreach ($wfRows as $wf) {
+        $qid = (int)$wf['questionnaire_id'];
+        $workFunctionsByQuestionnaire[$qid][] = $wf['work_function'];
+    }
+
     $questionnaires = [];
     foreach ($qsRows as $row) {
         $qid = (int)$row['id'];
@@ -99,6 +108,7 @@ if ($action === 'fetch') {
             'created_at' => $row['created_at'],
             'sections' => $sections,
             'items' => $itemsByQuestionnaire[$qid] ?? [],
+            'work_functions' => $workFunctionsByQuestionnaire[$qid] ?? WORK_FUNCTIONS,
         ];
     }
 
@@ -162,6 +172,8 @@ if ($action === 'save' || $action === 'publish') {
 
         $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent) VALUES (?, ?, ?, ?, ?, ?, ?)');
         $updateItemStmt = $pdo->prepare('UPDATE questionnaire_item SET section_id=?, linkId=?, text=?, type=?, order_index=?, weight_percent=? WHERE id=?');
+        $insertWorkFunctionStmt = $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
+        $deleteWorkFunctionStmt = $pdo->prepare('DELETE FROM questionnaire_work_function WHERE questionnaire_id=?');
 
         foreach ($structures as $qData) {
             if (!is_array($qData)) {
@@ -302,6 +314,24 @@ if ($action === 'save' || $action === 'publish') {
                 $stmt->execute(array_values($itemsToDelete));
             }
 
+            $workFunctionsInput = $qData['work_functions'] ?? WORK_FUNCTIONS;
+            if (!is_array($workFunctionsInput)) {
+                $workFunctionsInput = WORK_FUNCTIONS;
+            }
+            $allowedFunctions = [];
+            foreach ($workFunctionsInput as $wf) {
+                if (is_string($wf) && in_array($wf, WORK_FUNCTIONS, true)) {
+                    $allowedFunctions[] = $wf;
+                }
+            }
+            if (!$allowedFunctions) {
+                $allowedFunctions = WORK_FUNCTIONS;
+            }
+            $deleteWorkFunctionStmt->execute([$qid]);
+            foreach ($allowedFunctions as $wf) {
+                $insertWorkFunctionStmt->execute([$qid, $wf]);
+            }
+
             $sectionsToDelete = array_diff(array_keys($existingSections), $sectionSeen);
             if ($sectionsToDelete) {
                 $placeholders = implode(',', array_fill(0, count($sectionsToDelete), '?'));
@@ -368,6 +398,10 @@ if (isset($_POST['import'])) {
                         $resource['description'] ?? null,
                     ]);
                 $qid = (int)$pdo->lastInsertId();
+                foreach (WORK_FUNCTIONS as $wf) {
+                    $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)')
+                        ->execute([$qid, $wf]);
+                }
                 $order = 1;
                 foreach (($resource['item'] ?? []) as $it) {
                     $type = $it['type'] ?? 'text';

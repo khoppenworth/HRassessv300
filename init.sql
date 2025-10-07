@@ -1,5 +1,7 @@
 
 -- Enhanced init.sql (adds site_config and weight_percent)
+DROP TABLE IF EXISTS training_recommendation;
+DROP TABLE IF EXISTS course_catalogue;
 DROP TABLE IF EXISTS questionnaire_response_item;
 DROP TABLE IF EXISTS questionnaire_response;
 DROP TABLE IF EXISTS questionnaire_item;
@@ -7,6 +9,7 @@ DROP TABLE IF EXISTS questionnaire_section;
 DROP TABLE IF EXISTS questionnaire;
 DROP TABLE IF EXISTS logs;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS performance_period;
 DROP TABLE IF EXISTS site_config;
 
 CREATE TABLE site_config (
@@ -25,6 +28,15 @@ CREATE TABLE users (
   role ENUM('admin','supervisor','staff') NOT NULL DEFAULT 'staff',
   full_name VARCHAR(200) NULL,
   email VARCHAR(200) NULL,
+  gender ENUM('female','male','other','prefer_not_say') DEFAULT NULL,
+  date_of_birth DATE NULL,
+  phone VARCHAR(50) NULL,
+  department VARCHAR(150) NULL,
+  cadre VARCHAR(150) NULL,
+  work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL DEFAULT 'general_service',
+  profile_completed TINYINT(1) NOT NULL DEFAULT 0,
+  language VARCHAR(5) NOT NULL DEFAULT 'en',
+  first_login_at DATETIME NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -42,6 +54,14 @@ CREATE TABLE questionnaire (
   title VARCHAR(255) NOT NULL,
   description TEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE performance_period (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  label VARCHAR(50) NOT NULL,
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  UNIQUE KEY uniq_period_label (label)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE questionnaire_section (
@@ -70,6 +90,7 @@ CREATE TABLE questionnaire_response (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   questionnaire_id INT NOT NULL,
+  performance_period_id INT NOT NULL,
   status ENUM('submitted','approved','rejected') NOT NULL DEFAULT 'submitted',
   score INT NULL, -- percentage 0..100
   reviewed_by INT NULL,
@@ -78,7 +99,9 @@ CREATE TABLE questionnaire_response (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE,
-  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+  FOREIGN KEY (performance_period_id) REFERENCES performance_period(id) ON DELETE RESTRICT,
+  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE KEY uniq_user_questionnaire_period (user_id, questionnaire_id, performance_period_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE questionnaire_response_item (
@@ -89,7 +112,35 @@ CREATE TABLE questionnaire_response_item (
   FOREIGN KEY (response_id) REFERENCES questionnaire_response(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO site_config (id, site_name) VALUES (1, 'EPSS Self-Assessment');
+CREATE TABLE course_catalogue (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(50) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  moodle_url VARCHAR(255) NULL,
+  recommended_for ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL,
+  min_score INT NOT NULL DEFAULT 0,
+  max_score INT NOT NULL DEFAULT 99,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE training_recommendation (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  questionnaire_response_id INT NOT NULL,
+  course_id INT NOT NULL,
+  recommendation_reason VARCHAR(255) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (questionnaire_response_id) REFERENCES questionnaire_response(id) ON DELETE CASCADE,
+  FOREIGN KEY (course_id) REFERENCES course_catalogue(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE questionnaire_work_function (
+  questionnaire_id INT NOT NULL,
+  work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL,
+  PRIMARY KEY (questionnaire_id, work_function),
+  FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO site_config (id, site_name) VALUES (1, 'My Performance');
 
 -- default users (bcrypt hashes should be set during runtime; using demo placeholder hashes)
 INSERT INTO users (username,password,role,full_name,email) VALUES
@@ -100,6 +151,12 @@ INSERT INTO users (username,password,role,full_name,email) VALUES
 -- sample questionnaire with weights
 INSERT INTO questionnaire (title, description) VALUES ('Baseline Staff Self-Assessment', 'Initial EPSS self-assessment');
 SET @qid = LAST_INSERT_ID();
+INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES
+(@qid, 'general_service'),
+(@qid, 'hrm'),
+(@qid, 'ict'),
+(@qid, 'finance'),
+(@qid, 'leadership_tn');
 INSERT INTO questionnaire_section (questionnaire_id,title,description,order_index) VALUES
 (@qid,'Core Competencies','General capability checks',1),
 (@qid,'Facility & Process','Process and facility checks',2);
@@ -111,3 +168,18 @@ INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type
 (@qid, @s1, 'q3', 'Describe one challenge faced this week', 'textarea', 3, 20),
 (@qid, @s2, 'q4', 'Daily temperature monitoring completed?', 'boolean', 1, 20),
 (@qid, @s2, 'q5', 'Any stockouts this week?', 'boolean', 2, 20);
+
+INSERT INTO performance_period (label, period_start, period_end) VALUES
+('2021', '2021-01-01', '2021-12-31'),
+('2022', '2022-01-01', '2022-12-31'),
+('2023', '2023-01-01', '2023-12-31'),
+('2024', '2024-01-01', '2024-12-31'),
+('2025', '2025-01-01', '2025-12-31');
+
+INSERT INTO course_catalogue (code, title, moodle_url, recommended_for, min_score, max_score) VALUES
+('FIN-101', 'Financial Management Fundamentals', 'https://moodle.example.com/course/fin101', 'finance', 0, 79),
+('ICT-201', 'Digital Security Essentials', 'https://moodle.example.com/course/ict201', 'ict', 0, 89),
+('HRM-110', 'People Management Basics', 'https://moodle.example.com/course/hrm110', 'hrm', 0, 89),
+('GEN-050', 'Customer Service Excellence', 'https://moodle.example.com/course/gen050', 'general_service', 0, 89),
+('LEAD-300', 'Leadership and Team Nurturing', 'https://moodle.example.com/course/lead300', 'leadership_tn', 0, 94),
+('SAFE-210', 'Security Awareness Refresher', 'https://moodle.example.com/course/safe210', 'security', 0, 94);

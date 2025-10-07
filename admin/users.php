@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__.'/../config.php';
 auth_required(['admin']);
+refresh_current_user($pdo);
+require_profile_completion($pdo);
 $t = load_lang($_SESSION['lang'] ?? 'en');
 
 $msg='';
@@ -10,15 +12,19 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         $u = trim($_POST['username']);
         $p = password_hash($_POST['password'], PASSWORD_DEFAULT);
         $r = in_array($_POST['role'], ['admin','supervisor','staff'], true) ? $_POST['role'] : 'staff';
-        $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email) VALUES (?,?,?,?,?)");
-        $stm->execute([$u,$p,$r, $_POST['full_name'] ?? null, $_POST['email'] ?? null]);
+        $wf = $_POST['work_function'] ?? 'general_service';
+        if (!in_array($wf, WORK_FUNCTIONS, true)) { $wf = 'general_service'; }
+        $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function) VALUES (?,?,?,?,?,?)");
+        $stm->execute([$u,$p,$r, $_POST['full_name'] ?? null, $_POST['email'] ?? null, $wf]);
         $msg='User created';
     }
     if (isset($_POST['reset'])) {
         $id = (int)$_POST['id'];
         $p = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
-        $stm = $pdo->prepare("UPDATE users SET password=?, role=? WHERE id=?");
-        $stm->execute([$p, $_POST['role'], $id]);
+        $wf = $_POST['work_function'] ?? 'general_service';
+        if (!in_array($wf, WORK_FUNCTIONS, true)) { $wf = 'general_service'; }
+        $stm = $pdo->prepare("UPDATE users SET password=?, role=?, work_function=?, profile_completed=0 WHERE id=?");
+        $stm->execute([$p, $_POST['role'], $wf, $id]);
         $msg='Updated';
     }
 }
@@ -38,19 +44,26 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
 <section class="md-section">
 <?php if ($msg): ?><div class="md-alert"><?=$msg?></div><?php endif; ?>
 <div class="md-card md-elev-2"><h2 class="md-card-title">Create User</h2>
-<form method="post" class="grid">
+<form method="post" class="md-form-grid">
 <input type="hidden" name="csrf" value="<?=csrf_token()?>">
 <label class="md-field"><span>Username</span><input name="username" required></label>
 <label class="md-field"><span>Password</span><input name="password" type="password" required></label>
 <label class="md-field"><span>Role</span><select name="role"><option>staff</option><option>supervisor</option><option>admin</option></select></label>
 <label class="md-field"><span>Full name</span><input name="full_name"></label>
 <label class="md-field"><span>Email</span><input name="email"></label>
+<label class="md-field"><span>Work Function</span>
+  <select name="work_function">
+    <?php foreach (WORK_FUNCTIONS as $function): ?>
+      <option value="<?=$function?>"><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function)?></option>
+    <?php endforeach; ?>
+  </select>
+</label>
 <button name="create" class="md-button md-primary md-elev-2">Create</button>
 </form></div>
 
 <div class="md-card md-elev-2"><h2 class="md-card-title">Users</h2>
 <table class="md-table">
-  <thead><tr><th>ID</th><th>User</th><th>Role</th><th>Name</th><th>Email</th><th>Reset</th><th>Del</th></tr></thead>
+  <thead><tr><th>ID</th><th>User</th><th>Role</th><th>Name</th><th>Email</th><th>Work Function</th><th>Reset</th><th>Del</th></tr></thead>
   <tbody>
   <?php foreach ($rows as $r): ?>
   <tr>
@@ -59,6 +72,7 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
     <td><?=$r['role']?></td>
     <td><?=htmlspecialchars($r['full_name'])?></td>
     <td><?=htmlspecialchars($r['email'])?></td>
+    <td><?=htmlspecialchars(WORK_FUNCTION_LABELS[$r['work_function']] ?? $r['work_function'])?></td>
     <td>
       <form method="post" class="md-inline-form">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
@@ -68,6 +82,11 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
           <option <?=$r['role']=='staff'?'selected':''?>>staff</option>
           <option <?=$r['role']=='supervisor'?'selected':''?>>supervisor</option>
           <option <?=$r['role']=='admin'?'selected':''?>>admin</option>
+        </select>
+        <select name="work_function">
+          <?php foreach (WORK_FUNCTIONS as $function): ?>
+            <option value="<?=$function?>" <?=$r['work_function']===$function?'selected':''?>><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function)?></option>
+          <?php endforeach; ?>
         </select>
         <button name="reset" class="md-button md-elev-1">Apply</button>
       </form>
