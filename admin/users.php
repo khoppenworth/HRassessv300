@@ -8,30 +8,61 @@ $t = load_lang($_SESSION['lang'] ?? 'en');
 $msg='';
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     csrf_check();
+
     if (isset($_POST['create'])) {
-        $u = trim($_POST['username']);
-        $p = password_hash($_POST['password'], PASSWORD_DEFAULT);
-        $r = in_array($_POST['role'], ['admin','supervisor','staff'], true) ? $_POST['role'] : 'staff';
-        $wf = $_POST['work_function'] ?? 'general_service';
-        if (!in_array($wf, WORK_FUNCTIONS, true)) { $wf = 'general_service'; }
-        $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function) VALUES (?,?,?,?,?,?)");
-        $stm->execute([$u,$p,$r, $_POST['full_name'] ?? null, $_POST['email'] ?? null, $wf]);
-        $msg='User created';
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $role = $_POST['role'] ?? 'staff';
+        $workFunction = $_POST['work_function'] ?? 'general_service';
+
+        if ($username === '' || $password === '') {
+            $msg = 'Username and password are required.';
+        } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
+            $msg = 'Invalid role selection.';
+        } else {
+            if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
+            $hash = password_hash($password, PASSWORD_DEFAULT);
+            $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function) VALUES (?,?,?,?,?,?)");
+            $stm->execute([
+                $username,
+                $hash,
+                $role,
+                $_POST['full_name'] ?? null,
+                $_POST['email'] ?? null,
+                $workFunction
+            ]);
+            $msg='User created';
+        }
     }
+
     if (isset($_POST['reset'])) {
-        $id = (int)$_POST['id'];
-        $p = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
-        $wf = $_POST['work_function'] ?? 'general_service';
-        if (!in_array($wf, WORK_FUNCTIONS, true)) { $wf = 'general_service'; }
-        $stm = $pdo->prepare("UPDATE users SET password=?, role=?, work_function=?, profile_completed=0 WHERE id=?");
-        $stm->execute([$p, $_POST['role'], $wf, $id]);
-        $msg='Updated';
+        $id = (int)($_POST['id'] ?? 0);
+        $newPassword = $_POST['new_password'] ?? '';
+        $role = $_POST['role'] ?? 'staff';
+        $workFunction = $_POST['work_function'] ?? 'general_service';
+
+        if ($id <= 0 || $newPassword === '') {
+            $msg = 'User and password are required for reset.';
+        } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
+            $msg = 'Invalid role selection.';
+        } else {
+            if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
+            $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+            $stm = $pdo->prepare("UPDATE users SET password=?, role=?, work_function=?, profile_completed=0 WHERE id=?");
+            $stm->execute([$hash, $role, $workFunction, $id]);
+            $msg='Updated';
+        }
     }
-}
-if (isset($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    $pdo->prepare("DELETE FROM users WHERE id=?")->execute([$id]);
-    header('Location: users.php'); exit;
+
+    if (isset($_POST['delete'])) {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $stm = $pdo->prepare('DELETE FROM users WHERE id=?');
+            $stm->execute([$id]);
+            header('Location: users.php');
+            exit;
+        }
+    }
 }
 $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
 ?>
@@ -48,7 +79,7 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
 <input type="hidden" name="csrf" value="<?=csrf_token()?>">
 <label class="md-field"><span>Username</span><input name="username" required></label>
 <label class="md-field"><span>Password</span><input name="password" type="password" required></label>
-<label class="md-field"><span>Role</span><select name="role"><option>staff</option><option>supervisor</option><option>admin</option></select></label>
+  <label class="md-field"><span>Role</span><select name="role"><option value="staff">staff</option><option value="supervisor">supervisor</option><option value="admin">admin</option></select></label>
 <label class="md-field"><span>Full name</span><input name="full_name"></label>
 <label class="md-field"><span>Email</span><input name="email"></label>
 <label class="md-field"><span>Work Function</span>
@@ -78,11 +109,11 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="id" value="<?=$r['id']?>">
         <input name="new_password" placeholder="new pass" required>
-        <select name="role">
-          <option <?=$r['role']=='staff'?'selected':''?>>staff</option>
-          <option <?=$r['role']=='supervisor'?'selected':''?>>supervisor</option>
-          <option <?=$r['role']=='admin'?'selected':''?>>admin</option>
-        </select>
+          <select name="role">
+            <option value="staff" <?=$r['role']=='staff'?'selected':''?>>staff</option>
+            <option value="supervisor" <?=$r['role']=='supervisor'?'selected':''?>>supervisor</option>
+            <option value="admin" <?=$r['role']=='admin'?'selected':''?>>admin</option>
+          </select>
         <select name="work_function">
           <?php foreach (WORK_FUNCTIONS as $function): ?>
             <option value="<?=$function?>" <?=$r['work_function']===$function?'selected':''?>><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function)?></option>
@@ -91,7 +122,13 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
         <button name="reset" class="md-button md-elev-1">Apply</button>
       </form>
     </td>
-    <td><a class="md-button md-danger md-elev-1" onclick="return confirm('Delete?')" href="users.php?delete=<?=$r['id']?>">Delete</a></td>
+    <td>
+      <form method="post" class="md-inline-form" onsubmit="return confirm('Delete?');">
+        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+        <input type="hidden" name="id" value="<?=$r['id']?>">
+        <button name="delete" class="md-button md-danger md-elev-1" type="submit">Delete</button>
+      </form>
+    </td>
   </tr>
   <?php endforeach; ?>
   </tbody>
