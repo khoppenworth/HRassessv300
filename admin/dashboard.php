@@ -4,9 +4,24 @@ auth_required(['admin']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
 $t = load_lang($_SESSION['lang'] ?? 'en');
-$users = $pdo->query("SELECT COUNT(*) c FROM users")->fetch()['c'] ?? 0;
-$q = $pdo->query("SELECT COUNT(*) c FROM questionnaire")->fetch()['c'] ?? 0;
-$r = $pdo->query("SELECT COUNT(*) c FROM questionnaire_response")->fetch()['c'] ?? 0;
+
+/**
+ * Attempt to fetch a COUNT(*) value while gracefully handling missing tables.
+ */
+$fetchCount = static function (PDO $pdo, string $sql): int {
+    try {
+        $stmt = $pdo->query($sql);
+        $row = $stmt ? $stmt->fetch() : null;
+        return (int)($row['c'] ?? 0);
+    } catch (PDOException $e) {
+        error_log('Admin dashboard metric failed: ' . $e->getMessage());
+        return 0;
+    }
+};
+
+$users = $fetchCount($pdo, 'SELECT COUNT(*) c FROM users');
+$q = $fetchCount($pdo, 'SELECT COUNT(*) c FROM questionnaire');
+$r = $fetchCount($pdo, 'SELECT COUNT(*) c FROM questionnaire_response');
 ?>
 <!doctype html><html><head>
 <meta charset="utf-8"><title>Admin</title>
