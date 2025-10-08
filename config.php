@@ -88,11 +88,42 @@ require_once __DIR__.'/i18n.php';
 
 /** get_site_config(): fetch branding and contact settings (singleton row id=1) */
 function get_site_config(PDO $pdo): array {
-    $cfg = $pdo->query("SELECT * FROM site_config WHERE id=1")->fetch();
+    $defaults = [
+        'id' => 1,
+        'site_name' => 'My Performance',
+        'landing_text' => null,
+        'address' => null,
+        'contact' => null,
+        'logo_path' => null,
+    ];
+
+    try {
+        $cfg = $pdo->query("SELECT * FROM site_config WHERE id=1")->fetch();
+    } catch (PDOException $e) {
+        $message = $e->getMessage();
+        $isMissingTable = strpos($message, '42S02') !== false || stripos($message, 'Base table or view not found') !== false;
+        if ($isMissingTable) {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS site_config (
+                id INT PRIMARY KEY,
+                site_name VARCHAR(200) NULL,
+                landing_text TEXT NULL,
+                address VARCHAR(255) NULL,
+                contact VARCHAR(255) NULL,
+                logo_path VARCHAR(255) NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            $pdo->exec("INSERT IGNORE INTO site_config (id,site_name,landing_text,address,contact,logo_path) VALUES (1,'My Performance',NULL,NULL,NULL,NULL)");
+            $cfg = $pdo->query("SELECT * FROM site_config WHERE id=1")->fetch();
+        } else {
+            error_log('get_site_config failed: ' . $message);
+            return $defaults;
+        }
+    }
+
     if (!$cfg) {
-        $pdo->exec("INSERT IGNORE INTO site_config (id,site_name,landing_text,address,contact,logo_path) VALUES (1,'EPSS Self-Assessment',NULL,NULL,NULL,NULL)");
+        $pdo->exec("INSERT IGNORE INTO site_config (id,site_name,landing_text,address,contact,logo_path) VALUES (1,'My Performance',NULL,NULL,NULL,NULL)");
         $cfg = $pdo->query("SELECT * FROM site_config WHERE id=1")->fetch();
     }
-    return $cfg ?: [];
+
+    return array_merge($defaults, $cfg ?: []);
 }
 ?>
