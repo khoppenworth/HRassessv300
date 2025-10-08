@@ -3,6 +3,14 @@
 declare(strict_types=1);
 session_start();
 
+if (!isset($_SESSION['lang'])) {
+    $defaultLang = 'en';
+    if (!empty($_SESSION['user']['language'])) {
+        $defaultLang = $_SESSION['user']['language'];
+    }
+    $_SESSION['lang'] = $defaultLang;
+}
+
 const WORK_FUNCTIONS = [
     'finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification',
     'records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics'
