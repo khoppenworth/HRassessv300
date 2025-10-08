@@ -1,14 +1,63 @@
 <?php
-// config.php (enhanced)
 declare(strict_types=1);
-session_start();
 
-if (!isset($_SESSION['lang'])) {
-    $defaultLang = 'en';
-    if (!empty($_SESSION['user']['language'])) {
-        $defaultLang = $_SESSION['user']['language'];
+if (!defined('APP_BOOTSTRAPPED')) {
+    define('APP_BOOTSTRAPPED', true);
+
+    $appDebug = filter_var(getenv('APP_DEBUG') ?: '0', FILTER_VALIDATE_BOOLEAN);
+    ini_set('display_errors', $appDebug ? '1' : '0');
+    error_reporting(E_ALL);
+
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
     }
-    $_SESSION['lang'] = $defaultLang;
+
+    define('APP_DEBUG', $appDebug);
+
+    define('BASE_PATH', __DIR__);
+
+    $baseUrlEnv = getenv('BASE_URL') ?: '/';
+    $normalizedBaseUrl = rtrim($baseUrlEnv, "/\/");
+    define('BASE_URL', ($normalizedBaseUrl === '') ? '/' : $normalizedBaseUrl . '/');
+
+    require_once __DIR__ . '/i18n.php';
+    require_once __DIR__ . '/lib/path.php';
+
+    $locale = ensure_locale();
+    if (!isset($_SESSION['lang']) || $_SESSION['lang'] !== $locale) {
+        $_SESSION['lang'] = $locale;
+    }
+
+    $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
+    $dbName = getenv('DB_NAME') ?: 'epss_v300';
+    $dbUser = getenv('DB_USER') ?: 'epss_user';
+    $dbPass = getenv('DB_PASS') ?: 'StrongPassword123!';
+
+    $dsn = sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $dbHost, $dbName);
+    $options = [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ];
+
+    try {
+        $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
+    } catch (PDOException $e) {
+        $friendly = 'Unable to connect to the application database. Please try again later or contact support.';
+        error_log('DB connection failed: ' . $e->getMessage());
+        if (PHP_SAPI === 'cli') {
+            fwrite(STDERR, $friendly . PHP_EOL);
+            exit(1);
+        }
+        http_response_code(500);
+        if ($appDebug) {
+            $friendly .= '<br>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+        }
+        echo '<!doctype html><html><head><meta charset="utf-8"><title>Database error</title></head><body>';
+        echo '<h1>Service unavailable</h1><p>' . $friendly . '</p>';
+        echo '</body></html>';
+        exit;
+    }
 }
 
 const WORK_FUNCTIONS = [
@@ -36,23 +85,6 @@ const WORK_FUNCTION_LABELS = [
     'driver' => 'Driver',
     'ethics' => 'Ethics',
 ];
-
-define('DB_HOST','127.0.0.1');
-define('DB_NAME','epss_v300');
-define('DB_USER','epss_user');
-define('DB_PASS','StrongPassword123!');
-define('BASE_URL','/');
-
-$options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-];
-
-try {
-    $pdo = new PDO("mysql:host=".DB_HOST.";dbname=".DB_NAME.";charset=utf8mb4", DB_USER, DB_PASS, $options);
-} catch (PDOException $e) {
-    die("DB connection failed: " . $e->getMessage());
-}
 
 function csrf_token(): string {
     if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }

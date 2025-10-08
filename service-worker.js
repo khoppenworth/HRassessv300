@@ -1,13 +1,22 @@
 const CACHE_NAME = 'my-performance-cache-v1';
+const BASE_SCOPE = (self.registration && self.registration.scope) ? self.registration.scope.replace(/\/+$/, '') : '';
+
+function withBase(path) {
+  if (!path.startsWith('/')) {
+    path = '/' + path;
+  }
+  return `${BASE_SCOPE}${path}`;
+}
+
 const OFFLINE_URLS = [
-  '/',
-  '/dashboard.php',
-  '/submit_assessment.php',
-  '/my_performance.php',
-  '/profile.php',
-  '/assets/css/material.css',
-  '/assets/css/styles.css',
-  '/assets/js/app.js'
+  withBase(''),
+  withBase('dashboard.php'),
+  withBase('submit_assessment.php'),
+  withBase('my_performance.php'),
+  withBase('profile.php'),
+  withBase('assets/css/material.css'),
+  withBase('assets/css/styles.css'),
+  withBase('assets/js/app.js')
 ];
 
 self.addEventListener('install', (event) => {
@@ -41,7 +50,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;
         })
-        .catch(() => caches.match('/')); 
+        .catch(() => caches.match(withBase('')));
     })
   );
 });

@@ -1,13 +1,13 @@
 {
   "name": "My Performance",
   "short_name": "Performance",
-  "start_url": "/dashboard.php",
+  "start_url": "dashboard.php",
   "display": "standalone",
   "background_color": "#f5f5f5",
   "theme_color": "#3949ab",
   "icons": [
     {
-      "src": "/assets/img/epss-logo.svg",
+      "src": "assets/img/epss-logo.svg",
       "sizes": "192x192",
       "type": "image/svg+xml"
     }

@@ -16,6 +16,20 @@ const Builder = (() => {
     metaCsrf: 'meta[name="csrf-token"]',
   };
 
+  const baseMeta = document.querySelector('meta[name="app-base-url"]');
+  let appBase = window.APP_BASE_URL || (baseMeta ? baseMeta.content : '/');
+  if (typeof appBase !== 'string' || appBase === '') {
+    appBase = '/';
+  }
+  const normalizedBase = appBase.replace(/\/+$/, '');
+
+  function withBase(path) {
+    if (!path.startsWith('/')) {
+      path = '/' + path;
+    }
+    return normalizedBase + path;
+  }
+
   function init() {
     const meta = document.querySelector(selectors.metaCsrf);
     if (!meta) return;
@@ -217,7 +231,7 @@ const Builder = (() => {
       setMessage('Loading questionnaires...', 'info');
     }
     try {
-      const response = await fetch(`/admin/questionnaire_manage.php?action=fetch`, {
+      const response = await fetch(withBase('/admin/questionnaire_manage.php?action=fetch'), {
         headers: {
           'X-CSRF-Token': state.csrfToken,
           'Accept': 'application/json',
@@ -648,7 +662,7 @@ const Builder = (() => {
     updateDirtyState();
     setMessage(publish ? 'Publishing...' : 'Saving...', 'info');
     try {
-      const response = await fetch(`/admin/questionnaire_manage.php?action=${publish ? 'publish' : 'save'}`, {
+      const response = await fetch(withBase(`/admin/questionnaire_manage.php?action=${publish ? 'publish' : 'save'}`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

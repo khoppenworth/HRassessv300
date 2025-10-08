@@ -3,7 +3,8 @@ require_once __DIR__.'/../config.php';
 auth_required(['admin']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
-$t = load_lang($_SESSION['lang'] ?? 'en');
+$locale = ensure_locale();
+$t = load_lang($locale);
 
 function send_json(array $payload, int $status = 200): void {
     http_response_code($status);
@@ -419,53 +420,55 @@ if (isset($_POST['import'])) {
                     $order++;
                 }
             }
-            $msg = 'FHIR import complete';
+            $msg = t($t, 'fhir_import_complete', 'FHIR import complete');
         } else {
-            $msg = 'Invalid file';
+            $msg = t($t, 'invalid_file', 'Invalid file');
         }
     } else {
-        $msg = 'No file';
+        $msg = t($t, 'no_file_uploaded', 'No file uploaded');
     }
 }
 ?>
 <!doctype html>
-<html>
+<html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
 <head>
 <meta charset="utf-8">
-<title>Questionnaires</title>
+<title><?=htmlspecialchars(t($t,'manage_questionnaires','Manage Questionnaires'), ENT_QUOTES, 'UTF-8')?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
 <meta name="csrf-token" content="<?=htmlspecialchars(csrf_token(), ENT_QUOTES)?>">
-<link rel="stylesheet" href="/assets/css/material.css">
-<link rel="stylesheet" href="/assets/css/styles.css">
-<link rel="stylesheet" href="/assets/css/questionnaire-builder.css">
+<link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+<link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
+<link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
+<link rel="stylesheet" href="<?=asset_url('assets/css/questionnaire-builder.css')?>">
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer></script>
-<script type="module" src="/assets/js/questionnaire-builder.js" defer></script>
+<script type="module" src="<?=asset_url('assets/js/questionnaire-builder.js')?>" defer></script>
 </head>
 <body class="md-bg">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
   <?php if ($msg): ?>
-    <div class="md-alert"><?=htmlspecialchars($msg)?></div>
+    <div class="md-alert"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div>
   <?php endif; ?>
   <div class="md-card md-elev-2">
     <div class="qb-toolbar">
-      <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire">Add Questionnaire</button>
+      <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
       <div class="qb-toolbar-spacer"></div>
-      <button class="md-button md-elev-2" id="qb-save" disabled>Save</button>
-      <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled>Publish</button>
+      <button class="md-button md-elev-2" id="qb-save" disabled><?=t($t,'save','Save Changes')?></button>
+      <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
     </div>
     <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
     <div id="qb-list" class="qb-list" aria-live="polite"></div>
   </div>
 
   <div class="md-card md-elev-2">
-    <h2 class="md-card-title">FHIR Import</h2>
-    <form method="post" enctype="multipart/form-data" class="qb-import-form">
+    <h2 class="md-card-title"><?=t($t,'fhir_import','FHIR Import')?></h2>
+    <form method="post" enctype="multipart/form-data" class="qb-import-form" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
       <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-      <label class="md-field"><span>File</span><input type="file" name="file" required></label>
-      <button class="md-button md-elev-2" name="import">Import</button>
+      <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
+      <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
     </form>
-    <p>Download XML template: <a href="/samples/sample_questionnaire_template.xml">sample_questionnaire_template.xml</a></p>
+    <p><?=t($t,'download_xml_template','Download XML template')?>: <a href="<?=htmlspecialchars(asset_url('samples/sample_questionnaire_template.xml'), ENT_QUOTES, 'UTF-8')?>">sample_questionnaire_template.xml</a></p>
   </div>
 </section>
 <?php include __DIR__.'/../templates/footer.php'; ?>

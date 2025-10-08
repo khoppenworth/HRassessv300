@@ -1,12 +1,13 @@
 <?php
-require_once __DIR__.'/../config.php';
+require_once __DIR__ . '/../config.php';
 auth_required(['admin']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
-$t = load_lang($_SESSION['lang'] ?? 'en');
+$locale = ensure_locale();
+$t = load_lang($locale);
 
 $msg='';
-if ($_SERVER['REQUEST_METHOD']==='POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
     if (isset($_POST['create'])) {
@@ -16,9 +17,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         $workFunction = $_POST['work_function'] ?? 'general_service';
 
         if ($username === '' || $password === '') {
-            $msg = 'Username and password are required.';
+            $msg = t($t, 'admin_user_required', 'Username and password are required.');
         } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
-            $msg = 'Invalid role selection.';
+            $msg = t($t, 'invalid_role', 'Invalid role selection.');
         } else {
             if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
             $hash = password_hash($password, PASSWORD_DEFAULT);
@@ -31,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                 $_POST['email'] ?? null,
                 $workFunction
             ]);
-            $msg='User created';
+            $msg = t($t, 'user_created', 'User created successfully.');
         }
     }
 
@@ -42,15 +43,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         $workFunction = $_POST['work_function'] ?? 'general_service';
 
         if ($id <= 0 || $newPassword === '') {
-            $msg = 'User and password are required for reset.';
+            $msg = t($t, 'admin_reset_required', 'User and password are required for reset.');
         } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
-            $msg = 'Invalid role selection.';
+            $msg = t($t, 'invalid_role', 'Invalid role selection.');
         } else {
             if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
             $hash = password_hash($newPassword, PASSWORD_DEFAULT);
             $stm = $pdo->prepare("UPDATE users SET password=?, role=?, work_function=?, profile_completed=0 WHERE id=?");
             $stm->execute([$hash, $role, $workFunction, $id]);
-            $msg='Updated';
+            $msg = t($t, 'user_updated', 'User updated successfully.');
         }
     }
 
@@ -59,42 +60,44 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         if ($id > 0) {
             $stm = $pdo->prepare('DELETE FROM users WHERE id=?');
             $stm->execute([$id]);
-            header('Location: users.php');
+            header('Location: ' . url_for('admin/users.php'));
             exit;
         }
     }
 }
 $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
 ?>
-<!doctype html><html><head><meta charset="utf-8"><title>Users</title>
+<!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head><meta charset="utf-8"><title><?=htmlspecialchars(t($t,'manage_users','Manage Users'), ENT_QUOTES, 'UTF-8')?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="/assets/css/material.css">
-<link rel="stylesheet" href="/assets/css/styles.css"></head>
+<meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
+<link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+<link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
+<link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>"></head>
 <body class="md-bg">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
-<?php if ($msg): ?><div class="md-alert"><?=$msg?></div><?php endif; ?>
-<div class="md-card md-elev-2"><h2 class="md-card-title">Create User</h2>
-<form method="post" class="md-form-grid">
+<?php if ($msg): ?><div class="md-alert"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+<div class="md-card md-elev-2"><h2 class="md-card-title"><?=t($t,'create_user','Create User')?></h2>
+<form method="post" class="md-form-grid" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>">
 <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-<label class="md-field"><span>Username</span><input name="username" required></label>
-<label class="md-field"><span>Password</span><input name="password" type="password" required></label>
-  <label class="md-field"><span>Role</span><select name="role"><option value="staff">staff</option><option value="supervisor">supervisor</option><option value="admin">admin</option></select></label>
-<label class="md-field"><span>Full name</span><input name="full_name"></label>
-<label class="md-field"><span>Email</span><input name="email"></label>
-<label class="md-field"><span>Work Function</span>
+<label class="md-field"><span><?=t($t,'username','Username')?></span><input name="username" required></label>
+<label class="md-field"><span><?=t($t,'password','Password')?></span><input name="password" type="password" required></label>
+  <label class="md-field"><span><?=t($t,'role','Role')?></span><select name="role"><option value="staff"><?=t($t,'role_staff','staff')?></option><option value="supervisor"><?=t($t,'role_supervisor','supervisor')?></option><option value="admin"><?=t($t,'role_admin','admin')?></option></select></label>
+<label class="md-field"><span><?=t($t,'full_name','Full Name')?></span><input name="full_name"></label>
+<label class="md-field"><span><?=t($t,'email','Email')?></span><input name="email"></label>
+<label class="md-field"><span><?=t($t,'work_function','Work Function / Cadre')?></span>
   <select name="work_function">
     <?php foreach (WORK_FUNCTIONS as $function): ?>
       <option value="<?=$function?>"><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function)?></option>
     <?php endforeach; ?>
   </select>
 </label>
-<button name="create" class="md-button md-primary md-elev-2">Create</button>
+<button name="create" class="md-button md-primary md-elev-2"><?=t($t,'create','Create')?></button>
 </form></div>
 
-<div class="md-card md-elev-2"><h2 class="md-card-title">Users</h2>
+<div class="md-card md-elev-2"><h2 class="md-card-title"><?=t($t,'manage_users','Manage Users')?></h2>
 <table class="md-table">
-  <thead><tr><th>ID</th><th>User</th><th>Role</th><th>Name</th><th>Email</th><th>Work Function</th><th>Reset</th><th>Del</th></tr></thead>
+  <thead><tr><th><?=t($t,'id','ID')?></th><th><?=t($t,'username','Username')?></th><th><?=t($t,'role','Role')?></th><th><?=t($t,'full_name','Full Name')?></th><th><?=t($t,'email','Email')?></th><th><?=t($t,'work_function','Work Function / Cadre')?></th><th><?=t($t,'reset','Reset')?></th><th><?=t($t,'delete','Delete')?></th></tr></thead>
   <tbody>
   <?php foreach ($rows as $r): ?>
   <tr>
@@ -105,28 +108,28 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
     <td><?=htmlspecialchars($r['email'])?></td>
     <td><?=htmlspecialchars(WORK_FUNCTION_LABELS[$r['work_function']] ?? $r['work_function'])?></td>
     <td>
-      <form method="post" class="md-inline-form">
+      <form method="post" class="md-inline-form" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="id" value="<?=$r['id']?>">
-        <input name="new_password" placeholder="new pass" required>
+        <input name="new_password" placeholder="<?=htmlspecialchars(t($t,'new_password_reset','New Password'), ENT_QUOTES, 'UTF-8')?>" required>
           <select name="role">
-            <option value="staff" <?=$r['role']=='staff'?'selected':''?>>staff</option>
-            <option value="supervisor" <?=$r['role']=='supervisor'?'selected':''?>>supervisor</option>
-            <option value="admin" <?=$r['role']=='admin'?'selected':''?>>admin</option>
+            <option value="staff" <?=$r['role']=='staff'?'selected':''?>><?=t($t,'role_staff','staff')?></option>
+            <option value="supervisor" <?=$r['role']=='supervisor'?'selected':''?>><?=t($t,'role_supervisor','supervisor')?></option>
+            <option value="admin" <?=$r['role']=='admin'?'selected':''?>><?=t($t,'role_admin','admin')?></option>
           </select>
         <select name="work_function">
           <?php foreach (WORK_FUNCTIONS as $function): ?>
             <option value="<?=$function?>" <?=$r['work_function']===$function?'selected':''?>><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function)?></option>
           <?php endforeach; ?>
         </select>
-        <button name="reset" class="md-button md-elev-1">Apply</button>
+        <button name="reset" class="md-button md-elev-1"><?=t($t,'apply','Apply')?></button>
       </form>
     </td>
     <td>
-      <form method="post" class="md-inline-form" onsubmit="return confirm('Delete?');">
+      <form method="post" class="md-inline-form" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" onsubmit="return confirm('<?=htmlspecialchars(t($t,'confirm_delete','Delete this record?'), ENT_QUOTES, 'UTF-8')?>');">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="id" value="<?=$r['id']?>">
-        <button name="delete" class="md-button md-danger md-elev-1" type="submit">Delete</button>
+        <button name="delete" class="md-button md-danger md-elev-1" type="submit"><?=t($t,'delete','Delete')?></button>
       </form>
     </td>
   </tr>
