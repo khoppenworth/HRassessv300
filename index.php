@@ -1,13 +1,14 @@
 <?php
-require_once __DIR__.'/config.php';
-$t = load_lang($_SESSION['lang'] ?? 'en');
+require_once __DIR__ . '/config.php';
+$locale = ensure_locale();
+$t = load_lang($locale);
 $cfg = get_site_config($pdo);
 
-if ($_SERVER['REQUEST_METHOD']==='POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE username=?");
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE username = ?');
     $stmt->execute([$username]);
     $u = $stmt->fetch();
     if ($u && password_verify($password, $u['password'])) {
@@ -16,25 +17,34 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         }
         $_SESSION['user'] = $u;
         $_SESSION['lang'] = $u['language'] ?? ($_SESSION['lang'] ?? 'en');
-        header('Location: dashboard.php'); exit;
+        header('Location: ' . url_for('dashboard.php'));
+        exit;
     } else {
         $err = t($t,'invalid_login','Invalid username or password');
     }
 }
-$logo = $cfg['logo_path'] ? htmlspecialchars($cfg['logo_path']) : 'assets/img/epss-logo.svg';
+$logoPath = (string)($cfg['logo_path'] ?? '');
+if ($logoPath === '') {
+    $logoPath = asset_url('assets/img/epss-logo.svg');
+} elseif (!preg_match('#^https?://#i', $logoPath)) {
+    $logoPath = asset_url(ltrim($logoPath, '/'));
+}
+$logo = htmlspecialchars($logoPath, ENT_QUOTES, 'UTF-8');
 $site_name = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
 $landing_text = htmlspecialchars($cfg['landing_text'] ?? '');
 $address = htmlspecialchars($cfg['address'] ?? '');
 $contact = htmlspecialchars($cfg['contact'] ?? '');
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
 <head>
   <meta charset="utf-8">
   <title><?=$site_name?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="assets/css/material.css">
-  <link rel="stylesheet" href="assets/css/styles.css">
+  <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
+  <link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+  <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
+  <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head>
 <body class="md-bg">
   <div class="md-container">
@@ -49,7 +59,7 @@ $contact = htmlspecialchars($cfg['contact'] ?? '');
         <p class="md-subtitle"><?=t($t,'welcome_msg','Sign in to start your self-assessment and track your performance over time.')?></p>
       <?php endif; ?>
 
-      <form method="post" class="md-form">
+      <form method="post" class="md-form" action="<?=htmlspecialchars(url_for('index.php'), ENT_QUOTES, 'UTF-8')?>">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <label class="md-field">
           <span><?=t($t,'username','Username')?></span>
@@ -59,19 +69,22 @@ $contact = htmlspecialchars($cfg['contact'] ?? '');
           <span><?=t($t,'password','Password')?></span>
           <input type="password" name="password" required>
         </label>
-        <?php if (!empty($err)): ?><div class="md-alert"><?=$err?></div><?php endif; ?>
+        <?php if (!empty($err)): ?><div class="md-alert"><?=htmlspecialchars($err, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
         <button class="md-button md-primary md-elev-2"><?=t($t,'sign_in','Sign In')?></button>
       </form>
 
       <div class="md-meta">
-        <?="{$address}" ? "<div class='md-small'><strong>Address: </strong>{$address}</div>" : ""?>
-        <?="{$contact}" ? "<div class='md-small'><strong>Contact: </strong>{$contact}</div>" : ""?>
+        <?php if ($address): ?><div class='md-small'><strong><?=t($t,'address_label','Address')?>: </strong><?=$address?></div><?php endif; ?>
+        <?php if ($contact): ?><div class='md-small'><strong><?=t($t,'contact_label','Contact')?>: </strong><?=$contact?></div><?php endif; ?>
         <div class="md-small lang-switch">
-          <a href="set_lang.php?lang=en">EN</a> · <a href="set_lang.php?lang=am">AM</a> · <a href="set_lang.php?lang=fr">FR</a>
+          <a href="<?=htmlspecialchars(url_for('set_lang.php?lang=en'), ENT_QUOTES, 'UTF-8')?>">EN</a> ·
+          <a href="<?=htmlspecialchars(url_for('set_lang.php?lang=am'), ENT_QUOTES, 'UTF-8')?>">AM</a> ·
+          <a href="<?=htmlspecialchars(url_for('set_lang.php?lang=fr'), ENT_QUOTES, 'UTF-8')?>">FR</a>
         </div>
       </div>
     </div>
   </div>
-  <script src="assets/js/app.js"></script>
+  <script>window.APP_BASE_URL = <?=json_encode(BASE_URL, JSON_THROW_ON_ERROR)?>;</script>
+  <script src="<?=asset_url('assets/js/app.js')?>"></script>
 </body>
 </html>

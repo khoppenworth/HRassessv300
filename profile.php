@@ -1,13 +1,14 @@
 <?php
-require_once __DIR__.'/config.php';
+require_once __DIR__ . '/config.php';
 auth_required();
 refresh_current_user($pdo);
-$t = load_lang($_SESSION['lang'] ?? 'en');
+$locale = ensure_locale();
+$t = load_lang($locale);
 $user = current_user();
 $message = '';
 $error = '';
 
-if ($_SERVER['REQUEST_METHOD']==='POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $fullName = trim($_POST['full_name'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -63,19 +64,21 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     }
 }
 ?>
-<!doctype html><html><head>
-<meta charset="utf-8"><title><?=t($t,'profile','Profile')?></title>
+<!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head>
+<meta charset="utf-8"><title><?=htmlspecialchars(t($t,'profile','Profile'), ENT_QUOTES, 'UTF-8')?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="assets/css/material.css">
-<link rel="stylesheet" href="assets/css/styles.css">
+<meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
+<link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+<link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
+<link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head><body class="md-bg">
 <?php include __DIR__.'/templates/header.php'; ?>
 <section class="md-section">
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t,'profile_information','Profile Information')?></h2>
-    <?php if ($message): ?><div class="md-alert success"><?=$message?></div><?php endif; ?>
-    <?php if ($error): ?><div class="md-alert error"><?=$error?></div><?php endif; ?>
-    <form method="post" class="md-form-grid">
+    <?php if ($message): ?><div class="md-alert success"><?=htmlspecialchars($message, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+    <?php if ($error): ?><div class="md-alert error"><?=htmlspecialchars($error, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+    <form method="post" class="md-form-grid" action="<?=htmlspecialchars(url_for('profile.php'), ENT_QUOTES, 'UTF-8')?>">
       <input type="hidden" name="csrf" value="<?=csrf_token()?>">
       <label class="md-field">
         <span><?=t($t,'full_name','Full Name')?></span>

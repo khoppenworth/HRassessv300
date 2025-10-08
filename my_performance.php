@@ -1,9 +1,10 @@
 <?php
-require_once __DIR__.'/config.php';
+require_once __DIR__ . '/config.php';
 auth_required(['staff','supervisor','admin']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
-$t = load_lang($_SESSION['lang'] ?? 'en');
+$locale = ensure_locale();
+$t = load_lang($locale);
 $user = current_user();
 
 $stmt = $pdo->prepare("SELECT qr.*, q.title, pp.label AS period_label FROM questionnaire_response qr JOIN questionnaire q ON q.id=qr.questionnaire_id JOIN performance_period pp ON pp.id = qr.performance_period_id WHERE qr.user_id=? ORDER BY qr.created_at ASC");
@@ -38,15 +39,23 @@ if (!empty($user['work_function'])) {
     }
 }
 $recommendedCourses = array_values($recommendedCourses);
+$flash = $_GET['msg'] ?? '';
+$flashMessage = '';
+if ($flash === 'submitted') {
+    $flashMessage = t($t, 'submission_success', 'Assessment submitted successfully.');
+}
 ?>
-<!doctype html><html><head>
-<meta charset="utf-8"><title><?=t($t,'my_performance','My Performance')?></title>
+<!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head>
+<meta charset="utf-8"><title><?=htmlspecialchars(t($t,'my_performance','My Performance'), ENT_QUOTES, 'UTF-8')?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="assets/css/material.css">
-<link rel="stylesheet" href="assets/css/styles.css">
+<meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
+<link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+<link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
+<link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head><body class="md-bg">
 <?php include __DIR__.'/templates/header.php'; ?>
 <section class="md-section">
+  <?php if ($flashMessage): ?><div class="md-alert success"><?=htmlspecialchars($flashMessage, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t,'performance_overview','Performance Overview')?></h2>
     <p><?=t($t,'current_work_function','Current work function:')?> <?=htmlspecialchars(WORK_FUNCTION_LABELS[$user['work_function']] ?? $user['work_function'])?></p>
