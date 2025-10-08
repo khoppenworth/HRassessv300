@@ -1,6 +1,7 @@
 :root {
   --app-primary: #3949ab;
   --app-bg: #f5f7fb;
+  --appbar-height: 64px;
 }
 
 body.md-bg {
@@ -17,6 +18,7 @@ body.md-bg {
   position: sticky;
   top: 0;
   z-index: 1000;
+  min-height: var(--appbar-height);
 }
 
 .md-appbar-title {
@@ -69,17 +71,25 @@ body.md-bg {
   background: rgba(57, 73, 171, 0.1);
 }
 
+.md-shell {
+  position: relative;
+  width: 100%;
+  padding: 1rem 1rem 1.5rem;
+}
+
 .md-drawer {
   width: 260px;
   background: #fff;
-  height: 100vh;
   position: fixed;
-  top: 0;
+  top: var(--appbar-height);
   left: 0;
+  bottom: 0;
   transform: translateX(-100%);
   transition: transform 0.3s ease;
   box-shadow: 2px 0 8px rgba(0,0,0,0.1);
   padding-bottom: 2rem;
+  overflow-y: auto;
+  z-index: 1200;
 }
 
 .md-drawer.open {
@@ -133,8 +143,9 @@ body.md-bg {
 
 .md-main {
   margin-left: 0;
-  padding: 1rem;
+  padding: 1rem 0;
   transition: margin-left 0.3s ease;
+  min-height: calc(100vh - var(--appbar-height));
 }
 
 .md-section {
@@ -238,15 +249,28 @@ body.md-bg {
 }
 
 @media (min-width: 960px) {
+  .md-shell {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    column-gap: 2rem;
+    padding: 1.5rem 2rem 2.5rem;
+  }
+
   .md-drawer {
-    transform: translateX(0);
     position: sticky;
-    top: 0;
+    top: calc(var(--appbar-height) + 1.5rem);
+    transform: none;
+    height: calc(100vh - var(--appbar-height) - 3rem);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+    border-radius: 14px;
+    left: auto;
+    bottom: auto;
   }
 
   .md-main {
-    margin-left: 260px;
-    padding: 2rem;
+    margin-left: 0;
+    padding: 0;
+    min-height: calc(100vh - var(--appbar-height) - 3rem);
   }
 
   .md-appbar-toggle {

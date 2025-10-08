@@ -57,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!$error) {
             $_SESSION['lang'] = $language;
+            $locale = ensure_locale();
+            $t = load_lang($locale);
             refresh_current_user($pdo);
             $user = current_user();
             $message = t($t,'profile_updated','Profile updated successfully.');

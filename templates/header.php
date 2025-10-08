@@ -33,6 +33,7 @@ $availableLocales = available_locales();
     <a href="<?=htmlspecialchars(url_for('logout.php'), ENT_QUOTES, 'UTF-8')?>" class="md-appbar-link"><?=t($t, 'logout', 'Logout')?></a>
   </nav>
 </header>
+<div class="md-shell">
 <aside class="md-drawer" data-drawer>
   <div class="md-drawer-header">
     <img src="<?=$logoPathSmall?>" alt="Logo" class="md-logo-sm">

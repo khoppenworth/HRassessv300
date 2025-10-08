@@ -1,4 +1,4 @@
-.PHONY: run lint seed-admin
+.PHONY: run lint seed-admin rebuild
 
 run:
 	php -S localhost:8080 -t .
@@ -9,3 +9,6 @@ lint:
 
 seed-admin:
 	php scripts/seed_admin.php
+
+rebuild:
+	php scripts/rebuild_app.php $(ARGS)

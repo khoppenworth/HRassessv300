@@ -18,11 +18,16 @@ Performance assessment portal built with PHP and MySQL.
    make seed-admin
    ```
    The command prints the generated password to the console.
-5. Launch the development web server:
+5. (Optional) Rebuild the database from scratch, loading migrations, demo data, and an admin user:
+   ```sh
+   make rebuild
+   ```
+   Pass `ARGS="--no-dummy"` or `ARGS="--no-admin"` to the make target (or run `php scripts/rebuild_app.php` directly) if you want to exclude demo rows or the admin seeding step.
+6. Launch the development web server:
    ```sh
    make run
    ```
-6. Visit [http://localhost:8080](http://localhost:8080) and sign in with the seeded administrator credentials.
+7. Visit [http://localhost:8080](http://localhost:8080) and sign in with the seeded administrator credentials.
 
 ## Configuration
 

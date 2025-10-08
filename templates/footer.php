@@ -3,6 +3,7 @@ $locale = ensure_locale();
 $t = load_lang($locale);
 ?>
 </main>
+</div>
 <footer class="md-footer">
   <div class="md-small text-center"><?=htmlspecialchars(t($t, 'footer_note', 'My Performance — Material-inspired UI. Admin can update logo, site name, landing text, address, and contact.'), ENT_QUOTES, 'UTF-8')?></div>
 </footer>
