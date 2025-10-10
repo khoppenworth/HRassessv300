@@ -84,7 +84,8 @@ $contact = htmlspecialchars($cfg['contact'] ?? '');
       </div>
     </div>
   </div>
-  <script>window.APP_BASE_URL = <?=json_encode(BASE_URL, JSON_THROW_ON_ERROR)?>;</script>
+  <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">window.APP_BASE_URL = <?=json_encode(BASE_URL, JSON_THROW_ON_ERROR)?>;</script>
   <script src="<?=asset_url('assets/js/app.js')?>"></script>
 </body>
 </html>
+

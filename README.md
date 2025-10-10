@@ -55,6 +55,13 @@ Translations live in `lang/*.json`. Users can switch between English, French, an
 - `make lint` – run `php -l` across all PHP files.
 - GitHub Actions workflow `.github/workflows/ci.yml` lints PHP and checks MySQL availability.
 
+## Quality and compliance
+
+Refer to [`docs/quality_assurance.md`](docs/quality_assurance.md) for the
+project's quality management and compliance framework. The checklist aligns the
+delivery workflow with ISO/IEC 12207 (software life cycle), ISO/IEC 25010
+(product quality), ISO/IEC 27001 (information security), and related standards.
+
 ## Default navigation
 
 - `/index.php` – login

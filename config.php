@@ -22,11 +22,14 @@ if (!defined('APP_BOOTSTRAPPED')) {
 
     require_once __DIR__ . '/i18n.php';
     require_once __DIR__ . '/lib/path.php';
+    require_once __DIR__ . '/lib/security.php';
 
     $locale = ensure_locale();
     if (!isset($_SESSION['lang']) || $_SESSION['lang'] !== $locale) {
         $_SESSION['lang'] = $locale;
     }
+
+    apply_security_headers($appDebug);
 
     $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
     $dbName = getenv('DB_NAME') ?: 'epss_v300';
