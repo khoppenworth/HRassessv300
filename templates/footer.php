@@ -24,6 +24,8 @@ $currentYear = date('Y');
       <a href="mailto:info@epss.gov.et">info@epss.gov.et</a>
       <span>•</span>
       <a href="tel:+251111559900">+251 11 155 9900</a>
+      <span>•</span>
+      <a href="tel:939">Hotline 939</a>
     </div>
     <div class="md-footer-meta">&copy; <?=$currentYear?> <?=$orgName?>. <?=$rights?></div>
   </div>
