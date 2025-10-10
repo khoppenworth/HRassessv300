@@ -54,6 +54,16 @@ Translations live in `lang/*.json`. Users can switch between English, French, an
 - `migration.sql` – incremental changes when upgrading existing databases.
 - `dummy_data.sql` – optional demo users and responses. Remove with `dummy_data_cleanup.sql` if needed.
 
+## Questionnaire import
+
+Administrators can upload FHIR `Questionnaire` resources (JSON or XML) from
+**Administration → Manage Questionnaires**. The importer accepts standalone
+Questionnaire resources or Bundles that contain them. Items with
+`<type>group</type>` (or child `item` nodes) become sections in the application,
+and every nested item is imported as a question in the same order as the source
+file. A sample XML template that demonstrates the grouping structure is
+available at `assets/samples/sample_questionnaire_template.xml`.
+
 ## Development tooling
 
 - `make lint` – run `php -l` across all PHP files.

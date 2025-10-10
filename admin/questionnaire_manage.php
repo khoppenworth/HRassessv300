@@ -403,22 +403,84 @@ if (isset($_POST['import'])) {
                     $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)')
                         ->execute([$qid, $wf]);
                 }
-                $order = 1;
-                foreach (($resource['item'] ?? []) as $it) {
-                    $type = $it['type'] ?? 'text';
-                    $text = $it['text'] ?? ($it['linkId'] ?? 'item');
-                    $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent) VALUES (?,?,?,?,?,?,?)')
-                        ->execute([
+
+                $insertSectionStmt = $pdo->prepare('INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index) VALUES (?, ?, ?, ?)');
+                $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent) VALUES (?,?,?,?,?,?,?)');
+
+                $sectionOrder = 1;
+                $itemOrder = 1;
+
+                $toList = static function ($value) {
+                    if (!is_array($value)) {
+                        return [];
+                    }
+                    $expected = 0;
+                    foreach (array_keys($value) as $key) {
+                        if ((string)$key !== (string)$expected) {
+                            return [$value];
+                        }
+                        $expected++;
+                    }
+                    return $value;
+                };
+
+                $mapType = static function ($type) {
+                    $type = strtolower((string)$type);
+                    switch ($type) {
+                        case 'boolean':
+                            return 'boolean';
+                        case 'text':
+                        case 'textarea':
+                            return 'textarea';
+                        default:
+                            return 'text';
+                    }
+                };
+
+                $processItems = function ($items, $sectionId = null) use (&$processItems, &$sectionOrder, &$itemOrder, $insertSectionStmt, $insertItemStmt, $qid, $toList, $mapType, $pdo) {
+                    $items = $toList($items);
+                    foreach ($items as $it) {
+                        if (!is_array($it)) {
+                            continue;
+                        }
+                        $children = $it['item'] ?? [];
+                        $childList = $toList($children);
+                        $type = strtolower($it['type'] ?? '');
+                        $hasChildren = !empty($childList);
+
+                        if ($hasChildren || $type === 'group') {
+                            $title = $it['text'] ?? ($it['linkId'] ?? ('Section '.$sectionOrder));
+                            $description = $it['description'] ?? null;
+                            $insertSectionStmt->execute([$qid, $title, $description, $sectionOrder]);
+                            $newSectionId = (int)$pdo->lastInsertId();
+                            $sectionOrder++;
+                            if ($hasChildren) {
+                                $processItems($childList, $newSectionId);
+                            }
+                            continue;
+                        }
+
+                        if ($type === 'display') {
+                            // Display items are headers or text blocks; skip them.
+                            continue;
+                        }
+
+                        $linkId = $it['linkId'] ?? ('i'.$itemOrder);
+                        $text = $it['text'] ?? $linkId;
+                        $insertItemStmt->execute([
                             $qid,
-                            null,
-                            $it['linkId'] ?? ('i'.$order),
+                            $sectionId,
+                            $linkId,
                             $text,
-                            in_array($type, ['boolean', 'text', 'textarea'], true) ? $type : 'text',
-                            $order,
+                            $mapType($type),
+                            $itemOrder,
                             0,
                         ]);
-                    $order++;
-                }
+                        $itemOrder++;
+                    }
+                };
+
+                $processItems($resource['item'] ?? []);
             }
             $msg = t($t, 'fhir_import_complete', 'FHIR import complete');
         } else {
