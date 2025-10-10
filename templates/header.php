@@ -41,21 +41,24 @@ $availableLocales = available_locales();
   </div>
   <nav class="md-drawer-nav">
     <div class="md-drawer-section">
-      <span class="md-drawer-label"><?=t($t, 'main_navigation', 'Main Navigation')?></span>
-      <a href="<?=htmlspecialchars(url_for('dashboard.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'dashboard', 'Dashboard')?></a>
-      <a href="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'submit_assessment', 'Submit Assessment')?></a>
+      <span class="md-drawer-label"><?=t($t, 'my_workspace', 'My Workspace')?></span>
       <a href="<?=htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'my_performance', 'My Performance')?></a>
+      <a href="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'submit_assessment', 'Submit Assessment')?></a>
       <a href="<?=htmlspecialchars(url_for('profile.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'profile', 'Profile')?></a>
-      <?php if (in_array($role, ['admin', 'supervisor'], true)): ?>
-        <a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'review_queue', 'Review Queue')?></a>
-      <?php endif; ?>
     </div>
+    <?php if (in_array($role, ['admin', 'supervisor'], true)): ?>
+      <div class="md-drawer-section">
+        <span class="md-drawer-label"><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
+        <a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'review_queue', 'Review Queue')?></a>
+      </div>
+    <?php endif; ?>
     <?php if ($role === 'admin'): ?>
       <div class="md-drawer-section">
         <span class="md-drawer-label"><?=t($t, 'admin_navigation', 'Administration')?></span>
         <a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'admin_dashboard', 'Admin Dashboard')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'manage_users', 'Manage Users')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'analytics', 'Analytics')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'export_data', 'Export Data')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'branding', 'Branding & Landing')?></a>
       </div>

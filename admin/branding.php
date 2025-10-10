@@ -24,6 +24,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $footer_hotline_label = trim($_POST['footer_hotline_label'] ?? '');
     $footer_hotline_number = trim($_POST['footer_hotline_number'] ?? '');
     $footer_rights = trim($_POST['footer_rights'] ?? '');
+    $google_oauth_enabled = isset($_POST['google_oauth_enabled']) ? 1 : 0;
+    $google_oauth_client_id = trim($_POST['google_oauth_client_id'] ?? '');
+    $google_oauth_client_secret = trim($_POST['google_oauth_client_secret'] ?? '');
+    $microsoft_oauth_enabled = isset($_POST['microsoft_oauth_enabled']) ? 1 : 0;
+    $microsoft_oauth_client_id = trim($_POST['microsoft_oauth_client_id'] ?? '');
+    $microsoft_oauth_client_secret = trim($_POST['microsoft_oauth_client_secret'] ?? '');
+    $microsoft_oauth_tenant = trim($_POST['microsoft_oauth_tenant'] ?? '');
+    if ($microsoft_oauth_tenant === '') {
+        $microsoft_oauth_tenant = 'common';
+    }
 
     if ($footer_website_url && !preg_match('#^https?://#i', $footer_website_url)) {
         $footer_website_url = 'https://' . ltrim($footer_website_url, '/');
@@ -66,6 +76,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'footer_hotline_label' => $footer_hotline_label,
         'footer_hotline_number' => $footer_hotline_number,
         'footer_rights' => $footer_rights,
+        'google_oauth_enabled' => $google_oauth_enabled,
+        'google_oauth_client_id' => $google_oauth_client_id,
+        'google_oauth_client_secret' => $google_oauth_client_secret,
+        'microsoft_oauth_enabled' => $microsoft_oauth_enabled,
+        'microsoft_oauth_client_id' => $microsoft_oauth_client_id,
+        'microsoft_oauth_client_secret' => $microsoft_oauth_client_secret,
+        'microsoft_oauth_tenant' => $microsoft_oauth_tenant,
     ];
 
     $assignments = [];
@@ -114,6 +131,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <label class="md-field"><span><?=t($t,'footer_hotline_label_label','Hotline Label')?></span><input name="footer_hotline_label" value="<?=htmlspecialchars($cfg['footer_hotline_label'] ?? '')?>"></label>
       <label class="md-field"><span><?=t($t,'footer_hotline_number_label','Hotline Number')?></span><input name="footer_hotline_number" value="<?=htmlspecialchars($cfg['footer_hotline_number'] ?? '')?>"></label>
       <label class="md-field"><span><?=t($t,'footer_rights_label','Rights Statement')?></span><input name="footer_rights" value="<?=htmlspecialchars($cfg['footer_rights'] ?? '')?>"></label>
+      <h3 class="md-subhead"><?=t($t,'sso_settings','Single Sign-On (SSO)')?></h3>
+      <div class="md-control">
+        <label>
+          <input type="checkbox" name="google_oauth_enabled" value="1" <?=((int)($cfg['google_oauth_enabled'] ?? 0) === 1) ? 'checked' : ''?>>
+          <span><?=t($t,'enable_google_sign_in','Enable Google sign-in')?></span>
+        </label>
+      </div>
+      <label class="md-field"><span><?=t($t,'google_client_id','Google Client ID')?></span><input name="google_oauth_client_id" value="<?=htmlspecialchars($cfg['google_oauth_client_id'] ?? '')?>"></label>
+      <label class="md-field"><span><?=t($t,'google_client_secret','Google Client Secret')?></span><input type="password" name="google_oauth_client_secret" value="<?=htmlspecialchars($cfg['google_oauth_client_secret'] ?? '')?>"></label>
+      <div class="md-control">
+        <label>
+          <input type="checkbox" name="microsoft_oauth_enabled" value="1" <?=((int)($cfg['microsoft_oauth_enabled'] ?? 0) === 1) ? 'checked' : ''?>>
+          <span><?=t($t,'enable_microsoft_sign_in','Enable Microsoft sign-in')?></span>
+        </label>
+      </div>
+      <label class="md-field"><span><?=t($t,'microsoft_client_id','Microsoft Client ID')?></span><input name="microsoft_oauth_client_id" value="<?=htmlspecialchars($cfg['microsoft_oauth_client_id'] ?? '')?>"></label>
+      <label class="md-field"><span><?=t($t,'microsoft_client_secret','Microsoft Client Secret')?></span><input type="password" name="microsoft_oauth_client_secret" value="<?=htmlspecialchars($cfg['microsoft_oauth_client_secret'] ?? '')?>"></label>
+      <label class="md-field"><span><?=t($t,'microsoft_tenant','Microsoft Tenant (directory)')?></span><input name="microsoft_oauth_tenant" value="<?=htmlspecialchars($cfg['microsoft_oauth_tenant'] ?? 'common')?>"></label>
       <div class="md-field">
         <span><?=t($t,'logo','Logo')?></span>
         <input type="file" name="logo" accept="image/*">

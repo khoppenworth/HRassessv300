@@ -27,7 +27,14 @@ CREATE TABLE site_config (
   footer_phone VARCHAR(255) NULL,
   footer_hotline_label VARCHAR(255) NULL,
   footer_hotline_number VARCHAR(50) NULL,
-  footer_rights VARCHAR(255) NULL
+  footer_rights VARCHAR(255) NULL,
+  google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  google_oauth_client_id VARCHAR(255) NULL,
+  google_oauth_client_secret VARCHAR(255) NULL,
+  microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  microsoft_oauth_client_id VARCHAR(255) NULL,
+  microsoft_oauth_client_secret VARCHAR(255) NULL,
+  microsoft_oauth_tenant VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE users (
@@ -164,7 +171,14 @@ INSERT INTO site_config (
   footer_phone,
   footer_hotline_label,
   footer_hotline_number,
-  footer_rights
+  footer_rights,
+  google_oauth_enabled,
+  google_oauth_client_id,
+  google_oauth_client_secret,
+  microsoft_oauth_enabled,
+  microsoft_oauth_client_id,
+  microsoft_oauth_client_secret,
+  microsoft_oauth_tenant
 ) VALUES (
   1,
   'My Performance',
@@ -180,7 +194,14 @@ INSERT INTO site_config (
   '+251 11 155 9900',
   'Hotline 939',
   '939',
-  'All rights reserved.'
+  'All rights reserved.',
+  0,
+  NULL,
+  NULL,
+  0,
+  NULL,
+  NULL,
+  'common'
 );
 
 -- default users (bcrypt hashes should be set during runtime; using demo placeholder hashes)

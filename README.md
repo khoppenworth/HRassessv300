@@ -37,6 +37,10 @@ Environment variables are read directly via `getenv`. Set them in your shell or 
 - `BASE_URL` (defaults to `/`)
 - `APP_DEBUG` (`1` to show errors in development, otherwise disable display of errors)
 
+### Single sign-on
+
+Administrators can configure Google Workspace or Microsoft Entra ID (Azure AD) authentication under **Administration → Branding & Landing**. Provide the client ID, client secret, and (for Microsoft) the tenant identifier. The OAuth redirect URL is `<BASE_URL>/oauth.php?provider=<google|microsoft>&action=callback`; ensure this is registered with each provider. When enabled, the login page renders "Sign in with Google" or "Sign in with Microsoft" buttons alongside the classic username/password form.
+
 ## Internationalisation
 
 Translations live in `lang/*.json`. Users can switch between English, French, and Amharic via the language selector. Preferences persist in the session and a cookie. To add a language:
@@ -65,7 +69,7 @@ delivery workflow with ISO/IEC 12207 (software life cycle), ISO/IEC 25010
 ## Default navigation
 
 - `/index.php` – login
-- `/dashboard.php` – user dashboard
+- `/my_performance.php` – personal performance hub (default landing page after login)
 - `/submit_assessment.php` – assessment submission
 - `/admin/*` – administration
 
