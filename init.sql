@@ -18,7 +18,16 @@ CREATE TABLE site_config (
   landing_text TEXT NULL,
   address VARCHAR(255) NULL,
   contact VARCHAR(255) NULL,
-  logo_path VARCHAR(255) NULL
+  logo_path VARCHAR(255) NULL,
+  footer_org_name VARCHAR(255) NULL,
+  footer_org_short VARCHAR(100) NULL,
+  footer_website_label VARCHAR(255) NULL,
+  footer_website_url VARCHAR(255) NULL,
+  footer_email VARCHAR(255) NULL,
+  footer_phone VARCHAR(255) NULL,
+  footer_hotline_label VARCHAR(255) NULL,
+  footer_hotline_number VARCHAR(50) NULL,
+  footer_rights VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE users (
@@ -140,7 +149,39 @@ CREATE TABLE questionnaire_work_function (
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO site_config (id, site_name) VALUES (1, 'My Performance');
+INSERT INTO site_config (
+  id,
+  site_name,
+  landing_text,
+  address,
+  contact,
+  logo_path,
+  footer_org_name,
+  footer_org_short,
+  footer_website_label,
+  footer_website_url,
+  footer_email,
+  footer_phone,
+  footer_hotline_label,
+  footer_hotline_number,
+  footer_rights
+) VALUES (
+  1,
+  'My Performance',
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  'Ethiopian Pharmaceutical Supply Service',
+  'EPSS / EPS',
+  'epss.gov.et',
+  'https://epss.gov.et',
+  'info@epss.gov.et',
+  '+251 11 155 9900',
+  'Hotline 939',
+  '939',
+  'All rights reserved.'
+);
 
 -- default users (bcrypt hashes should be set during runtime; using demo placeholder hashes)
 INSERT INTO users (username,password,role,full_name,email) VALUES

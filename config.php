@@ -129,6 +129,59 @@ function require_profile_completion(PDO $pdo, string $redirect = 'profile.php'):
 
 require_once __DIR__.'/i18n.php';
 
+function ensure_site_config_schema(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS site_config (
+        id INT PRIMARY KEY,
+        site_name VARCHAR(200) NULL,
+        landing_text TEXT NULL,
+        address VARCHAR(255) NULL,
+        contact VARCHAR(255) NULL,
+        logo_path VARCHAR(255) NULL,
+        footer_org_name VARCHAR(255) NULL,
+        footer_org_short VARCHAR(100) NULL,
+        footer_website_label VARCHAR(255) NULL,
+        footer_website_url VARCHAR(255) NULL,
+        footer_email VARCHAR(255) NULL,
+        footer_phone VARCHAR(255) NULL,
+        footer_hotline_label VARCHAR(255) NULL,
+        footer_hotline_number VARCHAR(50) NULL,
+        footer_rights VARCHAR(255) NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $existing = [];
+    $columns = $pdo->query('SHOW COLUMNS FROM site_config');
+    if ($columns) {
+        while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
+            if (isset($col['Field'])) {
+                $existing[$col['Field']] = true;
+            }
+        }
+    }
+
+    $schema = [
+        'site_name' => 'ALTER TABLE site_config ADD COLUMN site_name VARCHAR(200) NULL',
+        'landing_text' => 'ALTER TABLE site_config ADD COLUMN landing_text TEXT NULL',
+        'address' => 'ALTER TABLE site_config ADD COLUMN address VARCHAR(255) NULL',
+        'contact' => 'ALTER TABLE site_config ADD COLUMN contact VARCHAR(255) NULL',
+        'logo_path' => 'ALTER TABLE site_config ADD COLUMN logo_path VARCHAR(255) NULL',
+        'footer_org_name' => 'ALTER TABLE site_config ADD COLUMN footer_org_name VARCHAR(255) NULL',
+        'footer_org_short' => 'ALTER TABLE site_config ADD COLUMN footer_org_short VARCHAR(100) NULL',
+        'footer_website_label' => 'ALTER TABLE site_config ADD COLUMN footer_website_label VARCHAR(255) NULL',
+        'footer_website_url' => 'ALTER TABLE site_config ADD COLUMN footer_website_url VARCHAR(255) NULL',
+        'footer_email' => 'ALTER TABLE site_config ADD COLUMN footer_email VARCHAR(255) NULL',
+        'footer_phone' => 'ALTER TABLE site_config ADD COLUMN footer_phone VARCHAR(255) NULL',
+        'footer_hotline_label' => 'ALTER TABLE site_config ADD COLUMN footer_hotline_label VARCHAR(255) NULL',
+        'footer_hotline_number' => 'ALTER TABLE site_config ADD COLUMN footer_hotline_number VARCHAR(50) NULL',
+        'footer_rights' => 'ALTER TABLE site_config ADD COLUMN footer_rights VARCHAR(255) NULL',
+    ];
+
+    foreach ($schema as $field => $sql) {
+        if (!isset($existing[$field])) {
+            $pdo->exec($sql);
+        }
+    }
+}
+
 /** get_site_config(): fetch branding and contact settings (singleton row id=1) */
 function get_site_config(PDO $pdo): array {
     $defaults = [
@@ -138,33 +191,24 @@ function get_site_config(PDO $pdo): array {
         'address' => null,
         'contact' => null,
         'logo_path' => null,
+        'footer_org_name' => 'Ethiopian Pharmaceutical Supply Service',
+        'footer_org_short' => 'EPSS / EPS',
+        'footer_website_label' => 'epss.gov.et',
+        'footer_website_url' => 'https://epss.gov.et',
+        'footer_email' => 'info@epss.gov.et',
+        'footer_phone' => '+251 11 155 9900',
+        'footer_hotline_label' => 'Hotline 939',
+        'footer_hotline_number' => '939',
+        'footer_rights' => 'All rights reserved.',
     ];
 
     try {
-        $cfg = $pdo->query("SELECT * FROM site_config WHERE id=1")->fetch();
+        ensure_site_config_schema($pdo);
+        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.')");
+        $cfg = $pdo->query('SELECT * FROM site_config WHERE id=1')->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-        $message = $e->getMessage();
-        $isMissingTable = strpos($message, '42S02') !== false || stripos($message, 'Base table or view not found') !== false;
-        if ($isMissingTable) {
-            $pdo->exec("CREATE TABLE IF NOT EXISTS site_config (
-                id INT PRIMARY KEY,
-                site_name VARCHAR(200) NULL,
-                landing_text TEXT NULL,
-                address VARCHAR(255) NULL,
-                contact VARCHAR(255) NULL,
-                logo_path VARCHAR(255) NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-            $pdo->exec("INSERT IGNORE INTO site_config (id,site_name,landing_text,address,contact,logo_path) VALUES (1,'My Performance',NULL,NULL,NULL,NULL)");
-            $cfg = $pdo->query("SELECT * FROM site_config WHERE id=1")->fetch();
-        } else {
-            error_log('get_site_config failed: ' . $message);
-            return $defaults;
-        }
-    }
-
-    if (!$cfg) {
-        $pdo->exec("INSERT IGNORE INTO site_config (id,site_name,landing_text,address,contact,logo_path) VALUES (1,'My Performance',NULL,NULL,NULL,NULL)");
-        $cfg = $pdo->query("SELECT * FROM site_config WHERE id=1")->fetch();
+        error_log('get_site_config failed: ' . $e->getMessage());
+        return $defaults;
     }
 
     return array_merge($defaults, $cfg ?: []);

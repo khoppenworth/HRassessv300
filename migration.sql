@@ -7,9 +7,60 @@ CREATE TABLE IF NOT EXISTS site_config (
   landing_text TEXT NULL,
   address VARCHAR(255) NULL,
   contact VARCHAR(255) NULL,
-  logo_path VARCHAR(255) NULL
+  logo_path VARCHAR(255) NULL,
+  footer_org_name VARCHAR(255) NULL,
+  footer_org_short VARCHAR(100) NULL,
+  footer_website_label VARCHAR(255) NULL,
+  footer_website_url VARCHAR(255) NULL,
+  footer_email VARCHAR(255) NULL,
+  footer_phone VARCHAR(255) NULL,
+  footer_hotline_label VARCHAR(255) NULL,
+  footer_hotline_number VARCHAR(50) NULL,
+  footer_rights VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-INSERT IGNORE INTO site_config (id, site_name) VALUES (1, 'My Performance');
+ALTER TABLE site_config
+  ADD COLUMN IF NOT EXISTS footer_org_name VARCHAR(255) NULL AFTER logo_path,
+  ADD COLUMN IF NOT EXISTS footer_org_short VARCHAR(100) NULL AFTER footer_org_name,
+  ADD COLUMN IF NOT EXISTS footer_website_label VARCHAR(255) NULL AFTER footer_org_short,
+  ADD COLUMN IF NOT EXISTS footer_website_url VARCHAR(255) NULL AFTER footer_website_label,
+  ADD COLUMN IF NOT EXISTS footer_email VARCHAR(255) NULL AFTER footer_website_url,
+  ADD COLUMN IF NOT EXISTS footer_phone VARCHAR(255) NULL AFTER footer_email,
+  ADD COLUMN IF NOT EXISTS footer_hotline_label VARCHAR(255) NULL AFTER footer_phone,
+  ADD COLUMN IF NOT EXISTS footer_hotline_number VARCHAR(50) NULL AFTER footer_hotline_label,
+  ADD COLUMN IF NOT EXISTS footer_rights VARCHAR(255) NULL AFTER footer_hotline_number;
+INSERT IGNORE INTO site_config (
+  id,
+  site_name,
+  landing_text,
+  address,
+  contact,
+  logo_path,
+  footer_org_name,
+  footer_org_short,
+  footer_website_label,
+  footer_website_url,
+  footer_email,
+  footer_phone,
+  footer_hotline_label,
+  footer_hotline_number,
+  footer_rights
+) VALUES (
+  1,
+  'My Performance',
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  'Ethiopian Pharmaceutical Supply Service',
+  'EPSS / EPS',
+  'epss.gov.et',
+  'https://epss.gov.et',
+  'info@epss.gov.et',
+  '+251 11 155 9900',
+  'Hotline 939',
+  '939',
+  'All rights reserved.'
+);
 
 ALTER TABLE users
   ADD COLUMN gender ENUM('female','male','other','prefer_not_say') NULL AFTER email,
