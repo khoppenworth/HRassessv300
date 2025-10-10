@@ -1,36 +1,46 @@
 :root {
-  --app-primary: #3949ab;
-  --app-bg: #f5f7fb;
+  --app-primary: #0b4b3b;
+  --app-primary-dark: #063529;
+  --app-secondary: #f3b221;
+  --app-surface: #ffffff;
+  --app-muted: #4f5b57;
+  --app-bg: linear-gradient(135deg, #f4f7f2 0%, #eaf3ec 50%, #f4f7f2 100%);
   --appbar-height: 64px;
+  --app-shadow-soft: 0 14px 38px rgba(9, 65, 47, 0.12);
 }
 
 body.md-bg {
   background: var(--app-bg);
   min-height: 100vh;
+  color: #12211c;
 }
 
 .md-appbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
-  background: #fff;
+  padding: 0.75rem 1.25rem;
+  background: linear-gradient(90deg, var(--app-primary-dark), var(--app-primary));
   position: sticky;
   top: 0;
   z-index: 1000;
   min-height: var(--appbar-height);
+  color: #f4fdf8;
+  box-shadow: 0 6px 18px rgba(6, 53, 41, 0.25);
 }
 
 .md-appbar-title {
-  font-size: 1.1rem;
+  font-size: 1.125rem;
   font-weight: 600;
-  color: var(--app-primary);
+  color: inherit;
+  letter-spacing: 0.015em;
 }
 
 .md-appbar-toggle {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.12);
   border: none;
-  padding: 0.25rem;
+  padding: 0.35rem;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -41,55 +51,67 @@ body.md-bg {
 .md-appbar-toggle span {
   width: 22px;
   height: 2px;
-  background: #555;
+  background: #f8fbf7;
   display: block;
 }
 
 .md-appbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.9rem;
 }
 
 .md-appbar-link {
-  color: #3949ab;
+  color: inherit;
   text-decoration: none;
   font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  transition: background 0.3s ease;
+}
+
+.md-appbar-link:hover,
+.md-appbar-link:focus {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .md-lang-switch a {
   margin: 0 0.15rem;
-  padding: 0.15rem 0.35rem;
-  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
   text-decoration: none;
-  color: #3949ab;
+  color: inherit;
   font-size: 0.85rem;
+  font-weight: 600;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 .md-lang-switch a.active,
 .md-lang-switch a:hover {
-  background: rgba(57, 73, 171, 0.1);
+  background: rgba(255, 255, 255, 0.18);
+  color: #fffde7;
 }
 
 .md-shell {
   position: relative;
   width: 100%;
-  padding: 1rem 1rem 1.5rem;
+  padding: 1.25rem 1.25rem 2rem;
 }
 
 .md-drawer {
   width: 260px;
-  background: #fff;
+  background: var(--app-surface);
   position: fixed;
   top: var(--appbar-height);
   left: 0;
   bottom: 0;
   transform: translateX(-100%);
   transition: transform 0.3s ease;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  box-shadow: 10px 0 30px rgba(9, 65, 47, 0.12);
   padding-bottom: 2rem;
   overflow-y: auto;
   z-index: 1200;
+  border-right: 1px solid rgba(11, 75, 59, 0.08);
 }
 
 .md-drawer.open {
@@ -97,66 +119,76 @@ body.md-bg {
 }
 
 .md-drawer-header {
-  padding: 1.25rem 1rem 0.75rem;
+  padding: 1.25rem 1.25rem 0.85rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  border-bottom: 1px solid #f0f0f0;
+  gap: 0.85rem;
+  border-bottom: 1px solid rgba(11, 75, 59, 0.08);
+  background: linear-gradient(135deg, rgba(11, 75, 59, 0.08), rgba(11, 75, 59, 0));
 }
 
 .md-drawer-title {
-  font-weight: 600;
-  color: #3949ab;
+  font-weight: 700;
+  color: var(--app-primary);
 }
 
 .md-drawer-nav {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1rem 0.5rem;
+  gap: 1.15rem;
+  padding: 1.1rem 0.75rem;
 }
 
 .md-drawer-section {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 
 .md-drawer-label {
   font-size: 0.75rem;
   text-transform: uppercase;
-  color: #828282;
+  color: rgba(17, 49, 38, 0.62);
   padding: 0 0.75rem;
+  letter-spacing: 0.08em;
 }
 
 .md-drawer-link {
-  padding: 0.65rem 0.75rem;
-  border-radius: 6px;
-  color: #37474f;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  color: #163428;
   text-decoration: none;
   display: block;
+  font-weight: 500;
+  transition: background 0.3s ease, color 0.3s ease, transform 0.2s ease;
 }
 
-.md-drawer-link:hover {
-  background: rgba(57, 73, 171, 0.08);
+.md-drawer-link:hover,
+.md-drawer-link:focus {
+  background: rgba(11, 75, 59, 0.1);
+  color: var(--app-primary);
+  transform: translateX(4px);
 }
 
 .md-main {
   margin-left: 0;
-  padding: 1rem 0;
+  padding: 1.1rem 0;
   transition: margin-left 0.3s ease;
   min-height: calc(100vh - var(--appbar-height));
 }
 
 .md-section {
   display: grid;
-  gap: 1rem;
-  margin-top: 1rem;
+  gap: 1.25rem;
+  margin-top: 1.25rem;
 }
 
 .md-card {
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-soft);
+  border: 1px solid rgba(11, 75, 59, 0.08);
 }
 
 .md-inline-form {
@@ -169,15 +201,18 @@ body.md-bg {
 .md-form-grid {
   display: grid;
   gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .md-field select,
 .md-field input,
 .md-field textarea {
   width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #dcdcdc;
-  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(11, 75, 59, 0.2);
+  border-radius: 10px;
+  background: #fdfefc;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .md-field textarea {
@@ -190,7 +225,15 @@ body.md-bg {
   margin-bottom: 0.35rem;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #424242;
+  color: var(--app-muted);
+}
+
+.md-field input:focus,
+.md-field select:focus,
+.md-field textarea:focus {
+  outline: none;
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 3px rgba(11, 75, 59, 0.12);
 }
 
 .md-form-actions {
@@ -200,20 +243,23 @@ body.md-bg {
 
 .md-alert {
   padding: 0.75rem 1rem;
-  border-radius: 6px;
-  background: #fff8e1;
-  color: #795548;
+  border-radius: 10px;
+  background: rgba(243, 178, 33, 0.12);
+  color: #7a4c00;
+  border-left: 4px solid var(--app-secondary);
   margin-bottom: 1rem;
 }
 
 .md-alert.success {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: rgba(11, 75, 59, 0.12);
+  color: var(--app-primary);
+  border-left-color: var(--app-primary);
 }
 
 .md-alert.error {
-  background: #ffebee;
-  color: #c62828;
+  background: rgba(198, 40, 40, 0.12);
+  color: #7f1d1d;
+  border-left-color: #c62828;
 }
 
 .md-table {
@@ -223,8 +269,8 @@ body.md-bg {
 
 .md-table th,
 .md-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 0.85rem 0.75rem;
+  border-bottom: 1px solid rgba(11, 75, 59, 0.08);
 }
 
 .md-table th {
@@ -232,20 +278,63 @@ body.md-bg {
   font-size: 0.8rem;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: #6b6b6b;
+  color: rgba(17, 49, 38, 0.62);
 }
 
 .md-hint {
   display: block;
   margin-top: 0.35rem;
   font-size: 0.75rem;
-  color: #757575;
+  color: rgba(17, 49, 38, 0.6);
 }
 
 .md-footer {
-  padding: 1.5rem;
+  padding: 2.5rem 1.25rem;
+  background: linear-gradient(90deg, var(--app-primary-dark), var(--app-primary));
+  color: #f4fdf8;
+}
+
+.md-footer a {
+  color: #fff9c4;
+  text-decoration: none;
+}
+
+.md-footer a:hover,
+.md-footer a:focus {
+  text-decoration: underline;
+}
+
+.md-footer-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   text-align: center;
-  background: transparent;
+}
+
+.md-footer-brand {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.md-footer-meta {
+  font-size: 0.85rem;
+  opacity: 0.82;
+}
+
+.md-footer-links {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  opacity: 0.92;
+}
+
+.md-footer-links span {
+  opacity: 0.6;
+  color: #f9fbe7;
 }
 
 @media (min-width: 960px) {
@@ -261,8 +350,8 @@ body.md-bg {
     top: calc(var(--appbar-height) + 1.5rem);
     transform: none;
     height: calc(100vh - var(--appbar-height) - 3rem);
-    box-shadow: 0 12px 28px rgba(0,0,0,0.08);
-    border-radius: 14px;
+    box-shadow: 0 16px 42px rgba(9, 65, 47, 0.16);
+    border-radius: 16px;
     left: auto;
     bottom: auto;
   }
@@ -275,5 +364,16 @@ body.md-bg {
 
   .md-appbar-toggle {
     display: none;
+  }
+
+  .md-footer-inner {
+    text-align: left;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .md-footer-links {
+    justify-content: flex-end;
   }
 }
