@@ -7,6 +7,7 @@ $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $msg = '';
+$logoError = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -29,25 +30,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $footer_website_url = 'https://' . ltrim($footer_website_url, '/');
     }
 
-    if (!empty($_FILES['logo']['tmp_name'])) {
-        $dir = base_path('assets/uploads');
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-        $original = basename($_FILES['logo']['name']);
-        $fn = 'logo_' . time() . '_' . preg_replace('/[^A-Za-z0-9_.-]/', '_', $original);
-        $dest = $dir . '/' . $fn;
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime = $finfo ? finfo_file($finfo, $_FILES['logo']['tmp_name']) : null;
-        if ($finfo) {
-            finfo_close($finfo);
-        }
-        if (in_array($mime, ['image/png', 'image/jpeg', 'image/svg+xml', 'image/gif'], true)) {
-            if (move_uploaded_file($_FILES['logo']['tmp_name'], $dest)) {
-                $logo_path = 'assets/uploads/' . $fn;
+    $logoFile = $_FILES['logo'] ?? null;
+    $logoErrorCode = (int)($logoFile['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($logoErrorCode !== UPLOAD_ERR_NO_FILE) {
+        if ($logoErrorCode !== UPLOAD_ERR_OK) {
+            $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
+        } elseif (!empty($logoFile['tmp_name'])) {
+            $dir = base_path('assets/uploads');
+            if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+                $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
+            } else {
+                $original = basename((string)$logoFile['name']);
+                $fn = 'logo_' . time() . '_' . preg_replace('/[^A-Za-z0-9_.-]/', '_', $original);
+                $dest = $dir . '/' . $fn;
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $mime = $finfo ? finfo_file($finfo, $logoFile['tmp_name']) : null;
+                if ($finfo) {
+                    finfo_close($finfo);
+                }
+                if (in_array($mime, ['image/png', 'image/jpeg', 'image/svg+xml', 'image/gif'], true)) {
+                    if (move_uploaded_file($logoFile['tmp_name'], $dest)) {
+                        $logo_path = 'assets/uploads/' . $fn;
+                    } else {
+                        $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
+                    }
+                } else {
+                    $logoError = t($t, 'invalid_file_type', 'Invalid file type. Logo was not updated.');
+                }
             }
         } else {
-            $msg = t($t, 'invalid_file_type', 'Invalid file type.');
+            $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
         }
     }
 
@@ -77,7 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stm = $pdo->prepare('UPDATE site_config SET ' . implode(', ', $assignments) . ' WHERE id=1');
     $stm->execute($values);
-    $msg = t($t, 'branding_updated', 'Branding updated successfully.');
+    if ($logoError !== null) {
+        $msg = $logoError;
+    } else {
+        $msg = t($t, 'branding_updated', 'Branding updated successfully.');
+    }
     $cfg = get_site_config($pdo);
 }
 ?>
