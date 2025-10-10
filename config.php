@@ -93,12 +93,28 @@ function csrf_token(): string {
     if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }
     return $_SESSION['csrf'];
 }
-function csrf_check() {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $tok = $_POST['csrf'] ?? '';
-        if (!isset($_SESSION['csrf']) || !hash_equals($_SESSION['csrf'], $tok)) {
-            http_response_code(400); die('Invalid CSRF token');
-        }
+function request_csrf_token(): string {
+    if (!empty($_SERVER['HTTP_X_CSRF_TOKEN'])) {
+        return (string)$_SERVER['HTTP_X_CSRF_TOKEN'];
+    }
+    if (isset($_POST['csrf'])) {
+        return (string)$_POST['csrf'];
+    }
+    if (isset($_GET['csrf'])) {
+        return (string)$_GET['csrf'];
+    }
+    return '';
+}
+
+function csrf_check(): void {
+    $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    if (in_array($method, ['GET', 'HEAD', 'OPTIONS', 'TRACE'], true)) {
+        return;
+    }
+    $token = request_csrf_token();
+    if ($token === '' || !isset($_SESSION['csrf']) || !hash_equals((string)$_SESSION['csrf'], $token)) {
+        http_response_code(400);
+        die('Invalid CSRF token');
     }
 }
 
