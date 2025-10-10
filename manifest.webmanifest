@@ -1,7 +1,7 @@
 {
   "name": "My Performance",
   "short_name": "Performance",
-  "start_url": "dashboard.php",
+  "start_url": "my_performance.php",
   "display": "standalone",
   "background_color": "#f5f5f5",
   "theme_color": "#3949ab",

@@ -16,7 +16,14 @@ CREATE TABLE IF NOT EXISTS site_config (
   footer_phone VARCHAR(255) NULL,
   footer_hotline_label VARCHAR(255) NULL,
   footer_hotline_number VARCHAR(50) NULL,
-  footer_rights VARCHAR(255) NULL
+  footer_rights VARCHAR(255) NULL,
+  google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  google_oauth_client_id VARCHAR(255) NULL,
+  google_oauth_client_secret VARCHAR(255) NULL,
+  microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  microsoft_oauth_client_id VARCHAR(255) NULL,
+  microsoft_oauth_client_secret VARCHAR(255) NULL,
+  microsoft_oauth_tenant VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS footer_org_name VARCHAR(255) NULL AFTER logo_path,
@@ -27,7 +34,14 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS footer_phone VARCHAR(255) NULL AFTER footer_email,
   ADD COLUMN IF NOT EXISTS footer_hotline_label VARCHAR(255) NULL AFTER footer_phone,
   ADD COLUMN IF NOT EXISTS footer_hotline_number VARCHAR(50) NULL AFTER footer_hotline_label,
-  ADD COLUMN IF NOT EXISTS footer_rights VARCHAR(255) NULL AFTER footer_hotline_number;
+  ADD COLUMN IF NOT EXISTS footer_rights VARCHAR(255) NULL AFTER footer_hotline_number,
+  ADD COLUMN IF NOT EXISTS google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER footer_rights,
+  ADD COLUMN IF NOT EXISTS google_oauth_client_id VARCHAR(255) NULL AFTER google_oauth_enabled,
+  ADD COLUMN IF NOT EXISTS google_oauth_client_secret VARCHAR(255) NULL AFTER google_oauth_client_id,
+  ADD COLUMN IF NOT EXISTS microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER google_oauth_client_secret,
+  ADD COLUMN IF NOT EXISTS microsoft_oauth_client_id VARCHAR(255) NULL AFTER microsoft_oauth_enabled,
+  ADD COLUMN IF NOT EXISTS microsoft_oauth_client_secret VARCHAR(255) NULL AFTER microsoft_oauth_client_id,
+  ADD COLUMN IF NOT EXISTS microsoft_oauth_tenant VARCHAR(255) NULL AFTER microsoft_oauth_client_secret;
 INSERT IGNORE INTO site_config (
   id,
   site_name,
@@ -43,7 +57,14 @@ INSERT IGNORE INTO site_config (
   footer_phone,
   footer_hotline_label,
   footer_hotline_number,
-  footer_rights
+  footer_rights,
+  google_oauth_enabled,
+  google_oauth_client_id,
+  google_oauth_client_secret,
+  microsoft_oauth_enabled,
+  microsoft_oauth_client_id,
+  microsoft_oauth_client_secret,
+  microsoft_oauth_tenant
 ) VALUES (
   1,
   'My Performance',
@@ -59,7 +80,14 @@ INSERT IGNORE INTO site_config (
   '+251 11 155 9900',
   'Hotline 939',
   '939',
-  'All rights reserved.'
+  'All rights reserved.',
+  0,
+  NULL,
+  NULL,
+  0,
+  NULL,
+  NULL,
+  'common'
 );
 
 ALTER TABLE users

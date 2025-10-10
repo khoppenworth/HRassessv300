@@ -3,6 +3,27 @@ require_once __DIR__ . '/config.php';
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$err = '';
+
+$oauthProviders = [];
+$googleEnabled = ((int)($cfg['google_oauth_enabled'] ?? 0) === 1)
+    && !empty($cfg['google_oauth_client_id'])
+    && !empty($cfg['google_oauth_client_secret']);
+if ($googleEnabled) {
+    $oauthProviders['google'] = t($t, 'sign_in_with_google', 'Sign in with Google');
+}
+
+$microsoftEnabled = ((int)($cfg['microsoft_oauth_enabled'] ?? 0) === 1)
+    && !empty($cfg['microsoft_oauth_client_id'])
+    && !empty($cfg['microsoft_oauth_client_secret']);
+if ($microsoftEnabled) {
+    $oauthProviders['microsoft'] = t($t, 'sign_in_with_microsoft', 'Sign in with Microsoft');
+}
+
+if (!empty($_SESSION['oauth_error'])) {
+    $err = (string)$_SESSION['oauth_error'];
+    unset($_SESSION['oauth_error']);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -17,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $_SESSION['user'] = $u;
         $_SESSION['lang'] = $u['language'] ?? ($_SESSION['lang'] ?? 'en');
-        header('Location: ' . url_for('dashboard.php'));
+        header('Location: ' . url_for('my_performance.php'));
         exit;
     } else {
         $err = t($t,'invalid_login','Invalid username or password');
@@ -72,6 +93,15 @@ $contact = htmlspecialchars($cfg['contact'] ?? '');
         <?php if (!empty($err)): ?><div class="md-alert"><?=htmlspecialchars($err, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
         <button class="md-button md-primary md-elev-2"><?=t($t,'sign_in','Sign In')?></button>
       </form>
+
+      <?php if (!empty($oauthProviders)): ?>
+        <div class="md-divider"></div>
+        <div class="md-sso-buttons">
+          <?php foreach ($oauthProviders as $provider => $label): ?>
+            <a class="md-button md-elev-1 md-sso-btn <?=$provider?>" href="<?=htmlspecialchars(url_for('oauth.php?provider=' . $provider), ENT_QUOTES, 'UTF-8')?>"><?=$label?></a>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
 
       <div class="md-meta">
         <?php if ($address): ?><div class='md-small'><strong><?=t($t,'address_label','Address')?>: </strong><?=$address?></div><?php endif; ?>
