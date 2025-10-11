@@ -651,3 +651,43 @@ body.theme-dark .md-button.md-primary {
     justify-content: flex-end;
   }
 }
+
+.likert-scale {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.likert-scale__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(13, 112, 56, 0.08);
+  min-width: 110px;
+}
+
+.likert-scale__option input[type="radio"] {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.likert-scale__option span {
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--app-muted);
+}
+
+.trend-chart-wrap {
+  width: 100%;
+  height: 260px;
+  margin-bottom: 1rem;
+}
+
+.trend-chart-wrap canvas {
+  max-height: 100%;
+}

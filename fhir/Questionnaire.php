@@ -24,6 +24,8 @@ foreach ($qs as $q) {
         $type = $it['type'];
         if ($type === 'textarea') {
             $type = 'text';
+        } elseif ($type === 'likert') {
+            $type = 'choice';
         }
         $entry = array(
             'linkId' => $it['linkId'],
@@ -34,7 +36,7 @@ foreach ($qs as $q) {
                 'valueInteger' => (int)$it['weight_percent'],
             )),
         );
-        if ($it['type'] === 'choice') {
+        if ($it['type'] === 'choice' || $it['type'] === 'likert') {
             if (!empty($it['allow_multiple'])) {
                 $entry['repeats'] = true;
             }
@@ -44,6 +46,12 @@ foreach ($qs as $q) {
                 $entry['answerOption'] = array_map(static function ($value) {
                     return array('valueString' => $value);
                 }, $opts);
+            }
+            if ($it['type'] === 'likert') {
+                $entry['extension'][] = array(
+                    'url' => 'http://example.org/fhir/StructureDefinition/questionnaire-item-scale',
+                    'valueString' => 'likert-1-5'
+                );
             }
         }
         return $entry;
