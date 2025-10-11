@@ -20,6 +20,10 @@ if ($user['role'] === 'staff') {
 }
 $periods = $pdo->query("SELECT id, label FROM performance_period ORDER BY period_start DESC")->fetchAll();
 $qid = (int)($_GET['qid'] ?? ($q[0]['id'] ?? 0));
+$availableQuestionnaireIds = array_map(static fn($row) => (int)$row['id'], $q);
+if ($qid && !in_array($qid, $availableQuestionnaireIds, true)) {
+    $qid = $availableQuestionnaireIds[0] ?? 0;
+}
 $periodId = (int)($_GET['performance_period_id'] ?? ($periods[0]['id'] ?? 0));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -82,10 +86,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Load selected questionnaire with sections and items
+$questionnaireDetails = null;
 $sections = []; $items = [];
 $availablePeriods = $periods;
 $taken = [];
 if ($qid) {
+    $detailStmt = $pdo->prepare('SELECT id, title, description FROM questionnaire WHERE id=?');
+    $detailStmt->execute([$qid]);
+    $questionnaireDetails = $detailStmt->fetch() ?: null;
     $s = $pdo->prepare("SELECT * FROM questionnaire_section WHERE questionnaire_id=? ORDER BY order_index ASC");
     $s->execute([$qid]); $sections = $s->fetchAll();
     $i = $pdo->prepare("SELECT * FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC");
@@ -112,10 +120,10 @@ if ($qid) {
 <div class="md-card md-elev-2">
   <h2 class="md-card-title"><?=t($t,'submit_assessment','Submit Assessment')?></h2>
   <?php if (!empty($err)): ?><div class="md-alert"><?=htmlspecialchars($err, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
-  <form method="get" class="md-inline-form" action="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>">
+  <form method="get" class="md-inline-form" action="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" data-questionnaire-form>
     <label class="md-field">
       <span><?=t($t,'select_questionnaire','Select questionnaire')?></span>
-      <select name="qid" onchange="this.form.submit()">
+      <select name="qid" data-questionnaire-select>
         <?php foreach ($q as $row): ?>
           <option value="<?=$row['id']?>" <?=($row['id']==$qid?'selected':'')?>><?=htmlspecialchars($row['title'])?></option>
         <?php endforeach; ?>
@@ -123,13 +131,16 @@ if ($qid) {
     </label>
     <label class="md-field">
       <span><?=t($t,'performance_period','Performance Period')?></span>
-      <select name="performance_period_id" onchange="this.form.submit()">
+      <select name="performance_period_id" data-performance-period-select>
         <?php foreach ($periods as $period): ?>
           <?php $disabled = in_array($period['id'], $taken, true); ?>
           <option value="<?=$period['id']?>" <?=($period['id']==$periodId?'selected':'')?> <?=$disabled?'disabled':''?>><?=htmlspecialchars($period['label'])?><?=$disabled?' · '.t($t,'already_submitted','Submitted'):''?></option>
         <?php endforeach; ?>
       </select>
     </label>
+    <noscript>
+      <button type="submit" class="md-button md-secondary"><?=t($t,'submit','Submit')?></button>
+    </noscript>
   </form>
   <?php if ($qid && empty($availablePeriods)): ?>
     <p><?=t($t,'all_periods_used','You have already submitted for every period available for this questionnaire.')?></p>
@@ -138,6 +149,15 @@ if ($qid) {
     <input type="hidden" name="csrf" value="<?=csrf_token()?>">
     <input type="hidden" name="qid" value="<?=$qid?>">
     <input type="hidden" name="performance_period_id" value="<?=$periodId?>">
+    <?php if ($questionnaireDetails): ?>
+      <div class="md-questionnaire-header">
+        <h3 class="md-section-title"><?=htmlspecialchars($questionnaireDetails['title'])?></h3>
+        <?php if (!empty($questionnaireDetails['description'])): ?>
+          <p class="md-muted"><?=htmlspecialchars($questionnaireDetails['description'])?></p>
+        <?php endif; ?>
+        <div class="md-divider"></div>
+      </div>
+    <?php endif; ?>
     <?php foreach ($sections as $sec): ?>
       <h3 class="md-section-title"><?=htmlspecialchars($sec['title'])?></h3>
       <p class="md-muted"><?=htmlspecialchars($sec['description'])?></p>
@@ -163,6 +183,60 @@ if ($qid) {
   <?php else: ?>
     <p><?=t($t,'no_questionnaire','No questionnaire found.')?></p>
   <?php endif; ?>
+  <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+  (function() {
+    const form = document.querySelector('[data-questionnaire-form]');
+    if (!form) {
+      return;
+    }
+    const questionnaireSelect = form.querySelector('[data-questionnaire-select]');
+    const periodSelect = form.querySelector('[data-performance-period-select]');
+
+    const updateLocation = () => {
+      const currentUrl = new URL(window.location.href);
+      const action = form.getAttribute('action');
+      if (action) {
+        const actionUrl = new URL(action, window.location.origin);
+        currentUrl.pathname = actionUrl.pathname;
+      }
+
+      const qid = questionnaireSelect ? questionnaireSelect.value : '';
+      if (qid) {
+        currentUrl.searchParams.set('qid', qid);
+      } else {
+        currentUrl.searchParams.delete('qid');
+      }
+
+      if (periodSelect && periodSelect.options.length) {
+        const selectedOption = periodSelect.options[periodSelect.selectedIndex] || null;
+        if (selectedOption && !selectedOption.disabled && selectedOption.value !== '') {
+          currentUrl.searchParams.set('performance_period_id', selectedOption.value);
+        } else {
+          currentUrl.searchParams.delete('performance_period_id');
+        }
+      } else {
+        currentUrl.searchParams.delete('performance_period_id');
+      }
+
+      window.location.assign(currentUrl.toString());
+    };
+
+    if (questionnaireSelect) {
+      questionnaireSelect.addEventListener('change', () => {
+        if (periodSelect) {
+          periodSelect.selectedIndex = -1;
+        }
+        updateLocation();
+      });
+    }
+
+    if (periodSelect) {
+      periodSelect.addEventListener('change', () => {
+        updateLocation();
+      });
+    }
+  })();
+  </script>
 </div>
 </section>
 <?php include __DIR__.'/templates/footer.php'; ?>
