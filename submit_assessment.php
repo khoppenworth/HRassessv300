@@ -45,24 +45,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rid = (int)$pdo->lastInsertId();
 
             // Fetch items with weights
-            $items = $pdo->prepare('SELECT linkId, type, COALESCE(weight_percent,0) AS weight_percent FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC');
-            $items->execute([$qid]);
-            $items = $items->fetchAll();
+            $itemsStmt = $pdo->prepare('SELECT id, linkId, type, allow_multiple, COALESCE(weight_percent,0) AS weight_percent FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC');
+            $itemsStmt->execute([$qid]);
+            $items = $itemsStmt->fetchAll();
+
+            $optionMap = [];
+            if ($items) {
+                $itemIds = array_column($items, 'id');
+                $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
+                $optStmt = $pdo->prepare("SELECT questionnaire_item_id, value FROM questionnaire_item_option WHERE questionnaire_item_id IN ($placeholders) ORDER BY questionnaire_item_id, order_index, id");
+                $optStmt->execute($itemIds);
+                foreach ($optStmt->fetchAll() as $opt) {
+                    $itemId = (int)$opt['questionnaire_item_id'];
+                    $optionMap[$itemId][] = $opt['value'];
+                }
+            }
 
             $score_sum = 0.0;
             $weight_sum = 0.0;
 
             foreach ($items as $it) {
                 $name = 'item_' . $it['linkId'];
-                $ans = $_POST[$name] ?? '';
                 $weight = (float)$it['weight_percent'];
                 $achieved = 0.0;
 
                 if ($it['type'] === 'boolean') {
+                    $ans = $_POST[$name] ?? '';
                     $val = ($ans === '1' || $ans === 'true' || $ans === 'on') ? 'true' : 'false';
                     $achieved = ($val === 'true') ? $weight : 0.0;
                     $a = json_encode([['valueBoolean' => $val === 'true']]);
+                } elseif ($it['type'] === 'choice') {
+                    $allowMultiple = !empty($it['allow_multiple']);
+                    $raw = $_POST[$name] ?? ($allowMultiple ? [] : '');
+                    $selected = $allowMultiple ? (array)$raw : [$raw];
+                    $values = array_values(array_filter(array_map(static function ($val) {
+                        if (is_string($val)) {
+                            return trim($val);
+                        }
+                        return '';
+                    }, $selected), static fn($val) => $val !== ''));
+                    $validOptions = array_map('trim', $optionMap[(int)$it['id']] ?? []);
+                    if ($validOptions) {
+                        $values = array_values(array_filter($values, static function ($val) use ($validOptions) {
+                            return in_array($val, $validOptions, true);
+                        }));
+                    }
+                    $achieved = $values ? $weight : 0.0;
+                    $a = json_encode(array_map(static fn($val) => ['valueString' => $val], $values));
                 } else {
+                    $ans = $_POST[$name] ?? '';
                     $txt = trim((string)$ans);
                     $achieved = ($txt !== '') ? $weight : 0.0;
                     $a = json_encode([['valueString' => $txt]]);
@@ -98,7 +129,24 @@ if ($qid) {
     $s = $pdo->prepare("SELECT * FROM questionnaire_section WHERE questionnaire_id=? ORDER BY order_index ASC");
     $s->execute([$qid]); $sections = $s->fetchAll();
     $i = $pdo->prepare("SELECT * FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC");
-    $i->execute([$qid]); $items = $i->fetchAll();
+    $i->execute([$qid]);
+    $items = $i->fetchAll();
+    $itemOptions = [];
+    if ($items) {
+        $itemIds = array_column($items, 'id');
+        $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
+        $optStmt = $pdo->prepare("SELECT questionnaire_item_id, value, order_index FROM questionnaire_item_option WHERE questionnaire_item_id IN ($placeholders) ORDER BY questionnaire_item_id, order_index, id");
+        $optStmt->execute($itemIds);
+        foreach ($optStmt->fetchAll() as $row) {
+            $itemOptions[(int)$row['questionnaire_item_id']][] = $row;
+        }
+        foreach ($items as &$itemRow) {
+            $itemId = (int)$itemRow['id'];
+            $itemRow['options'] = $itemOptions[$itemId] ?? [];
+            $itemRow['allow_multiple'] = (bool)$itemRow['allow_multiple'];
+        }
+        unset($itemRow);
+    }
     $takenStmt = $pdo->prepare('SELECT performance_period_id FROM questionnaire_response WHERE user_id=? AND questionnaire_id=?');
     $takenStmt->execute([$user['id'], $qid]);
     $taken = array_column($takenStmt->fetchAll(), 'performance_period_id');
@@ -107,6 +155,44 @@ if ($qid) {
         $periodId = $availablePeriods[0]['id'] ?? 0;
     }
 }
+
+$renderQuestionField = static function (array $it, array $t): string {
+    $options = $it['options'] ?? [];
+    $allowMultiple = !empty($it['allow_multiple']);
+    ob_start();
+    ?>
+    <label class="md-field">
+      <span><?=htmlspecialchars($it['text'] ?? '', ENT_QUOTES, 'UTF-8')?></span>
+      <?php if (($it['type'] ?? '') === 'boolean'): ?>
+        <input type="checkbox" name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="true">
+      <?php elseif (($it['type'] ?? '') === 'textarea'): ?>
+        <textarea name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" rows="3"></textarea>
+      <?php elseif (($it['type'] ?? '') === 'choice' && !empty($options)): ?>
+        <?php if ($allowMultiple): ?>
+        <select name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>[]" multiple size="<?=max(3, min(6, count($options)))?>">
+          <?php foreach ($options as $opt): ?>
+            <option value="<?=htmlspecialchars($opt['value'] ?? '', ENT_QUOTES, 'UTF-8')?>"><?=htmlspecialchars($opt['value'] ?? '', ENT_QUOTES, 'UTF-8')?></option>
+          <?php endforeach; ?>
+        </select>
+          <small class="md-hint"><?=htmlspecialchars(t($t,'multiple_choice_hint','Select all that apply'), ENT_QUOTES, 'UTF-8')?></small>
+      <?php else: ?>
+        <select name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>">
+            <option value=""><?=htmlspecialchars(t($t,'select_single_option','Select an option'), ENT_QUOTES, 'UTF-8')?></option>
+          <?php foreach ($options as $opt): ?>
+            <option value="<?=htmlspecialchars($opt['value'] ?? '', ENT_QUOTES, 'UTF-8')?>"><?=htmlspecialchars($opt['value'] ?? '', ENT_QUOTES, 'UTF-8')?></option>
+          <?php endforeach; ?>
+        </select>
+      <?php endif; ?>
+      <?php else: ?>
+        <input name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>">
+      <?php endif; ?>
+      <?php if (isset($it['weight_percent']) && $it['weight_percent'] !== null): ?>
+        <small class="md-hint">Weight: <?= (int)$it['weight_percent']?>%</small>
+      <?php endif; ?>
+    </label>
+    <?php
+    return ob_get_clean();
+};
 ?>
 <!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head>
 <meta charset="utf-8"><title><?=htmlspecialchars(t($t,'submit_assessment','Submit Assessment'), ENT_QUOTES, 'UTF-8')?></title>
@@ -164,20 +250,17 @@ if ($qid) {
       <p class="md-muted"><?=htmlspecialchars($sec['description'])?></p>
       <div class="md-divider"></div>
       <?php foreach ($items as $it): if ((int)$it['section_id'] !== (int)$sec['id']) continue; ?>
-        <label class="md-field">
-          <span><?=htmlspecialchars($it['text'])?></span>
-          <?php if ($it['type']==='boolean'): ?>
-            <input type="checkbox" name="item_<?=$it['linkId']?>">
-          <?php elseif ($it['type']==='textarea'): ?>
-            <textarea name="item_<?=$it['linkId']?>" rows="3"></textarea>
-          <?php else: ?>
-            <input name="item_<?=$it['linkId']?>">
-          <?php endif; ?>
-          <?php if (!is_null($it['weight_percent'])): ?>
-            <small class="md-hint">Weight: <?= (int)$it['weight_percent']?>%</small>
-          <?php endif; ?>
-        </label>
+        <?=$renderQuestionField($it, $t)?>
       <?php endforeach; ?>
+    <?php endforeach; ?>
+    <?php $renderedRoot = false; ?>
+    <?php foreach ($items as $it): if ($it['section_id'] !== null) continue; ?>
+      <?php if (!$renderedRoot): ?>
+        <h3 class="md-section-title"><?=htmlspecialchars(t($t,'additional_items','Additional questions'), ENT_QUOTES, 'UTF-8')?></h3>
+        <div class="md-divider"></div>
+        <?php $renderedRoot = true; ?>
+      <?php endif; ?>
+      <?=$renderQuestionField($it, $t)?>
     <?php endforeach; ?>
     <button class="md-button md-primary md-elev-2"><?=t($t,'submit','Submit')?></button>
   </form>

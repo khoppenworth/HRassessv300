@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS training_recommendation;
 DROP TABLE IF EXISTS course_catalogue;
 DROP TABLE IF EXISTS questionnaire_response_item;
 DROP TABLE IF EXISTS questionnaire_response;
+DROP TABLE IF EXISTS questionnaire_item_option;
 DROP TABLE IF EXISTS questionnaire_item;
 DROP TABLE IF EXISTS questionnaire_section;
 DROP TABLE IF EXISTS questionnaire;
@@ -96,11 +97,20 @@ CREATE TABLE questionnaire_item (
   section_id INT NULL,
   linkId VARCHAR(64) NOT NULL,
   text VARCHAR(500) NOT NULL,
-  type ENUM('text','textarea','boolean') NOT NULL DEFAULT 'text',
+  type ENUM('text','textarea','boolean','choice') NOT NULL DEFAULT 'text',
   order_index INT NOT NULL DEFAULT 0,
   weight_percent INT NOT NULL DEFAULT 0,
+  allow_multiple TINYINT(1) NOT NULL DEFAULT 0,
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE,
   FOREIGN KEY (section_id) REFERENCES questionnaire_section(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE questionnaire_item_option (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  questionnaire_item_id INT NOT NULL,
+  value VARCHAR(500) NOT NULL,
+  order_index INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (questionnaire_item_id) REFERENCES questionnaire_item(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE questionnaire_response (
