@@ -91,6 +91,14 @@ questionnaire aligned with EPSA requirements.
 - `make lint` – run `php -l` across all PHP files.
 - GitHub Actions workflow `.github/workflows/ci.yml` lints PHP and checks MySQL availability.
 
+## System upgrades
+
+Use the [`scripts/system_upgrade.php`](scripts/system_upgrade.php) CLI to deploy
+new releases safely. The tool backs up the application directory and database
+before applying updates from GitHub and provides downgrade capabilities if an
+upgrade fails. Refer to [`docs/system-upgrade.md`](docs/system-upgrade.md) for
+usage examples and options.
+
 ## Quality and compliance
 
 Refer to [`docs/quality_assurance.md`](docs/quality_assurance.md) for the

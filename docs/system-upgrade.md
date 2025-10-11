@@ -1,0 +1,66 @@
+# System upgrade utility
+
+The `scripts/system_upgrade.php` CLI script automates application and database
+upgrades by pulling code from a GitHub repository and creating safe backups.
+
+## Prerequisites
+
+* PHP 8.1+
+* `git`, `tar`, `mysqldump`, and `mysql` binaries available in `PATH`
+* Network access to the GitHub repository that hosts your releases
+
+## Usage
+
+```bash
+# Deploy a specific tag or branch
+php scripts/system_upgrade.php --action=upgrade --repo=https://github.com/your-org/HRassessv300.git --ref=v3.1.0
+
+# Deploy the latest GitHub release
+php scripts/system_upgrade.php --action=upgrade --repo=https://github.com/your-org/HRassessv300.git --latest-release
+
+# Restore from the most recent successful backup (files only)
+php scripts/system_upgrade.php --action=downgrade
+
+# Restore a specific backup including the database
+php scripts/system_upgrade.php --action=downgrade --backup-id=20240211_101112 --restore-db
+
+# List available backups
+php scripts/system_upgrade.php --action=list-backups
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--repo` | Git repository URL. If omitted the script tries to read `origin` from the local clone. |
+| `--ref` | Branch, tag, or commit to deploy (defaults to `main`). |
+| `--latest-release` | Resolve the latest GitHub release tag and deploy it. Requires `--repo`. |
+| `--backup-dir` | Directory for storing backups (defaults to `<app>/backups`). |
+| `--preserve` | Comma-separated paths to keep untouched during upgrades (defaults to `config.php` and `backups`). |
+| `--backup-id` | Timestamp of the backup to restore (shown in `list-backups`). |
+| `--restore-db` | Restore the database when downgrading. |
+
+## Backup layout
+
+Each upgrade creates the following files in the backup directory:
+
+* `app-<timestamp>.tar.gz` – archive of the application files
+* `db-<timestamp>.sql` – SQL dump of the database
+* `upgrade-<timestamp>.json` – manifest describing the upgrade metadata
+
+If an upgrade fails, the script automatically restores the previous state
+using these backups and marks the manifest status as `failed`.
+
+## Customising preserved paths
+
+Environment-specific files can be shielded from upgrades by passing a
+comma-separated list through `--preserve`. For example, to keep a local `.env`
+file untouched:
+
+```bash
+php scripts/system_upgrade.php --action=upgrade --repo=... --ref=main --preserve=.env
+```
+
+The list always includes `config.php` and the backup directory to prevent them
+from being overwritten or removed.
+
