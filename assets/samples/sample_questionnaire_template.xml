@@ -5,24 +5,35 @@
   <status>draft</status>
   <title>Sample Employee Performance Questionnaire</title>
   <description>This sample file can be used as a starting point for importing questionnaires into the HR assessment tool.</description>
+  <!-- Each group item becomes a section in the application -->
   <item>
-    <linkId>q1</linkId>
-    <text>Describe the employee's key achievements during the review period.</text>
-    <type>text</type>
+    <linkId>section1</linkId>
+    <text>Performance Outcomes</text>
+    <type>group</type>
+    <item>
+      <linkId>q1</linkId>
+      <text>Describe the employee's key achievements during the review period.</text>
+      <type>text</type>
+    </item>
+    <item>
+      <linkId>q2</linkId>
+      <text>How effectively does the employee collaborate with their team?</text>
+      <type>text</type>
+    </item>
   </item>
   <item>
-    <linkId>q2</linkId>
-    <text>How effectively does the employee collaborate with their team?</text>
-    <type>text</type>
-  </item>
-  <item>
-    <linkId>q3</linkId>
-    <text>Does the employee consistently meet performance expectations?</text>
-    <type>boolean</type>
-  </item>
-  <item>
-    <linkId>q4</linkId>
-    <text>Provide any coaching or development recommendations.</text>
-    <type>textarea</type>
+    <linkId>section2</linkId>
+    <text>Development</text>
+    <type>group</type>
+    <item>
+      <linkId>q3</linkId>
+      <text>Does the employee consistently meet performance expectations?</text>
+      <type>boolean</type>
+    </item>
+    <item>
+      <linkId>q4</linkId>
+      <text>Provide any coaching or development recommendations.</text>
+      <type>text</type>
+    </item>
   </item>
 </Questionnaire>
