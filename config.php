@@ -93,6 +93,9 @@ const WORK_FUNCTION_LABELS = [
     'ethics' => 'Ethics',
 ];
 
+const DEFAULT_BRAND_COLOR = '#2073bf';
+
+
 function csrf_token(): string {
     if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }
     return $_SESSION['csrf'];
@@ -217,6 +220,7 @@ function ensure_site_config_schema(PDO $pdo): void {
         'microsoft_oauth_client_secret' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_secret VARCHAR(255) NULL',
         'microsoft_oauth_tenant' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_tenant VARCHAR(255) NULL',
         'color_theme' => "ALTER TABLE site_config ADD COLUMN color_theme VARCHAR(50) NOT NULL DEFAULT 'light'",
+        'brand_color' => "ALTER TABLE site_config ADD COLUMN brand_color VARCHAR(7) NULL AFTER color_theme",
         'smtp_enabled' => 'ALTER TABLE site_config ADD COLUMN smtp_enabled TINYINT(1) NOT NULL DEFAULT 0',
         'smtp_host' => 'ALTER TABLE site_config ADD COLUMN smtp_host VARCHAR(255) NULL',
         'smtp_port' => 'ALTER TABLE site_config ADD COLUMN smtp_port INT NULL',
@@ -261,6 +265,7 @@ function get_site_config(PDO $pdo): array {
         'microsoft_oauth_client_secret' => null,
         'microsoft_oauth_tenant' => 'common',
         'color_theme' => 'light',
+        'brand_color' => '#2073bf',
         'smtp_enabled' => 0,
         'smtp_host' => null,
         'smtp_port' => 587,
@@ -274,7 +279,7 @@ function get_site_config(PDO $pdo): array {
 
     try {
         ensure_site_config_schema($pdo);
-        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20)");
+        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20)");
         $cfg = $pdo->query('SELECT * FROM site_config WHERE id=1')->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         error_log('get_site_config failed: ' . $e->getMessage());
@@ -332,5 +337,93 @@ function site_body_classes(array $cfg): string
     $theme = site_color_theme($cfg);
     $classes[] = 'theme-' . $theme;
     return implode(' ', array_unique(array_filter($classes)));
+}
+
+function site_brand_color(array $cfg): string
+{
+    $raw = strtolower(trim((string)($cfg['brand_color'] ?? '')));
+    if ($raw !== '' && preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $raw)) {
+        if (strlen($raw) === 4) {
+            $raw = '#' . $raw[1] . $raw[1] . $raw[2] . $raw[2] . $raw[3] . $raw[3];
+        }
+        return $raw;
+    }
+    return DEFAULT_BRAND_COLOR;
+}
+
+function site_brand_palette(array $cfg): array
+{
+    $base = site_brand_color($cfg);
+    $rgb = hex_to_rgb($base);
+    $primaryDark = mix_colors($base, '#000000', 0.32);
+    $primaryDarker = mix_colors($base, '#000000', 0.5);
+    $primaryLight = mix_colors($base, '#ffffff', 0.32);
+    $secondary = mix_colors($base, '#ffffff', 0.45);
+    $muted = mix_colors($base, '#000000', 0.6);
+    $mutedLight = mix_colors($base, '#ffffff', 0.55);
+    $bgStart = mix_colors($primaryLight, '#ffffff', 0.35);
+    $bgMid = mix_colors($secondary, '#ffffff', 0.2);
+    $bgEnd = mix_colors($base, '#ffffff', 0.55);
+
+    return [
+        'primary' => $base,
+        'primaryDark' => $primaryDark,
+        'primaryDarker' => $primaryDarker,
+        'primaryLight' => $primaryLight,
+        'secondary' => $secondary,
+        'muted' => $muted,
+        'mutedLight' => $mutedLight,
+        'rgb' => $rgb,
+        'bgStart' => $bgStart,
+        'bgMid' => $bgMid,
+        'bgEnd' => $bgEnd,
+    ];
+}
+
+function site_brand_style(array $cfg): string
+{
+    $palette = site_brand_palette($cfg);
+    $rgb = $palette['rgb'];
+    $border = sprintf('rgba(%d, %d, %d, 0.12)', $rgb[0], $rgb[1], $rgb[2]);
+    $shadow = sprintf('0 18px 44px rgba(%d, %d, %d, 0.18)', $rgb[0], $rgb[1], $rgb[2]);
+    $values = [
+        '--brand-primary: ' . $palette['primary'],
+        '--brand-primary-dark: ' . $palette['primaryDark'],
+        '--brand-primary-darker: ' . $palette['primaryDarker'],
+        '--brand-primary-light: ' . $palette['primaryLight'],
+        '--brand-secondary: ' . $palette['secondary'],
+        '--brand-muted: ' . $palette['muted'],
+        '--brand-muted-light: ' . $palette['mutedLight'],
+        '--brand-border: ' . $border,
+        '--brand-shadow: ' . $shadow,
+        '--brand-bg: linear-gradient(140deg, ' . $palette['bgStart'] . ' 0%, ' . $palette['bgMid'] . ' 45%, ' . $palette['bgEnd'] . ' 100%)',
+    ];
+    return implode('; ', $values);
+}
+
+function site_body_style(array $cfg): string
+{
+    return site_brand_style($cfg);
+}
+
+function hex_to_rgb(string $hex): array
+{
+    $hex = ltrim($hex, '#');
+    if (strlen($hex) === 3) {
+        $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+    }
+    $int = hexdec($hex);
+    return [($int >> 16) & 0xff, ($int >> 8) & 0xff, $int & 0xff];
+}
+
+function mix_colors(string $hex, string $target, float $ratio): string
+{
+    $ratio = max(0.0, min(1.0, $ratio));
+    [$r1, $g1, $b1] = hex_to_rgb($hex);
+    [$r2, $g2, $b2] = hex_to_rgb($target);
+    $mix = static function ($a, $b) use ($ratio) {
+        return (int)round($a * (1 - $ratio) + $b * $ratio);
+    };
+    return sprintf('#%02x%02x%02x', $mix($r1, $r2), $mix($g1, $g2), $mix($b1, $b2));
 }
 ?>
