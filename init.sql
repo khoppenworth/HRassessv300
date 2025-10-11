@@ -36,7 +36,16 @@ CREATE TABLE site_config (
   microsoft_oauth_client_id VARCHAR(255) NULL,
   microsoft_oauth_client_secret VARCHAR(255) NULL,
   microsoft_oauth_tenant VARCHAR(255) NULL,
-  color_theme VARCHAR(50) NOT NULL DEFAULT 'light'
+  color_theme VARCHAR(50) NOT NULL DEFAULT 'light',
+  smtp_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  smtp_host VARCHAR(255) NULL,
+  smtp_port INT NULL,
+  smtp_username VARCHAR(255) NULL,
+  smtp_password VARCHAR(255) NULL,
+  smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none',
+  smtp_from_email VARCHAR(255) NULL,
+  smtp_from_name VARCHAR(255) NULL,
+  smtp_timeout INT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE users (
@@ -54,8 +63,14 @@ CREATE TABLE users (
   work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL DEFAULT 'general_service',
   profile_completed TINYINT(1) NOT NULL DEFAULT 0,
   language VARCHAR(5) NOT NULL DEFAULT 'en',
+  account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active',
+  next_assessment_date DATE NULL,
   first_login_at DATETIME NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  approved_by INT NULL,
+  approved_at DATETIME NULL,
+  sso_provider VARCHAR(50) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE logs (
@@ -190,7 +205,16 @@ INSERT INTO site_config (
   microsoft_oauth_client_id,
   microsoft_oauth_client_secret,
   microsoft_oauth_tenant,
-  color_theme
+  color_theme,
+  smtp_enabled,
+  smtp_host,
+  smtp_port,
+  smtp_username,
+  smtp_password,
+  smtp_encryption,
+  smtp_from_email,
+  smtp_from_name,
+  smtp_timeout
 ) VALUES (
   1,
   'My Performance',
@@ -214,7 +238,16 @@ INSERT INTO site_config (
   NULL,
   NULL,
   'common',
-  'light'
+  'light',
+  0,
+  NULL,
+  587,
+  NULL,
+  NULL,
+  'none',
+  NULL,
+  NULL,
+  20
 );
 
 -- default users (bcrypt hashes should be set during runtime; using demo placeholder hashes)

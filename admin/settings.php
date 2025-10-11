@@ -28,6 +28,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $microsoft_oauth_tenant = 'common';
     }
 
+    $smtp_enabled = isset($_POST['smtp_enabled']) ? 1 : 0;
+    $smtp_host = trim($_POST['smtp_host'] ?? '');
+    $smtp_port = (int)($_POST['smtp_port'] ?? 0);
+    $smtp_username = trim($_POST['smtp_username'] ?? '');
+    $smtp_password_input = trim($_POST['smtp_password'] ?? '');
+    $smtp_password = $smtp_password_input !== '' ? $smtp_password_input : (string)($cfg['smtp_password'] ?? '');
+    $smtp_encryption = strtolower(trim($_POST['smtp_encryption'] ?? 'none'));
+    if (!in_array($smtp_encryption, ['none','tls','ssl'], true)) {
+        $smtp_encryption = 'none';
+    }
+    $smtp_from_email = trim($_POST['smtp_from_email'] ?? '');
+    $smtp_from_name = trim($_POST['smtp_from_name'] ?? '');
+    $smtp_timeout = (int)($_POST['smtp_timeout'] ?? 20);
+    if ($smtp_timeout <= 0) {
+        $smtp_timeout = 20;
+    }
+
     $color_theme = strtolower(trim($_POST['color_theme'] ?? 'light'));
     if (!array_key_exists($color_theme, $themes)) {
         $color_theme = 'light';
@@ -42,6 +59,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'microsoft_oauth_client_secret' => $microsoft_oauth_client_secret,
         'microsoft_oauth_tenant' => $microsoft_oauth_tenant,
         'color_theme' => $color_theme,
+        'smtp_enabled' => $smtp_enabled,
+        'smtp_host' => $smtp_host !== '' ? $smtp_host : null,
+        'smtp_port' => $smtp_port > 0 ? $smtp_port : 587,
+        'smtp_username' => $smtp_username !== '' ? $smtp_username : null,
+        'smtp_password' => $smtp_password !== '' ? $smtp_password : null,
+        'smtp_encryption' => $smtp_encryption,
+        'smtp_from_email' => $smtp_from_email !== '' ? $smtp_from_email : null,
+        'smtp_from_name' => $smtp_from_name !== '' ? $smtp_from_name : null,
+        'smtp_timeout' => $smtp_timeout,
     ];
 
     $assignments = [];
@@ -103,6 +129,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <label class="md-field"><span><?=t($t,'microsoft_client_id','Microsoft Client ID')?></span><input name="microsoft_oauth_client_id" value="<?=htmlspecialchars($cfg['microsoft_oauth_client_id'] ?? '')?>"></label>
       <label class="md-field"><span><?=t($t,'microsoft_client_secret','Microsoft Client Secret')?></span><input type="password" name="microsoft_oauth_client_secret" value="<?=htmlspecialchars($cfg['microsoft_oauth_client_secret'] ?? '')?>"></label>
       <label class="md-field"><span><?=t($t,'microsoft_tenant','Microsoft Tenant (directory)')?></span><input name="microsoft_oauth_tenant" value="<?=htmlspecialchars($cfg['microsoft_oauth_tenant'] ?? 'common')?>"></label>
+      <h3 class="md-subhead"><?=t($t,'email_notifications','Email Notifications')?></h3>
+      <div class="md-control">
+        <label>
+          <input type="checkbox" name="smtp_enabled" value="1" <?=((int)($cfg['smtp_enabled'] ?? 0) === 1) ? 'checked' : ''?>>
+          <span><?=t($t,'enable_smtp_notifications','Enable SMTP notifications')?></span>
+        </label>
+      </div>
+      <label class="md-field"><span><?=t($t,'smtp_host','SMTP Host')?></span><input name="smtp_host" value="<?=htmlspecialchars($cfg['smtp_host'] ?? '')?>"></label>
+      <label class="md-field"><span><?=t($t,'smtp_port','SMTP Port')?></span><input type="number" name="smtp_port" min="1" value="<?=htmlspecialchars((string)($cfg['smtp_port'] ?? 587))?>"></label>
+      <label class="md-field"><span><?=t($t,'smtp_encryption','Encryption')?></span>
+        <?php $enc = strtolower((string)($cfg['smtp_encryption'] ?? 'none')); ?>
+        <select name="smtp_encryption">
+          <option value="none" <?=$enc==='none'?'selected':''?>><?=t($t,'smtp_encryption_none','None')?></option>
+          <option value="tls" <?=$enc==='tls'?'selected':''?>>TLS</option>
+          <option value="ssl" <?=$enc==='ssl'?'selected':''?>>SSL</option>
+        </select>
+      </label>
+      <label class="md-field"><span><?=t($t,'smtp_username','SMTP Username')?></span><input name="smtp_username" value="<?=htmlspecialchars($cfg['smtp_username'] ?? '')?>"></label>
+      <label class="md-field"><span><?=t($t,'smtp_password','SMTP Password')?></span><input type="password" name="smtp_password" placeholder="<?=htmlspecialchars(t($t,'leave_blank_keep_password','Leave blank to keep current password.'), ENT_QUOTES, 'UTF-8')?>"></label>
+      <label class="md-field"><span><?=t($t,'smtp_from_email','From Email')?></span><input name="smtp_from_email" value="<?=htmlspecialchars($cfg['smtp_from_email'] ?? '')?>"></label>
+      <label class="md-field"><span><?=t($t,'smtp_from_name','From Name')?></span><input name="smtp_from_name" value="<?=htmlspecialchars($cfg['smtp_from_name'] ?? '')?>"></label>
+      <label class="md-field"><span><?=t($t,'smtp_timeout','Connection Timeout (seconds)')?></span><input type="number" name="smtp_timeout" min="5" value="<?=htmlspecialchars((string)($cfg['smtp_timeout'] ?? 20))?>"></label>
       <div class="md-form-actions">
         <button class="md-button md-primary md-elev-2"><?=t($t,'save','Save Changes')?></button>
       </div>

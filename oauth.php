@@ -100,8 +100,24 @@ if ($email === '') {
 }
 
 $user = lookup_user_by_identity($pdo, $email, $displayName);
+$created = false;
 if (!$user) {
-    oauth_fail('No user account is linked to ' . $email . '. Please contact your administrator.', $provider);
+    try {
+        $user = create_sso_user($pdo, $email, $displayName, $provider);
+        if ($user) {
+            $created = true;
+            notify_supervisors_of_pending_user($pdo, $cfg, $user);
+        }
+    } catch (Exception $e) {
+        error_log('SSO auto-provision failed: ' . $e->getMessage());
+    }
+    if (!$user) {
+        oauth_fail('Unable to create an account for ' . $email . '. Please contact your administrator.', $provider);
+    }
+}
+
+if (($user['account_status'] ?? 'active') === 'disabled') {
+    oauth_fail('Your account has been disabled. Please contact your administrator.', $provider);
 }
 
 if (empty($user['first_login_at'])) {
@@ -112,6 +128,16 @@ $_SESSION['user'] = $user;
 refresh_current_user($pdo);
 if (isset($_SESSION['user']['language']) && $_SESSION['user']['language'] !== '') {
     $_SESSION['lang'] = $_SESSION['user']['language'];
+}
+
+$status = $_SESSION['user']['account_status'] ?? 'active';
+if ($status === 'pending') {
+    $_SESSION['pending_notice'] = true;
+    if ($created) {
+        $_SESSION['oauth_error'] = 'Your account has been created and is awaiting supervisor approval. You can complete your profile while you wait.';
+    }
+    header('Location: ' . url_for('profile.php?pending=1'));
+    exit;
 }
 
 header('Location: ' . url_for('my_performance.php'));
@@ -298,6 +324,77 @@ function lookup_user_by_identity(PDO $pdo, string $email, string $displayName)
     }
 
     return false;
+}
+
+function create_sso_user(PDO $pdo, string $email, string $displayName, string $provider)
+{
+    $username = generate_unique_username($pdo, $email, $displayName);
+    if ($username === '') {
+        return false;
+    }
+    $password = bin2hex(random_bytes(16));
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    $stmt = $pdo->prepare('INSERT INTO users (username, password, role, full_name, email, profile_completed, account_status, sso_provider, language) VALUES (?,?,?,?,?,0,?, ?, ?)');
+    $language = 'en';
+    $stmt->execute([
+        $username,
+        $hash,
+        'staff',
+        $displayName !== '' ? $displayName : null,
+        $email !== '' ? $email : null,
+        'pending',
+        $provider,
+        $language,
+    ]);
+    $id = (int)$pdo->lastInsertId();
+    $lookup = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+    $lookup->execute([$id]);
+    return $lookup->fetch();
+}
+
+function generate_unique_username(PDO $pdo, string $email, string $displayName): string
+{
+    $candidates = [];
+    $email = trim(strtolower($email));
+    if ($email !== '' && strpos($email, '@') !== false) {
+        $local = substr($email, 0, strpos($email, '@'));
+        $local = preg_replace('/[^a-z0-9_.-]+/i', '', (string)$local);
+        if ($local !== '') {
+            $candidates[] = $local;
+        }
+        $emailSanitized = preg_replace('/[^a-z0-9_.-]+/i', '', $email);
+        if ($emailSanitized !== '') {
+            $candidates[] = $emailSanitized;
+        }
+    }
+    $nameSlug = preg_replace('/[^a-z0-9]+/i', '.', strtolower($displayName));
+    $nameSlug = trim($nameSlug, '.');
+    if ($nameSlug !== '') {
+        $candidates[] = $nameSlug;
+    }
+    $candidates[] = 'user';
+
+    foreach ($candidates as $candidate) {
+        if ($candidate === '') {
+            continue;
+        }
+        $base = substr($candidate, 0, 100);
+        $test = $base;
+        $suffix = 1;
+        while (true) {
+            $stmt = $pdo->prepare('SELECT COUNT(*) FROM users WHERE username = ?');
+            $stmt->execute([$test]);
+            if ((int)$stmt->fetchColumn() === 0) {
+                return $test;
+            }
+            $suffix++;
+            $test = substr($base, 0, 90) . $suffix;
+            if ($suffix > 5000) {
+                break;
+            }
+        }
+    }
+    return '';
 }
 
 function oauth_sanitize(string $message): string

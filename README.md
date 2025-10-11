@@ -39,11 +39,30 @@ Environment variables are read directly via `getenv`. Set them in your shell or 
 
 ### Single sign-on
 
-Administrators can configure Google Workspace or Microsoft Entra ID (Azure AD) authentication under **Administration → Branding & Landing**. Provide the client ID, client secret, and (for Microsoft) the tenant identifier. The OAuth redirect URL is `<BASE_URL>/oauth.php?provider=<google|microsoft>&action=callback`; ensure this is registered with each provider. When enabled, the login page renders "Sign in with Google" or "Sign in with Microsoft" buttons alongside the classic username/password form.
+Administrators can configure Google Workspace or Microsoft Entra ID (Azure AD) authentication under **Administration → Settings**.
+Provide the client ID, client secret, and (for Microsoft) the tenant identifier. The OAuth redirect URL is
+`<BASE_URL>/oauth.php?provider=<google|microsoft>&action=callback`; ensure this is registered with each provider.
+
+When a user signs in with SSO and no account exists, the platform auto-provisions a pending profile that is limited to the
+Profile page until a supervisor approves it. Supervisors (and admins) can review and approve accounts at
+**Team & Reviews → Pending Approvals**. A banner on the profile and login pages explains the pending status to the end user.
+Supervisors can also set the user's next assessment date during approval.
+
+### Email delivery
+
+Enable SMTP notifications from **Administration → Settings**. The system sends approval and assessment scheduling emails using the
+connection details provided. Required fields are the host, port, authentication credentials (if needed), and the "From" address.
+Test the configuration by approving a pending account or scheduling an assessment for a staff member.
+
+### API documentation
+
+A built-in Swagger UI is available to administrators at `/swagger.php` (linked under **Administration → API Documentation**).
+The page renders the OpenAPI definition stored at `docs/openapi.json`, covering FHIR resources and internal helper endpoints.
 
 ## Internationalisation
 
-Translations live in `lang/*.json`. Users can switch between English, French, and Amharic via the language selector. Preferences persist in the session and a cookie. To add a language:
+Translations live in `lang/*.json`. Users can switch between English, French, and Amharic via the language selector. Preferences
+persist in the session and a cookie. To add a language:
 
 1. Create `lang/<code>.json` with translation keys.
 2. Add the language code to `AVAILABLE_LOCALES` in `i18n.php`.
@@ -88,4 +107,5 @@ delivery workflow with ISO/IEC 12207 (software life cycle), ISO/IEC 25010
 
 ## Progressive Web App assets
 
-`manifest.webmanifest` and `service-worker.js` are referenced with the configured base URL to ensure they resolve when deployed in a subdirectory.
+`manifest.webmanifest` and `service-worker.js` are referenced with the configured base URL to ensure they resolve when deployed
+in a subdirectory.

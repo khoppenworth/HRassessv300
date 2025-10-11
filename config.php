@@ -23,6 +23,8 @@ if (!defined('APP_BOOTSTRAPPED')) {
     require_once __DIR__ . '/i18n.php';
     require_once __DIR__ . '/lib/path.php';
     require_once __DIR__ . '/lib/security.php';
+    require_once __DIR__ . '/lib/mailer.php';
+    require_once __DIR__ . '/lib/notifications.php';
 
     $locale = ensure_locale();
     if (!isset($_SESSION['lang']) || $_SESSION['lang'] !== $locale) {
@@ -45,6 +47,8 @@ if (!defined('APP_BOOTSTRAPPED')) {
 
     try {
         $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
+        ensure_site_config_schema($pdo);
+        ensure_users_schema($pdo);
     } catch (PDOException $e) {
         $friendly = 'Unable to connect to the application database. Please try again later or contact support.';
         error_log('DB connection failed: ' . $e->getMessage());
@@ -129,6 +133,22 @@ function refresh_current_user(PDO $pdo): void {
 
 function auth_required(array $roles = []): void {
     if (!isset($_SESSION['user'])) { header('Location: ' . BASE_URL . 'index.php'); exit; }
+    $status = $_SESSION['user']['account_status'] ?? 'active';
+    if ($status === 'disabled') {
+        $_SESSION['auth_error'] = 'Your account has been disabled. Please contact your administrator.';
+        unset($_SESSION['user']);
+        header('Location: ' . url_for('index.php'));
+        exit;
+    }
+    if ($status === 'pending') {
+        $allowedScripts = ['profile.php', 'logout.php', 'set_lang.php'];
+        $current = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+        if (!in_array($current, $allowedScripts, true)) {
+            $_SESSION['pending_notice'] = true;
+            header('Location: ' . url_for('profile.php?pending=1'));
+            exit;
+        }
+    }
     if ($roles && !in_array($_SESSION['user']['role'], $roles, true)) {
         http_response_code(403); die('Forbidden');
     }
@@ -196,7 +216,16 @@ function ensure_site_config_schema(PDO $pdo): void {
         'microsoft_oauth_client_id' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_id VARCHAR(255) NULL',
         'microsoft_oauth_client_secret' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_secret VARCHAR(255) NULL',
         'microsoft_oauth_tenant' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_tenant VARCHAR(255) NULL',
-        'color_theme' => "ALTER TABLE site_config ADD COLUMN color_theme VARCHAR(50) NOT NULL DEFAULT 'light'"
+        'color_theme' => "ALTER TABLE site_config ADD COLUMN color_theme VARCHAR(50) NOT NULL DEFAULT 'light'",
+        'smtp_enabled' => 'ALTER TABLE site_config ADD COLUMN smtp_enabled TINYINT(1) NOT NULL DEFAULT 0',
+        'smtp_host' => 'ALTER TABLE site_config ADD COLUMN smtp_host VARCHAR(255) NULL',
+        'smtp_port' => 'ALTER TABLE site_config ADD COLUMN smtp_port INT NULL',
+        'smtp_username' => 'ALTER TABLE site_config ADD COLUMN smtp_username VARCHAR(255) NULL',
+        'smtp_password' => 'ALTER TABLE site_config ADD COLUMN smtp_password VARCHAR(255) NULL',
+        'smtp_encryption' => "ALTER TABLE site_config ADD COLUMN smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none'",
+        'smtp_from_email' => 'ALTER TABLE site_config ADD COLUMN smtp_from_email VARCHAR(255) NULL',
+        'smtp_from_name' => 'ALTER TABLE site_config ADD COLUMN smtp_from_name VARCHAR(255) NULL',
+        'smtp_timeout' => 'ALTER TABLE site_config ADD COLUMN smtp_timeout INT NULL'
     ];
 
     foreach ($schema as $field => $sql) {
@@ -232,11 +261,20 @@ function get_site_config(PDO $pdo): array {
         'microsoft_oauth_client_secret' => null,
         'microsoft_oauth_tenant' => 'common',
         'color_theme' => 'light',
+        'smtp_enabled' => 0,
+        'smtp_host' => null,
+        'smtp_port' => 587,
+        'smtp_username' => null,
+        'smtp_password' => null,
+        'smtp_encryption' => 'none',
+        'smtp_from_email' => null,
+        'smtp_from_name' => null,
+        'smtp_timeout' => 20,
     ];
 
     try {
         ensure_site_config_schema($pdo);
-        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light')");
+        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20)");
         $cfg = $pdo->query('SELECT * FROM site_config WHERE id=1')->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         error_log('get_site_config failed: ' . $e->getMessage());
@@ -244,6 +282,38 @@ function get_site_config(PDO $pdo): array {
     }
 
     return array_merge($defaults, $cfg ?: []);
+}
+
+function ensure_users_schema(PDO $pdo): void
+{
+    $existing = [];
+    try {
+        $columns = $pdo->query('SHOW COLUMNS FROM users');
+    } catch (PDOException $e) {
+        error_log('ensure_users_schema: ' . $e->getMessage());
+        return;
+    }
+    if ($columns) {
+        while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
+            if (isset($col['Field'])) {
+                $existing[$col['Field']] = true;
+            }
+        }
+    }
+
+    $changes = [
+        'account_status' => "ALTER TABLE users ADD COLUMN account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active' AFTER language",
+        'next_assessment_date' => 'ALTER TABLE users ADD COLUMN next_assessment_date DATE NULL AFTER account_status',
+        'approved_by' => 'ALTER TABLE users ADD COLUMN approved_by INT NULL AFTER next_assessment_date',
+        'approved_at' => 'ALTER TABLE users ADD COLUMN approved_at DATETIME NULL AFTER approved_by',
+        'sso_provider' => 'ALTER TABLE users ADD COLUMN sso_provider VARCHAR(50) NULL AFTER approved_at',
+    ];
+
+    foreach ($changes as $field => $sql) {
+        if (!isset($existing[$field])) {
+            $pdo->exec($sql);
+        }
+    }
 }
 
 function site_color_theme(array $cfg): string

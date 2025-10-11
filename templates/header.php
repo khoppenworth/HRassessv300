@@ -50,6 +50,7 @@ $availableLocales = available_locales();
       <div class="md-drawer-section">
         <span class="md-drawer-label"><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
         <a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'review_queue', 'Review Queue')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'pending_accounts', 'Pending Approvals')?></a>
       </div>
     <?php endif; ?>
     <?php if ($role === 'admin'): ?>
@@ -62,6 +63,7 @@ $availableLocales = available_locales();
         <a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'export_data', 'Export Data')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'branding', 'Branding & Landing')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'settings', 'Settings')?></a>
+        <a href="<?=htmlspecialchars(url_for('swagger.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t,'api_documentation','API Documentation')?></a>
       </div>
     <?php endif; ?>
   </nav>

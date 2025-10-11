@@ -1,0 +1,175 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "HR Assessment Platform API",
+    "version": "1.0.0",
+    "description": "API reference for the HR Assessment platform, including FHIR-compatible resources and internal helper endpoints."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current deployment"
+    }
+  ],
+  "paths": {
+    "/fhir/metadata.php": {
+      "get": {
+        "summary": "FHIR capability statement",
+        "description": "Returns a FHIR CapabilityStatement describing the resources supported by the platform.",
+        "responses": {
+          "200": {
+            "description": "CapabilityStatement resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://hl7.org/fhir/capabilitystatement.schema.json"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fhir/Questionnaire.php": {
+      "get": {
+        "summary": "List questionnaires",
+        "description": "Returns a Bundle of Questionnaire resources representing the currently configured assessments.",
+        "responses": {
+          "200": {
+            "description": "Questionnaire bundle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://hl7.org/fhir/bundle.schema.json"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fhir/QuestionnaireResponse.php": {
+      "get": {
+        "summary": "List questionnaire responses",
+        "description": "Returns a Bundle of QuestionnaireResponse resources for all submitted assessments.",
+        "responses": {
+          "200": {
+            "description": "QuestionnaireResponse bundle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://hl7.org/fhir/bundle.schema.json"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Submit questionnaire response",
+        "description": "Creates a new QuestionnaireResponse resource. Requires the identifiers for the responding user, questionnaire, and performance period.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionnaireResponseInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Questionnaire response created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer" },
+                    "status": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/admin/questionnaire_manage.php": {
+      "get": {
+        "summary": "Fetch questionnaire definitions",
+        "description": "Authenticated administrators can fetch the full questionnaire definition set by providing the action=fetch query parameter.",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["fetch"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Questionnaire management payload"
+          },
+          "401": {
+            "description": "Authentication required"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "QuestionnaireResponseInput": {
+        "type": "object",
+        "required": ["resourceType", "user_id", "questionnaire"],
+        "properties": {
+          "resourceType": {
+            "type": "string",
+            "enum": ["QuestionnaireResponse"],
+            "example": "QuestionnaireResponse"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "Identifier of the responding user"
+          },
+          "questionnaire": {
+            "type": "integer",
+            "description": "Questionnaire identifier"
+          },
+          "performance_period_id": {
+            "type": "integer",
+            "description": "Performance period identifier"
+          },
+          "performance_period": {
+            "type": "string",
+            "description": "Performance period label (used if performance_period_id is not supplied)"
+          },
+          "item": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "linkId": { "type": "string" },
+                "answer": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

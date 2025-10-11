@@ -16,24 +16,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = $_POST['password'] ?? '';
         $role = $_POST['role'] ?? 'staff';
         $workFunction = $_POST['work_function'] ?? 'general_service';
-
-        if ($username === '' || $password === '') {
-            $msg = t($t, 'admin_user_required', 'Username and password are required.');
-        } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
-            $msg = t($t, 'invalid_role', 'Invalid role selection.');
+        $accountStatus = $_POST['account_status'] ?? 'active';
+        $nextAssessment = trim($_POST['next_assessment_date'] ?? '');
+        if (!in_array($accountStatus, ['active','pending','disabled'], true)) {
+            $accountStatus = 'active';
+        }
+        if ($nextAssessment !== '') {
+            $dt = DateTime::createFromFormat('Y-m-d', $nextAssessment);
+            if (!$dt) {
+                $msg = t($t, 'invalid_date', 'Please provide a valid next assessment date.');
+            } else {
+                $nextAssessment = $dt->format('Y-m-d');
+            }
         } else {
-            if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function) VALUES (?,?,?,?,?,?)");
-            $stm->execute([
-                $username,
-                $hash,
-                $role,
-                $_POST['full_name'] ?? null,
-                $_POST['email'] ?? null,
-                $workFunction
-            ]);
-            $msg = t($t, 'user_created', 'User created successfully.');
+            $nextAssessment = null;
+        }
+
+        if ($msg === '') {
+            if ($username === '' || $password === '') {
+                $msg = t($t, 'admin_user_required', 'Username and password are required.');
+            } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
+                $msg = t($t, 'invalid_role', 'Invalid role selection.');
+            } else {
+                if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
+                $hash = password_hash($password, PASSWORD_DEFAULT);
+                $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function,account_status,next_assessment_date) VALUES (?,?,?,?,?,?,?,?)");
+                $stm->execute([
+                    $username,
+                    $hash,
+                    $role,
+                    $_POST['full_name'] ?? null,
+                    $_POST['email'] ?? null,
+                    $workFunction,
+                    $accountStatus,
+                    $nextAssessment
+                ]);
+                $msg = t($t, 'user_created', 'User created successfully.');
+            }
         }
     }
 
@@ -42,17 +61,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newPassword = $_POST['new_password'] ?? '';
         $role = $_POST['role'] ?? 'staff';
         $workFunction = $_POST['work_function'] ?? 'general_service';
-
-        if ($id <= 0 || $newPassword === '') {
-            $msg = t($t, 'admin_reset_required', 'User and password are required for reset.');
-        } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
-            $msg = t($t, 'invalid_role', 'Invalid role selection.');
+        $accountStatus = $_POST['account_status'] ?? 'active';
+        $nextAssessment = trim($_POST['next_assessment_date'] ?? '');
+        if (!in_array($accountStatus, ['active','pending','disabled'], true)) {
+            $accountStatus = 'active';
+        }
+        if ($nextAssessment !== '') {
+            $dt = DateTime::createFromFormat('Y-m-d', $nextAssessment);
+            if (!$dt) {
+                $msg = t($t, 'invalid_date', 'Please provide a valid next assessment date.');
+            } else {
+                $nextAssessment = $dt->format('Y-m-d');
+            }
         } else {
-            if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
-            $hash = password_hash($newPassword, PASSWORD_DEFAULT);
-            $stm = $pdo->prepare("UPDATE users SET password=?, role=?, work_function=?, profile_completed=0 WHERE id=?");
-            $stm->execute([$hash, $role, $workFunction, $id]);
-            $msg = t($t, 'user_updated', 'User updated successfully.');
+            $nextAssessment = null;
+        }
+
+        if ($msg === '') {
+            if ($id <= 0 || $newPassword === '') {
+                $msg = t($t, 'admin_reset_required', 'User and password are required for reset.');
+            } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
+                $msg = t($t, 'invalid_role', 'Invalid role selection.');
+            } else {
+                if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
+                $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+                $stm = $pdo->prepare("UPDATE users SET password=?, role=?, work_function=?, account_status=?, next_assessment_date=?, profile_completed=0 WHERE id=?");
+                $stm->execute([$hash, $role, $workFunction, $accountStatus, $nextAssessment, $id]);
+                $msg = t($t, 'user_updated', 'User updated successfully.');
+            }
         }
     }
 
@@ -84,6 +120,13 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
 <label class="md-field"><span><?=t($t,'username','Username')?></span><input name="username" required></label>
 <label class="md-field"><span><?=t($t,'password','Password')?></span><input name="password" type="password" required></label>
   <label class="md-field"><span><?=t($t,'role','Role')?></span><select name="role"><option value="staff"><?=t($t,'role_staff','staff')?></option><option value="supervisor"><?=t($t,'role_supervisor','supervisor')?></option><option value="admin"><?=t($t,'role_admin','admin')?></option></select></label>
+  <label class="md-field"><span><?=t($t,'account_status','Account Status')?></span>
+    <select name="account_status">
+      <option value="active"><?=t($t,'status_active','Active')?></option>
+      <option value="pending"><?=t($t,'status_pending','Pending approval')?></option>
+      <option value="disabled"><?=t($t,'status_disabled','Disabled')?></option>
+    </select>
+  </label>
 <label class="md-field"><span><?=t($t,'full_name','Full Name')?></span><input name="full_name"></label>
 <label class="md-field"><span><?=t($t,'email','Email')?></span><input name="email"></label>
 <label class="md-field"><span><?=t($t,'work_function','Work Function / Cadre')?></span>
@@ -93,12 +136,13 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
     <?php endforeach; ?>
   </select>
 </label>
+<label class="md-field"><span><?=t($t,'next_assessment','Next Assessment Date')?></span><input type="date" name="next_assessment_date"></label>
 <button name="create" class="md-button md-primary md-elev-2"><?=t($t,'create','Create')?></button>
 </form></div>
 
 <div class="md-card md-elev-2"><h2 class="md-card-title"><?=t($t,'manage_users','Manage Users')?></h2>
 <table class="md-table">
-  <thead><tr><th><?=t($t,'id','ID')?></th><th><?=t($t,'username','Username')?></th><th><?=t($t,'role','Role')?></th><th><?=t($t,'full_name','Full Name')?></th><th><?=t($t,'email','Email')?></th><th><?=t($t,'work_function','Work Function / Cadre')?></th><th><?=t($t,'reset','Reset')?></th><th><?=t($t,'delete','Delete')?></th></tr></thead>
+  <thead><tr><th><?=t($t,'id','ID')?></th><th><?=t($t,'username','Username')?></th><th><?=t($t,'role','Role')?></th><th><?=t($t,'full_name','Full Name')?></th><th><?=t($t,'email','Email')?></th><th><?=t($t,'work_function','Work Function / Cadre')?></th><th><?=t($t,'account_status','Account Status')?></th><th><?=t($t,'next_assessment','Next Assessment')?></th><th><?=t($t,'reset','Reset')?></th><th><?=t($t,'delete','Delete')?></th></tr></thead>
   <tbody>
   <?php foreach ($rows as $r): ?>
   <tr>
@@ -108,6 +152,16 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
     <td><?=htmlspecialchars($r['full_name'])?></td>
     <td><?=htmlspecialchars($r['email'])?></td>
     <td><?=htmlspecialchars(WORK_FUNCTION_LABELS[$r['work_function']] ?? $r['work_function'])?></td>
+    <?php
+      $statusKey = $r['account_status'] ?? 'active';
+      $statusLabels = [
+        'active' => t($t,'status_active','Active'),
+        'pending' => t($t,'status_pending','Pending approval'),
+        'disabled' => t($t,'status_disabled','Disabled')
+      ];
+    ?>
+    <td><?=htmlspecialchars($statusLabels[$statusKey] ?? $statusKey)?></td>
+    <td><?=htmlspecialchars($r['next_assessment_date'] ?? '-')?></td>
     <td>
       <form method="post" class="md-inline-form" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
@@ -118,11 +172,17 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
             <option value="supervisor" <?=$r['role']=='supervisor'?'selected':''?>><?=t($t,'role_supervisor','supervisor')?></option>
             <option value="admin" <?=$r['role']=='admin'?'selected':''?>><?=t($t,'role_admin','admin')?></option>
           </select>
+        <select name="account_status">
+          <option value="active" <?=$r['account_status']==='active'?'selected':''?>><?=t($t,'status_active','Active')?></option>
+          <option value="pending" <?=$r['account_status']==='pending'?'selected':''?>><?=t($t,'status_pending','Pending approval')?></option>
+          <option value="disabled" <?=$r['account_status']==='disabled'?'selected':''?>><?=t($t,'status_disabled','Disabled')?></option>
+        </select>
         <select name="work_function">
           <?php foreach (WORK_FUNCTIONS as $function): ?>
             <option value="<?=$function?>" <?=$r['work_function']===$function?'selected':''?>><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function)?></option>
           <?php endforeach; ?>
         </select>
+        <input type="date" name="next_assessment_date" value="<?=htmlspecialchars($r['next_assessment_date'] ?? '')?>">
         <button name="reset" class="md-button md-elev-1"><?=t($t,'apply','Apply')?></button>
       </form>
     </td>
