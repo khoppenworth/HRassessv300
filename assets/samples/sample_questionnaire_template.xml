@@ -1,39 +1,1746 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Sample FHIR Questionnaire template for HR Assessments -->
 <Questionnaire xmlns="http://hl7.org/fhir">
   <resourceType>Questionnaire</resourceType>
   <status>draft</status>
-  <title>Sample Employee Performance Questionnaire</title>
-  <description>This sample file can be used as a starting point for importing questionnaires into the HR assessment tool.</description>
-  <!-- Each group item becomes a section in the application -->
+  <title>Warehouse &amp; Inventory Management (WIM) Technical Assessment</title>
+  <description>Converted from the 'WIM technical assessment' to match the sample HR Assessment XML template. Includes background details and core competency self-ratings on a 5-point Likert scale.</description>
   <item>
-    <linkId>section1</linkId>
-    <text>Performance Outcomes</text>
+    <linkId>bg</linkId>
+    <text>1. Background information</text>
     <type>group</type>
     <item>
-      <linkId>q1</linkId>
-      <text>Describe the employee's key achievements during the review period.</text>
+      <linkId>bg1_gender</linkId>
+      <text>1.1. Gender</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>Male</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Female</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Prefer not to say</valueString>
+      </answerOption>
+    </item>
+    <item>
+      <linkId>bg2_job_title</linkId>
+      <text>1.2. Designation / Job Title</text>
       <type>text</type>
     </item>
     <item>
-      <linkId>q2</linkId>
-      <text>How effectively does the employee collaborate with their team?</text>
+      <linkId>bg3_role</linkId>
+      <text>1.3. Select your role in chosen directorate</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>Director / Branch Manager</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Team Leader / Coordinator</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Officer Level 4</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Officer Level 3</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Officer Level 2</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Officer Level 1</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Other (please specify)</valueString>
+      </answerOption>
+    </item>
+    <item>
+      <linkId>bg4_grade</linkId>
+      <text>1.4. Please select your Job Grade</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>Grade 17</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Grade 16</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Grade 15</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Grade 14</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Grade 13</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Grade 12</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Grade 11</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Grade 10</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Grade 9</valueString>
+      </answerOption>
+    </item>
+    <item>
+      <linkId>bg5_education</linkId>
+      <text>1.5. Your Education Profile (highest level)</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>Diploma</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Bachelor's Degree</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Master's Degree &amp; above</valueString>
+      </answerOption>
+    </item>
+    <item>
+      <linkId>bg5a_subject</linkId>
+      <text>Subject of highest degree</text>
       <type>text</type>
+    </item>
+    <item>
+      <linkId>bg6_total_exp</linkId>
+      <text>1.6.1 Total years of work experience</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>0-2 years</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>2-5 years</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>5-10 years</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>More than 10 years</valueString>
+      </answerOption>
+    </item>
+    <item>
+      <linkId>bg6_epsa_exp</linkId>
+      <text>1.6.2 Years working in EPSA</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>0-2 years</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>2-5 years</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>5-10 years</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>More than 10 years</valueString>
+      </answerOption>
+    </item>
+    <item>
+      <linkId>bg7_training</linkId>
+      <text>1.7. Training received in the past two years (select all that apply)</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>Public health supply chain</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Leadership</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Quantification</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Procurement</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Warehouse and inventory management</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>On-the-job training</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Finance related</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Human Resources 4SCM</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>I have not participated in any training in the past year</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Other (specify)</valueString>
+      </answerOption>
+    </item>
+    <item>
+      <linkId>bg7_training_other</linkId>
+      <text>If 'Other', please specify</text>
+      <type>text</type>
+    </item>
+    <item>
+      <linkId>bg8_impact1</linkId>
+      <text>1.8.1 Has the training you received helped improve your professional competency?</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>Yes</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>No</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>I'm not sure</valueString>
+      </answerOption>
+    </item>
+    <item>
+      <linkId>bg8_impact2</linkId>
+      <text>1.8.2 What types of competencies did the training help improve? (select all that apply)</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>Knowledge</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Skills</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>Attitude</valueString>
+      </answerOption>
+    </item>
+    <item>
+      <linkId>bg8_impact3</linkId>
+      <text>1.8.3 Have you noticed any change/improvement in your work after the training?</text>
+      <type>choice</type>
+      <answerOption>
+        <valueString>Yes</valueString>
+      </answerOption>
+      <answerOption>
+        <valueString>No</valueString>
+      </answerOption>
     </item>
   </item>
   <item>
-    <linkId>section2</linkId>
-    <text>Development</text>
+    <linkId>tech</linkId>
+    <text>2. Technical Assessment: Quantification and Supply Planning</text>
     <type>group</type>
     <item>
-      <linkId>q3</linkId>
-      <text>Does the employee consistently meet performance expectations?</text>
-      <type>boolean</type>
+      <linkId>c1_receipt_storage</linkId>
+      <text>Competency Area 1: Manage Receipt, Physical Inspection and Storage of Commodities</text>
+      <type>group</type>
+      <item>
+        <linkId>c1_receipt_storage_1</linkId>
+        <text>The methods and practices used in receiving and storing commodities and equipment in warehouse deliveries</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_2</linkId>
+        <text>The safe handling, storage and movement of commodities</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_3</linkId>
+        <text>Warehouse plans, techniques of material handling and stock control</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_4</linkId>
+        <text>Principles and systems used for the physical storage of stock and good storage practices including FEFO</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_5</linkId>
+        <text>Warehouse planning and documentation requirements; accepted methods, procedures and techniques</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_6</linkId>
+        <text>Special handling processes like cold chain and high value risk security</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_7</linkId>
+        <text>Monitor temperature control in the warehouses</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_8</linkId>
+        <text>Stock quality monitoring</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_9</linkId>
+        <text>Segregate damaged commodities, reconstitute, document and report</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_10</linkId>
+        <text>Methods of distribution of commodities to branches, facilities and warehouses through a logistics network</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_11</linkId>
+        <text>Knowledge of warehousing information systems</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_12</linkId>
+        <text>Design, implementation and management of inventory control systems</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_13</linkId>
+        <text>Legal requirements related to store management (e.g., health &amp; safety, hazardous materials)</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_14</linkId>
+        <text>Safety procedures in warehouse</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_15</linkId>
+        <text>Use checklists in receipt and storage of items from suppliers</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_16</linkId>
+        <text>Operating the warehouse equipment safely</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_17</linkId>
+        <text>Stock, move, arrange and rotate warehouse items in accordance with SOPs</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_18</linkId>
+        <text>Prepare and complete forms for incoming supplies (description, quantity, unit, labeling)</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_19</linkId>
+        <text>Identify obvious damage to equipment and commodities through visual inspections</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_20</linkId>
+        <text>Determine layout of storage space and establish item and commodity location</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_21</linkId>
+        <text>Determine sequences for loading and unloading shipments for space utilization and safety</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_22</linkId>
+        <text>Obtain and collate data on supplies being stored and manage stock differences</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_23</linkId>
+        <text>Adopt a total systems approach to the flow of information, materials and services</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_24</linkId>
+        <text>Evaluate the demand for supplies and determine storage capacity and requirements</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_25</linkId>
+        <text>Maintenance of safe and appropriate systems of work</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_26</linkId>
+        <text>Develop and follow organizational processes, instructions, rules and parameters for WIM</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_27</linkId>
+        <text>Apply inventory control techniques to manage stock-outs and overstocks</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_28</linkId>
+        <text>Develop storage strategies and plans; oversee implementation and effectiveness</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_29</linkId>
+        <text>Develop policies and procedures for stock handling, distribution and withdrawal consistent with safety</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c1_receipt_storage_30</linkId>
+        <text>Develop storage strategies that meet organizational needs and optimize supply chain costs</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
     </item>
     <item>
-      <linkId>q4</linkId>
-      <text>Provide any coaching or development recommendations.</text>
-      <type>text</type>
+      <linkId>c2_issue_dispatch</linkId>
+      <text>Competency Area 2: Issue, Pick, Dispatch and Replenish Commodities</text>
+      <type>group</type>
+      <item>
+        <linkId>c2_issue_dispatch_1</linkId>
+        <text>Requirements of general warehouse layout, item identification and warehouse procedures</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c2_issue_dispatch_2</linkId>
+        <text>Requirements of storage areas to pull stock and materials in accordance with procedures</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c2_issue_dispatch_3</linkId>
+        <text>Record issues, losses and adjustments; balance on hand; batch/lot numbers and expiry dates</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c2_issue_dispatch_4</linkId>
+        <text>Define and explain the specification requirements for procurement</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c2_issue_dispatch_5</linkId>
+        <text>Support the procurement process with respect to technical specifications</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c2_issue_dispatch_6</linkId>
+        <text>Ensure specifications are unbiased and in line with EFDA requirements</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c2_issue_dispatch_7</linkId>
+        <text>Conduct research and demonstrate creativity in developing complex specifications</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+    </item>
+    <item>
+      <linkId>c3_quantification</linkId>
+      <text>Competency Area 3: Undertake quantification analysis and forecast commodity needs</text>
+      <type>group</type>
+      <item>
+        <linkId>c3_quantification_1</linkId>
+        <text>Principles and applications for demand forecasting</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_2</linkId>
+        <text>Critical requirements like time horizons, use of data and level of detail</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_3</linkId>
+        <text>Principles and methodology of quantification</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_4</linkId>
+        <text>Consumption method for forecasting</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_5</linkId>
+        <text>Morbidity method for forecasting</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_6</linkId>
+        <text>Service level method for forecasting</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_7</linkId>
+        <text>Reconciliation methods like ABC and VEN</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_8</linkId>
+        <text>Methods of data analysis and other analytical methods</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_9</linkId>
+        <text>Specific forecasting requirements for HIV/TB/Malaria/RMNCH commodities</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_10</linkId>
+        <text>Tools for quantification like Quantimed</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_11</linkId>
+        <text>Requirements for data consolidation</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_12</linkId>
+        <text>Calculate current and future commodity needs based on consumption levels</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_13</linkId>
+        <text>Specific requirements from FMOH or Donors</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_14</linkId>
+        <text>Critical risks in forecasting</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_15</linkId>
+        <text>Budgeting requirements in forecasting</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_16</linkId>
+        <text>Develop tools for collection of consumption data</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_17</linkId>
+        <text>Develop tools for forecasting using appropriate methods</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_18</linkId>
+        <text>Use software such as Quantimed for quantifying commodities</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_19</linkId>
+        <text>Aggregate and validate forecasts from various EPSA hubs/branches</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_20</linkId>
+        <text>Reconcile needs for commodities based on available funds</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_21</linkId>
+        <text>Analyze information and decide which forecasting method to use</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_22</linkId>
+        <text>Understand and identify factors that affect consumption patterns</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_23</linkId>
+        <text>Facilitate dialogue between RHBs and facilities to reconcile forecasts</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_24</linkId>
+        <text>Forecast budgetary requirements based on programme needs</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_25</linkId>
+        <text>Establish internal policies and procedures for quantification and forecasting control</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_26</linkId>
+        <text>Establish key performance indicators of forecasting accuracy</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c3_quantification_27</linkId>
+        <text>Identify and manage the risks that affect user demand and supply; adopt mitigation strategies</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+    </item>
+    <item>
+      <linkId>c4_supply_planning</linkId>
+      <text>Competency Area 4: Manage Supply Planning</text>
+      <type>group</type>
+      <item>
+        <linkId>c4_supply_planning_1</linkId>
+        <text>Concepts of inventory management systems</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_2</linkId>
+        <text>Principles of integrated distribution systems</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_3</linkId>
+        <text>Requirements for supply in emergency situations</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_4</linkId>
+        <text>Special requirements for temperature-sensitive commodities (cold chain)</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_5</linkId>
+        <text>Requirements, guidelines and process for supply planning</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_6</linkId>
+        <text>Monitor stock status from branches and assess commodity stock status</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_7</linkId>
+        <text>Monitor in-transit commodities and procurement records</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_8</linkId>
+        <text>Develop supply plans based on associated datasets</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_9</linkId>
+        <text>Coordinate and manage development of supply plans</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_10</linkId>
+        <text>Conduct research and demonstrate creativity in developing complex supply plans</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
+      <item>
+        <linkId>c4_supply_planning_11</linkId>
+        <text>Communicate with branches on established supply plans to take feedback</text>
+        <type>choice</type>
+        <answerOption>
+          <valueString>1 - Not Proficient</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>2 - Basic Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>3 - Intermediate Proficiency</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>4 - Strong</valueString>
+        </answerOption>
+        <answerOption>
+          <valueString>5 - Expert</valueString>
+        </answerOption>
+      </item>
     </item>
   </item>
 </Questionnaire>

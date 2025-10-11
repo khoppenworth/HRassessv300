@@ -63,6 +63,9 @@ Questionnaire resources or Bundles that contain them. Items with
 and every nested item is imported as a question in the same order as the source
 file. A sample XML template that demonstrates the grouping structure is
 available at `assets/samples/sample_questionnaire_template.xml`.
+It now ships with the full Warehouse &amp; Inventory Management (WIM)
+technical assessment so new deployments have a ready-to-use
+questionnaire aligned with EPSA requirements.
 
 ## Development tooling
 
