@@ -25,6 +25,13 @@ $belowThreshold = array_values(array_filter($rows, static function ($row) {
     return isset($row['score']) && $row['score'] !== null && (int)$row['score'] < 100;
 }));
 
+$chartLabels = [];
+$chartScores = [];
+foreach ($rows as $row) {
+    $chartLabels[] = date('Y-m-d', strtotime($row['created_at'])) . ' · ' . $row['period_label'];
+    $chartScores[] = $row['score'] !== null ? (int)$row['score'] : null;
+}
+
 $recommendedCourses = [];
 if (!empty($user['work_function'])) {
     $courseStmt = $pdo->prepare('SELECT * FROM course_catalogue WHERE recommended_for=? AND min_score <= ? AND max_score >= ? ORDER BY min_score ASC');
@@ -68,6 +75,13 @@ if ($flash === 'submitted') {
   </div>
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t,'your_trend','Your Score Trend')?></h2>
+    <?php if ($chartLabels): ?>
+      <div class="trend-chart-wrap">
+        <canvas id="performance-trend-chart" height="220"></canvas>
+      </div>
+    <?php else: ?>
+      <p><?=t($t,'no_trend_data','Submit assessments to generate your performance trend.')?></p>
+    <?php endif; ?>
     <table class="md-table">
       <thead><tr><th><?=t($t,'date','Date')?></th><th><?=t($t,'questionnaire','Questionnaire')?></th><th><?=t($t,'performance_period','Performance Period')?></th><th><?=t($t,'score','Score (%)')?></th><th><?=t($t,'status','Status')?></th></tr></thead>
       <tbody>
@@ -123,4 +137,74 @@ if ($flash === 'submitted') {
   </div>
 </section>
 <?php include __DIR__.'/templates/footer.php'; ?>
+<?php
+$chartLabelsJson = json_encode($chartLabels, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+$chartScoresJson = json_encode($chartScores, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+?>
+<script src="<?=asset_url('assets/adminlte/plugins/chart.js/Chart.bundle.min.js')?>"></script>
+<script>
+(function() {
+  const ctxElement = document.getElementById('performance-trend-chart');
+  if (!ctxElement || typeof Chart === 'undefined') {
+    return;
+  }
+  const labels = <?=$chartLabelsJson?>;
+  const dataPoints = <?=$chartScoresJson?>;
+  const ctx = ctxElement.getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Score (%)',
+        data: dataPoints,
+        borderColor: '#0d7038',
+        backgroundColor: 'rgba(13, 112, 56, 0.15)',
+        borderWidth: 3,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        lineTension: 0.25,
+        spanGaps: true,
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      legend: {
+        display: false,
+      },
+      tooltips: {
+        callbacks: {
+          label: function(tooltipItem) {
+            const value = tooltipItem.yLabel;
+            if (value === null || typeof value === 'undefined') {
+              return 'No score';
+            }
+            return value + '%';
+          },
+        },
+      },
+      scales: {
+        yAxes: [{
+          ticks: {
+            suggestedMin: 0,
+            suggestedMax: 100,
+          },
+          gridLines: {
+            color: 'rgba(13, 112, 56, 0.1)',
+          },
+        }],
+        xAxes: [{
+          gridLines: {
+            display: false,
+          },
+          ticks: {
+            autoSkip: true,
+            maxTicksLimit: 8,
+          },
+        }],
+      },
+    },
+  });
+})();
+</script>
 </body></html>

@@ -16,7 +16,14 @@ const Builder = (() => {
     metaCsrf: 'meta[name="csrf-token"]',
   };
 
-  const QUESTION_TYPES = ['text', 'textarea', 'boolean', 'choice'];
+  const QUESTION_TYPES = ['likert', 'choice', 'text', 'textarea', 'boolean'];
+  const LIKERT_DEFAULT_LABELS = [
+    '1 - Strongly Disagree',
+    '2 - Disagree',
+    '3 - Neutral',
+    '4 - Agree',
+    '5 - Strongly Agree',
+  ];
 
   const baseMeta = document.querySelector('meta[name="app-base-url"]');
   let appBase = window.APP_BASE_URL || (baseMeta ? baseMeta.content : '/');
@@ -77,6 +84,33 @@ const Builder = (() => {
     };
   }
 
+  function isOptionType(type) {
+    return type === 'choice' || type === 'likert';
+  }
+
+  function createLikertOptions() {
+    return LIKERT_DEFAULT_LABELS.map((label) => ({
+      id: null,
+      clientId: uuid('o'),
+      value: label,
+    }));
+  }
+
+  function ensureLikertOptions(options) {
+    const normalized = Array.isArray(options) ? options : [];
+    return LIKERT_DEFAULT_LABELS.map((label, index) => {
+      const existing = normalized[index] || {};
+      const value = typeof existing.value === 'string' && existing.value.trim() !== ''
+        ? existing.value
+        : label;
+      return {
+        id: existing.id ?? null,
+        clientId: existing.clientId || uuid('o'),
+        value,
+      };
+    });
+  }
+
   function handleInputChange(event) {
     const target = event.target;
     const role = target.dataset.role;
@@ -120,6 +154,9 @@ const Builder = (() => {
             item.options.push(createOption('Option 1'));
             item.options.push(createOption('Option 2'));
           }
+        } else if (newType === 'likert') {
+          item.allow_multiple = false;
+          item.options = ensureLikertOptions(item.options);
         } else {
           item.allow_multiple = false;
           item.options = [];
@@ -264,10 +301,10 @@ const Builder = (() => {
       clientId: uuid('i'),
       linkId: `item-${list.length + 1}`,
       text: '',
-      type: 'text',
+      type: 'likert',
       weight_percent: 0,
       allow_multiple: false,
-      options: [],
+      options: createLikertOptions(),
     });
     markDirty();
     render();
@@ -282,6 +319,10 @@ const Builder = (() => {
   }
 
   function addOption(qIndex, sectionIndex, itemIndex) {
+    const items = getItemList(qIndex, sectionIndex);
+    if (!items || Number.isNaN(itemIndex) || !items[itemIndex] || items[itemIndex].type !== 'choice') {
+      return;
+    }
     const options = getOptionList(qIndex, sectionIndex, itemIndex);
     if (!options) return;
     options.push(createOption(`Option ${options.length + 1}`));
@@ -290,6 +331,10 @@ const Builder = (() => {
   }
 
   function removeOption(qIndex, sectionIndex, itemIndex, optionIndex) {
+    const items = getItemList(qIndex, sectionIndex);
+    if (!items || Number.isNaN(itemIndex) || !items[itemIndex] || items[itemIndex].type !== 'choice') {
+      return;
+    }
     const options = getOptionList(qIndex, sectionIndex, itemIndex);
     if (!options || options.length <= 1 || Number.isNaN(optionIndex) || !options[optionIndex]) return;
     options.splice(optionIndex, 1);
@@ -358,8 +403,13 @@ const Builder = (() => {
   function normalizeItems(items) {
     if (!Array.isArray(items)) return [];
     return items.map((item) => {
-      const normalizedType = QUESTION_TYPES.includes(item.type) ? item.type : 'text';
-      const normalizedOptions = normalizedType === 'choice' ? normalizeOptions(item.options) : [];
+      const normalizedType = QUESTION_TYPES.includes(item.type) ? item.type : 'likert';
+      let normalizedOptions = [];
+      if (normalizedType === 'choice') {
+        normalizedOptions = normalizeOptions(item.options);
+      } else if (normalizedType === 'likert') {
+        normalizedOptions = ensureLikertOptions(normalizeOptions(item.options));
+      }
       return {
         id: item.id ?? null,
         clientId: item.clientId || `i-${item.id ?? uuid('i')}`,
@@ -665,28 +715,37 @@ const Builder = (() => {
     weight.dataset.itemIndex = String(itemIndex);
     itemEl.appendChild(weight);
 
-    if (item.type === 'choice') {
+    if (isOptionType(item.type)) {
       const choiceWrap = document.createElement('div');
       choiceWrap.className = 'qb-choice-settings';
 
-      const allowWrap = document.createElement('label');
-      allowWrap.className = 'qb-checkbox';
-      const allowInput = document.createElement('input');
-      allowInput.type = 'checkbox';
-      allowInput.checked = Boolean(item.allow_multiple);
-      allowInput.dataset.role = 'item-allow-multiple';
-      allowInput.dataset.qIndex = String(qIndex);
-      allowInput.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
-      allowInput.dataset.itemIndex = String(itemIndex);
-      const allowText = document.createElement('span');
-      allowText.textContent = 'Allow multiple selections';
-      allowWrap.appendChild(allowInput);
-      allowWrap.appendChild(allowText);
-      choiceWrap.appendChild(allowWrap);
+      const isLikert = item.type === 'likert';
+
+      if (!isLikert) {
+        const allowWrap = document.createElement('label');
+        allowWrap.className = 'qb-checkbox';
+        const allowInput = document.createElement('input');
+        allowInput.type = 'checkbox';
+        allowInput.checked = Boolean(item.allow_multiple);
+        allowInput.dataset.role = 'item-allow-multiple';
+        allowInput.dataset.qIndex = String(qIndex);
+        allowInput.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+        allowInput.dataset.itemIndex = String(itemIndex);
+        const allowText = document.createElement('span');
+        allowText.textContent = 'Allow multiple selections';
+        allowWrap.appendChild(allowInput);
+        allowWrap.appendChild(allowText);
+        choiceWrap.appendChild(allowWrap);
+      } else {
+        const note = document.createElement('p');
+        note.className = 'qb-likert-note';
+        note.textContent = 'Likert scale responses are fixed to a 1–5 rating.';
+        choiceWrap.appendChild(note);
+      }
 
       const optionsHeading = document.createElement('div');
       optionsHeading.className = 'qb-inline-heading';
-      optionsHeading.textContent = 'Options';
+      optionsHeading.textContent = isLikert ? 'Scale points' : 'Options';
       choiceWrap.appendChild(optionsHeading);
 
       const optionsList = document.createElement('div');
@@ -696,20 +755,26 @@ const Builder = (() => {
       optionsList.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
       optionsList.dataset.itemIndex = String(itemIndex);
       item.options = Array.isArray(item.options) ? item.options : [];
+      if (isLikert) {
+        item.options = ensureLikertOptions(item.options);
+        optionsList.dataset.locked = 'true';
+      }
       item.options.forEach((option, optionIndex) => {
-        const optionEl = buildOption(option, qIndex, sectionIndex, itemIndex, optionIndex);
+        const optionEl = buildOption(option, qIndex, sectionIndex, itemIndex, optionIndex, item.type);
         optionsList.appendChild(optionEl);
       });
       choiceWrap.appendChild(optionsList);
 
-      const addOptionBtn = document.createElement('button');
-      addOptionBtn.className = 'md-button qb-action';
-      addOptionBtn.textContent = 'Add Option';
-      addOptionBtn.dataset.action = 'add-option';
-      addOptionBtn.dataset.qIndex = String(qIndex);
-      addOptionBtn.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
-      addOptionBtn.dataset.itemIndex = String(itemIndex);
-      choiceWrap.appendChild(addOptionBtn);
+      if (!isLikert) {
+        const addOptionBtn = document.createElement('button');
+        addOptionBtn.className = 'md-button qb-action';
+        addOptionBtn.textContent = 'Add Option';
+        addOptionBtn.dataset.action = 'add-option';
+        addOptionBtn.dataset.qIndex = String(qIndex);
+        addOptionBtn.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+        addOptionBtn.dataset.itemIndex = String(itemIndex);
+        choiceWrap.appendChild(addOptionBtn);
+      }
 
       itemEl.appendChild(choiceWrap);
     }
@@ -726,7 +791,7 @@ const Builder = (() => {
     return itemEl;
   }
 
-  function buildOption(option, qIndex, sectionIndex, itemIndex, optionIndex) {
+  function buildOption(option, qIndex, sectionIndex, itemIndex, optionIndex, itemType = 'choice') {
     const optionEl = document.createElement('div');
     optionEl.className = 'qb-option';
     optionEl.dataset.key = keyFor(option);
@@ -751,17 +816,23 @@ const Builder = (() => {
     input.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
     input.dataset.itemIndex = String(itemIndex);
     input.dataset.optionIndex = String(optionIndex);
+    if (itemType === 'likert') {
+      input.readOnly = true;
+      input.classList.add('qb-option-readonly');
+    }
     optionEl.appendChild(input);
 
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'md-button qb-danger';
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.dataset.action = 'delete-option';
-    deleteBtn.dataset.qIndex = String(qIndex);
-    deleteBtn.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
-    deleteBtn.dataset.itemIndex = String(itemIndex);
-    deleteBtn.dataset.optionIndex = String(optionIndex);
-    optionEl.appendChild(deleteBtn);
+    if (itemType !== 'likert') {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'md-button qb-danger';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.dataset.action = 'delete-option';
+      deleteBtn.dataset.qIndex = String(qIndex);
+      deleteBtn.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+      deleteBtn.dataset.itemIndex = String(itemIndex);
+      deleteBtn.dataset.optionIndex = String(optionIndex);
+      optionEl.appendChild(deleteBtn);
+    }
 
     return optionEl;
   }
@@ -826,6 +897,13 @@ const Builder = (() => {
     });
 
     document.querySelectorAll('[data-sortable="options"]').forEach((container) => {
+      if (container.dataset.locked === 'true') {
+        if (window.Sortable) {
+          const existing = window.Sortable.get(container);
+          if (existing) existing.destroy();
+        }
+        return;
+      }
       makeSortable(container, {
         handle: '.qb-option > .qb-handle',
         animation: 120,

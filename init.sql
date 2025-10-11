@@ -97,7 +97,7 @@ CREATE TABLE questionnaire_item (
   section_id INT NULL,
   linkId VARCHAR(64) NOT NULL,
   text VARCHAR(500) NOT NULL,
-  type ENUM('text','textarea','boolean','choice') NOT NULL DEFAULT 'text',
+  type ENUM('likert','text','textarea','boolean','choice') NOT NULL DEFAULT 'likert',
   order_index INT NOT NULL DEFAULT 0,
   weight_percent INT NOT NULL DEFAULT 0,
   allow_multiple TINYINT(1) NOT NULL DEFAULT 0,
@@ -219,7 +219,7 @@ INSERT INTO site_config (
 
 -- default users (bcrypt hashes should be set during runtime; using demo placeholder hashes)
 INSERT INTO users (username,password,role,full_name,email) VALUES
-('admin', '$2y$10$9VQpYQ6k1cP6m0Wkq6YJTe1cW5Hc0yQ8Gm3qGf0j6Qj0M4jY3P4wW', 'admin', 'System Admin', 'admin@example.com'),
+('admin', '$2y$12$XN2nF1L1uUah/ESe7CO4f.Dwnx/C8J91JINMz4jXTtLDXPWlzBzGe', 'admin', 'System Admin', 'admin@example.com'),
 ('super', '$2y$10$Pj9m0H6b8K2ZyQe7p0k1TOeGq1bqfP3QO3Y6b5g1YQb1J2lL8mJxC', 'supervisor', 'Default Supervisor', 'super@example.com'),
 ('staff', '$2y$10$Pj9m0H6b8K2ZyQe7p0k1TOeGq1bqfP3QO3Y6b5g1YQb1J2lL8mJxC', 'staff', 'Sample Staff', 'staff@example.com');
 

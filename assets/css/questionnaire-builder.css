@@ -175,6 +175,22 @@
   padding: 0.35rem 0.5rem;
 }
 
+.qb-option-readonly {
+  background: rgba(42, 79, 191, 0.12);
+  cursor: default;
+}
+
+.qb-option-list[data-locked="true"] .qb-handle {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.qb-likert-note {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: #2a4fbf;
+}
+
 .qb-option .qb-input {
   flex: 1 1 auto;
 }

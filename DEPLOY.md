@@ -74,6 +74,9 @@ Import the schema and seed data:
 
 ```bash
 mysql -u epss_user -p epss_v300 < init.sql
+
+# Optional: load realistic demo data (populates every work function with five years of scores)
+mysql -u epss_user -p epss_v300 < dummy_data.sql
 ```
 
 Additional SQL utilities:
@@ -159,13 +162,14 @@ Certbot automatically configures the HTTPS virtual host and renewals (`systemctl
 
 ## 7. Post-Deployment Checklist
 
-1. **Login** with the seeded admin account (`admin / password from init.sql`) and immediately change the password from the Profile page.
+1. **Login** with the seeded admin account (`admin / Admin123`) and immediately change the password from the Profile page.
 2. **Complete the admin profile** so that other pages are accessible (profile completion is required).
 3. **Update branding** under **Admin → Branding & Landing** to set the landing text, address, contact, and logo.
 4. **Configure questionnaires** and performance periods as needed.
 5. **Create additional users** via **Admin → Manage Users**.
 6. **Verify FHIR endpoints** by hitting `https://epss.example.org/fhir/metadata.php` (should return JSON bundle).
 7. **Check browser offline support** (service worker) by loading the dashboard and toggling offline mode.
+8. **Review the performance trend chart** on **My Performance** to ensure Chart.js renders and the Likert-derived scores plot as expected (use the demo data for a quick smoke test).
 
 ---
 
@@ -239,7 +243,7 @@ Visit http://127.0.0.1:8000/index.php, log in with the seeded credentials, and e
 
 ## 12. Reference Accounts & Defaults
 
-* Admin login: `admin` / (hash defined in `init.sql`).
+* Admin login: `admin` / `Admin123`.
 * Supervisor login: `super` / same placeholder hash.
 * Staff login: `staff` / same placeholder hash.
 * Default branding: “My Performance” with EPSS logo at `assets/img/epss-logo.svg`.

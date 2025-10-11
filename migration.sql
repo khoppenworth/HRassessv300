@@ -2,6 +2,7 @@
 -- migration.sql: upgrade existing DB to enhanced schema
 ALTER TABLE questionnaire_item ADD COLUMN weight_percent INT NOT NULL DEFAULT 0;
 ALTER TABLE questionnaire_item ADD COLUMN allow_multiple TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE questionnaire_item MODIFY COLUMN type ENUM('likert','text','textarea','boolean','choice') NOT NULL DEFAULT 'likert';
 
 CREATE TABLE IF NOT EXISTS questionnaire_item_option (
   id INT AUTO_INCREMENT PRIMARY KEY,
