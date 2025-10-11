@@ -1,6 +1,15 @@
 
 -- migration.sql: upgrade existing DB to enhanced schema
 ALTER TABLE questionnaire_item ADD COLUMN weight_percent INT NOT NULL DEFAULT 0;
+ALTER TABLE questionnaire_item ADD COLUMN allow_multiple TINYINT(1) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS questionnaire_item_option (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  questionnaire_item_id INT NOT NULL,
+  value VARCHAR(500) NOT NULL,
+  order_index INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (questionnaire_item_id) REFERENCES questionnaire_item(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS site_config (
   id INT PRIMARY KEY,
   site_name VARCHAR(200) NULL,

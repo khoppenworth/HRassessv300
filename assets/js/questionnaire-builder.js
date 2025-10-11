@@ -16,6 +16,8 @@ const Builder = (() => {
     metaCsrf: 'meta[name="csrf-token"]',
   };
 
+  const QUESTION_TYPES = ['text', 'textarea', 'boolean', 'choice'];
+
   const baseMeta = document.querySelector('meta[name="app-base-url"]');
   let appBase = window.APP_BASE_URL || (baseMeta ? baseMeta.content : '/');
   if (typeof appBase !== 'string' || appBase === '') {
@@ -67,12 +69,21 @@ const Builder = (() => {
     return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
   }
 
+  function createOption(label = '') {
+    return {
+      id: null,
+      clientId: uuid('o'),
+      value: label,
+    };
+  }
+
   function handleInputChange(event) {
     const target = event.target;
     const role = target.dataset.role;
     if (!role) return;
     const qIndex = parseInt(target.dataset.qIndex ?? '-1', 10);
     if (Number.isNaN(qIndex) || !state.questionnaires[qIndex]) return;
+    let requiresRender = false;
 
     if (role === 'q-title') {
       state.questionnaires[qIndex].title = target.value;
@@ -98,12 +109,39 @@ const Builder = (() => {
       } else if (role === 'item-text') {
         item.text = target.value;
       } else if (role === 'item-type') {
-        item.type = target.value;
+        const newType = target.value;
+        if (!QUESTION_TYPES.includes(newType)) {
+          return;
+        }
+        item.type = newType;
+        if (newType === 'choice') {
+          item.options = Array.isArray(item.options) ? item.options : [];
+          if (!item.options.length) {
+            item.options.push(createOption('Option 1'));
+            item.options.push(createOption('Option 2'));
+          }
+        } else {
+          item.allow_multiple = false;
+          item.options = [];
+        }
+        requiresRender = true;
       } else if (role === 'item-weight') {
         item.weight_percent = parseInt(target.value || '0', 10) || 0;
+      } else if (role === 'item-allow-multiple') {
+        item.allow_multiple = target.checked;
       }
+    } else if (role === 'option-value') {
+      const sectionIndex = parseSectionIndex(target.dataset.sectionIndex);
+      const itemIndex = parseInt(target.dataset.itemIndex ?? '-1', 10);
+      const optionIndex = parseInt(target.dataset.optionIndex ?? '-1', 10);
+      const options = getOptionList(qIndex, sectionIndex, itemIndex);
+      if (!options || !options[optionIndex]) return;
+      options[optionIndex].value = target.value;
     }
     markDirty();
+    if (requiresRender) {
+      render();
+    }
   }
 
   function handleActionClick(event) {
@@ -128,6 +166,15 @@ const Builder = (() => {
       const sectionIndex = parseSectionIndex(button.dataset.sectionIndex);
       const itemIndex = parseInt(button.dataset.itemIndex ?? '-1', 10);
       removeItem(qIndex, sectionIndex, itemIndex);
+    } else if (action === 'add-option') {
+      const sectionIndex = parseSectionIndex(button.dataset.sectionIndex);
+      const itemIndex = parseInt(button.dataset.itemIndex ?? '-1', 10);
+      addOption(qIndex, sectionIndex, itemIndex);
+    } else if (action === 'delete-option') {
+      const sectionIndex = parseSectionIndex(button.dataset.sectionIndex);
+      const itemIndex = parseInt(button.dataset.itemIndex ?? '-1', 10);
+      const optionIndex = parseInt(button.dataset.optionIndex ?? '-1', 10);
+      removeOption(qIndex, sectionIndex, itemIndex, optionIndex);
     }
   }
 
@@ -154,6 +201,14 @@ const Builder = (() => {
     if (!section) return null;
     section.items = section.items || [];
     return section.items;
+  }
+
+  function getOptionList(qIndex, sectionIndex, itemIndex) {
+    const items = getItemList(qIndex, sectionIndex);
+    if (!items || Number.isNaN(itemIndex) || !items[itemIndex]) return null;
+    const item = items[itemIndex];
+    item.options = Array.isArray(item.options) ? item.options : [];
+    return item.options;
   }
 
   function addQuestionnaire() {
@@ -211,6 +266,8 @@ const Builder = (() => {
       text: '',
       type: 'text',
       weight_percent: 0,
+      allow_multiple: false,
+      options: [],
     });
     markDirty();
     render();
@@ -220,6 +277,22 @@ const Builder = (() => {
     const list = getItemList(qIndex, sectionIndex);
     if (!list || Number.isNaN(itemIndex) || !list[itemIndex]) return;
     list.splice(itemIndex, 1);
+    markDirty();
+    render();
+  }
+
+  function addOption(qIndex, sectionIndex, itemIndex) {
+    const options = getOptionList(qIndex, sectionIndex, itemIndex);
+    if (!options) return;
+    options.push(createOption(`Option ${options.length + 1}`));
+    markDirty();
+    render();
+  }
+
+  function removeOption(qIndex, sectionIndex, itemIndex, optionIndex) {
+    const options = getOptionList(qIndex, sectionIndex, itemIndex);
+    if (!options || options.length <= 1 || Number.isNaN(optionIndex) || !options[optionIndex]) return;
+    options.splice(optionIndex, 1);
     markDirty();
     render();
   }
@@ -284,13 +357,28 @@ const Builder = (() => {
 
   function normalizeItems(items) {
     if (!Array.isArray(items)) return [];
-    return items.map((item) => ({
-      id: item.id ?? null,
-      clientId: item.clientId || `i-${item.id ?? uuid('i')}`,
-      linkId: item.linkId ?? '',
-      text: item.text ?? '',
-      type: item.type ?? 'text',
-      weight_percent: Number.isFinite(item.weight_percent) ? item.weight_percent : parseInt(item.weight_percent || '0', 10) || 0,
+    return items.map((item) => {
+      const normalizedType = QUESTION_TYPES.includes(item.type) ? item.type : 'text';
+      const normalizedOptions = normalizedType === 'choice' ? normalizeOptions(item.options) : [];
+      return {
+        id: item.id ?? null,
+        clientId: item.clientId || `i-${item.id ?? uuid('i')}`,
+        linkId: item.linkId ?? '',
+        text: item.text ?? '',
+        type: normalizedType,
+        weight_percent: Number.isFinite(item.weight_percent) ? item.weight_percent : parseInt(item.weight_percent || '0', 10) || 0,
+        allow_multiple: normalizedType === 'choice' ? Boolean(item.allow_multiple) : false,
+        options: normalizedOptions,
+      };
+    });
+  }
+
+  function normalizeOptions(options) {
+    if (!Array.isArray(options)) return [];
+    return options.map((option) => ({
+      id: option.id ?? null,
+      clientId: option.clientId || `o-${option.id ?? uuid('o')}`,
+      value: option.value ?? '',
     }));
   }
 
@@ -549,7 +637,7 @@ const Builder = (() => {
 
     const type = document.createElement('select');
     type.className = 'qb-select qb-item-type';
-    ['text', 'textarea', 'boolean'].forEach((optionValue) => {
+    QUESTION_TYPES.forEach((optionValue) => {
       const opt = document.createElement('option');
       opt.value = optionValue;
       opt.textContent = optionValue;
@@ -577,6 +665,55 @@ const Builder = (() => {
     weight.dataset.itemIndex = String(itemIndex);
     itemEl.appendChild(weight);
 
+    if (item.type === 'choice') {
+      const choiceWrap = document.createElement('div');
+      choiceWrap.className = 'qb-choice-settings';
+
+      const allowWrap = document.createElement('label');
+      allowWrap.className = 'qb-checkbox';
+      const allowInput = document.createElement('input');
+      allowInput.type = 'checkbox';
+      allowInput.checked = Boolean(item.allow_multiple);
+      allowInput.dataset.role = 'item-allow-multiple';
+      allowInput.dataset.qIndex = String(qIndex);
+      allowInput.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+      allowInput.dataset.itemIndex = String(itemIndex);
+      const allowText = document.createElement('span');
+      allowText.textContent = 'Allow multiple selections';
+      allowWrap.appendChild(allowInput);
+      allowWrap.appendChild(allowText);
+      choiceWrap.appendChild(allowWrap);
+
+      const optionsHeading = document.createElement('div');
+      optionsHeading.className = 'qb-inline-heading';
+      optionsHeading.textContent = 'Options';
+      choiceWrap.appendChild(optionsHeading);
+
+      const optionsList = document.createElement('div');
+      optionsList.className = 'qb-option-list';
+      optionsList.dataset.sortable = 'options';
+      optionsList.dataset.qIndex = String(qIndex);
+      optionsList.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+      optionsList.dataset.itemIndex = String(itemIndex);
+      item.options = Array.isArray(item.options) ? item.options : [];
+      item.options.forEach((option, optionIndex) => {
+        const optionEl = buildOption(option, qIndex, sectionIndex, itemIndex, optionIndex);
+        optionsList.appendChild(optionEl);
+      });
+      choiceWrap.appendChild(optionsList);
+
+      const addOptionBtn = document.createElement('button');
+      addOptionBtn.className = 'md-button qb-action';
+      addOptionBtn.textContent = 'Add Option';
+      addOptionBtn.dataset.action = 'add-option';
+      addOptionBtn.dataset.qIndex = String(qIndex);
+      addOptionBtn.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+      addOptionBtn.dataset.itemIndex = String(itemIndex);
+      choiceWrap.appendChild(addOptionBtn);
+
+      itemEl.appendChild(choiceWrap);
+    }
+
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'md-button qb-danger';
     deleteBtn.textContent = 'Delete';
@@ -587,6 +724,46 @@ const Builder = (() => {
     itemEl.appendChild(deleteBtn);
 
     return itemEl;
+  }
+
+  function buildOption(option, qIndex, sectionIndex, itemIndex, optionIndex) {
+    const optionEl = document.createElement('div');
+    optionEl.className = 'qb-option';
+    optionEl.dataset.key = keyFor(option);
+    optionEl.dataset.qIndex = String(qIndex);
+    optionEl.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+    optionEl.dataset.itemIndex = String(itemIndex);
+    optionEl.dataset.optionIndex = String(optionIndex);
+
+    const handle = document.createElement('span');
+    handle.className = 'qb-handle';
+    handle.setAttribute('title', 'Drag to reorder option');
+    handle.setAttribute('aria-hidden', 'true');
+    optionEl.appendChild(handle);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'qb-input qb-option-input';
+    input.placeholder = 'Option label';
+    input.value = option.value ?? '';
+    input.dataset.role = 'option-value';
+    input.dataset.qIndex = String(qIndex);
+    input.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+    input.dataset.itemIndex = String(itemIndex);
+    input.dataset.optionIndex = String(optionIndex);
+    optionEl.appendChild(input);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'md-button qb-danger';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.dataset.action = 'delete-option';
+    deleteBtn.dataset.qIndex = String(qIndex);
+    deleteBtn.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+    deleteBtn.dataset.itemIndex = String(itemIndex);
+    deleteBtn.dataset.optionIndex = String(optionIndex);
+    optionEl.appendChild(deleteBtn);
+
+    return optionEl;
   }
 
   function initSortable() {
@@ -647,6 +824,30 @@ const Builder = (() => {
         },
       });
     });
+
+    document.querySelectorAll('[data-sortable="options"]').forEach((container) => {
+      makeSortable(container, {
+        handle: '.qb-option > .qb-handle',
+        animation: 120,
+        onEnd() {
+          const qIndex = parseInt(container.dataset.qIndex ?? '-1', 10);
+          const sectionIndex = parseSectionIndex(container.dataset.sectionIndex);
+          const itemIndex = parseInt(container.dataset.itemIndex ?? '-1', 10);
+          const optionList = getOptionList(qIndex, sectionIndex, itemIndex);
+          if (!optionList) return;
+          const orderedKeys = Array.from(container.children).map((el) => el.dataset.key);
+          const sorted = orderedKeys
+            .map((key) => optionList.find((option) => keyFor(option) === key))
+            .filter(Boolean);
+          if (sorted.length === optionList.length) {
+            optionList.length = 0;
+            sorted.forEach((option) => optionList.push(option));
+            markDirty();
+            render();
+          }
+        },
+      });
+    });
   }
 
   function makeSortable(element, options) {
@@ -699,6 +900,7 @@ const Builder = (() => {
     const qMap = idMap.questionnaires || {};
     const sMap = idMap.sections || {};
     const iMap = idMap.items || {};
+    const oMap = idMap.options || {};
     state.questionnaires.forEach((q) => {
       if (!q.id && qMap[q.clientId]) {
         q.id = qMap[q.clientId];
@@ -711,12 +913,22 @@ const Builder = (() => {
           if (!item.id && iMap[item.clientId]) {
             item.id = iMap[item.clientId];
           }
+          item.options.forEach((option) => {
+            if (!option.id && oMap[option.clientId]) {
+              option.id = oMap[option.clientId];
+            }
+          });
         });
       });
       q.items.forEach((item) => {
         if (!item.id && iMap[item.clientId]) {
           item.id = iMap[item.clientId];
         }
+        item.options.forEach((option) => {
+          if (!option.id && oMap[option.clientId]) {
+            option.id = oMap[option.clientId];
+          }
+        });
       });
     });
   }

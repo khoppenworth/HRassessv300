@@ -51,6 +51,7 @@ if ($action === 'fetch') {
     $qsRows = $pdo->query('SELECT * FROM questionnaire ORDER BY id DESC')->fetchAll();
     $sectionsRows = $pdo->query('SELECT * FROM questionnaire_section ORDER BY questionnaire_id, order_index, id')->fetchAll();
     $itemsRows = $pdo->query('SELECT * FROM questionnaire_item ORDER BY questionnaire_id, order_index, id')->fetchAll();
+    $optionsRows = $pdo->query('SELECT * FROM questionnaire_item_option ORDER BY questionnaire_item_id, order_index, id')->fetchAll();
     $wfRows = $pdo->query('SELECT questionnaire_id, work_function FROM questionnaire_work_function')->fetchAll();
 
     $sectionsByQuestionnaire = [];
@@ -62,6 +63,17 @@ if ($action === 'fetch') {
             'title' => $section['title'],
             'description' => $section['description'],
             'order_index' => (int)$section['order_index'],
+        ];
+    }
+
+    $optionsByItem = [];
+    foreach ($optionsRows as $option) {
+        $itemId = (int)$option['questionnaire_item_id'];
+        $optionsByItem[$itemId][] = [
+            'id' => (int)$option['id'],
+            'questionnaire_item_id' => $itemId,
+            'value' => $option['value'],
+            'order_index' => (int)$option['order_index'],
         ];
     }
 
@@ -79,6 +91,8 @@ if ($action === 'fetch') {
             'type' => $item['type'],
             'order_index' => (int)$item['order_index'],
             'weight_percent' => (int)$item['weight_percent'],
+            'allow_multiple' => (bool)$item['allow_multiple'],
+            'options' => $optionsByItem[(int)$item['id']] ?? [],
         ];
         if ($sid) {
             $itemsBySection[$sid][] = $formatted;
@@ -151,10 +165,17 @@ if ($action === 'save' || $action === 'publish') {
     }
 
     $itemsRows = $pdo->query('SELECT * FROM questionnaire_item ORDER BY questionnaire_id, id')->fetchAll();
+    $optionsRows = $pdo->query('SELECT * FROM questionnaire_item_option ORDER BY questionnaire_item_id, id')->fetchAll();
     $itemsMap = [];
     foreach ($itemsRows as $row) {
         $qid = (int)$row['questionnaire_id'];
         $itemsMap[$qid][(int)$row['id']] = $row;
+    }
+
+    $optionsMap = [];
+    foreach ($optionsRows as $row) {
+        $itemId = (int)$row['questionnaire_item_id'];
+        $optionsMap[$itemId][(int)$row['id']] = $row;
     }
 
     $questionnaireSeen = [];
@@ -162,6 +183,7 @@ if ($action === 'save' || $action === 'publish') {
         'questionnaires' => [],
         'sections' => [],
         'items' => [],
+        'options' => [],
     ];
 
     $pdo->beginTransaction();
@@ -172,10 +194,53 @@ if ($action === 'save' || $action === 'publish') {
         $insertSectionStmt = $pdo->prepare('INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index) VALUES (?, ?, ?, ?)');
         $updateSectionStmt = $pdo->prepare('UPDATE questionnaire_section SET title=?, description=?, order_index=? WHERE id=?');
 
-        $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        $updateItemStmt = $pdo->prepare('UPDATE questionnaire_item SET section_id=?, linkId=?, text=?, type=?, order_index=?, weight_percent=? WHERE id=?');
+        $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $updateItemStmt = $pdo->prepare('UPDATE questionnaire_item SET section_id=?, linkId=?, text=?, type=?, order_index=?, weight_percent=?, allow_multiple=? WHERE id=?');
+        $insertOptionStmt = $pdo->prepare('INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index) VALUES (?, ?, ?)');
+        $updateOptionStmt = $pdo->prepare('UPDATE questionnaire_item_option SET value=?, order_index=? WHERE id=?');
         $insertWorkFunctionStmt = $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
         $deleteWorkFunctionStmt = $pdo->prepare('DELETE FROM questionnaire_work_function WHERE questionnaire_id=?');
+
+        $saveOptions = function (int $itemId, $optionsInput) use (&$optionsMap, $insertOptionStmt, $updateOptionStmt, &$idMap, $pdo) {
+            $existing = $optionsMap[$itemId] ?? [];
+            if (!is_array($optionsInput)) {
+                $optionsInput = [];
+            }
+            $seen = [];
+            $order = 1;
+            foreach ($optionsInput as $optionData) {
+                if (!is_array($optionData)) {
+                    continue;
+                }
+                $value = trim((string)($optionData['value'] ?? ''));
+                if ($value === '') {
+                    continue;
+                }
+                $optionClientId = $optionData['clientId'] ?? null;
+                $optionId = isset($optionData['id']) ? (int)$optionData['id'] : null;
+                if ($optionId && isset($existing[$optionId])) {
+                    $updateOptionStmt->execute([$value, $order, $optionId]);
+                } else {
+                    $insertOptionStmt->execute([$itemId, $value, $order]);
+                    $optionId = (int)$pdo->lastInsertId();
+                    if ($optionClientId) {
+                        $idMap['options'][$optionClientId] = $optionId;
+                    }
+                }
+                $seen[] = $optionId;
+                $order++;
+            }
+            $toDelete = array_diff(array_keys($existing), $seen);
+            if ($toDelete) {
+                $placeholders = implode(',', array_fill(0, count($toDelete), '?'));
+                $stmt = $pdo->prepare("DELETE FROM questionnaire_item_option WHERE id IN ($placeholders)");
+                $stmt->execute(array_values($toDelete));
+            }
+            $optionsMap[$itemId] = [];
+            foreach ($seen as $optionId) {
+                $optionsMap[$itemId][$optionId] = ['id' => $optionId];
+            }
+        };
 
         foreach ($structures as $qData) {
             if (!is_array($qData)) {
@@ -251,15 +316,19 @@ if ($action === 'save' || $action === 'publish') {
                     $linkId = trim((string)($itemData['linkId'] ?? ''));
                     $text = trim((string)($itemData['text'] ?? ''));
                     $type = $itemData['type'] ?? 'text';
-                    if (!in_array($type, ['text', 'textarea', 'boolean'], true)) {
+                    if (!in_array($type, ['text', 'textarea', 'boolean', 'choice'], true)) {
                         $type = 'text';
                     }
                     $weight = isset($itemData['weight_percent']) ? (int)$itemData['weight_percent'] : 0;
+                    $allowMultiple = !empty($itemData['allow_multiple']);
+                    if ($type !== 'choice') {
+                        $allowMultiple = false;
+                    }
 
                     if ($itemId && isset($existingItems[$itemId])) {
-                        $updateItemStmt->execute([$sectionId, $linkId, $text, $type, $itemOrder, $weight, $itemId]);
+                        $updateItemStmt->execute([$sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $itemId]);
                     } else {
-                        $insertItemStmt->execute([$qid, $sectionId, $linkId, $text, $type, $itemOrder, $weight]);
+                        $insertItemStmt->execute([$qid, $sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0]);
                         $itemId = (int)$pdo->lastInsertId();
                         if ($itemClientId) {
                             $idMap['items'][$itemClientId] = $itemId;
@@ -268,6 +337,11 @@ if ($action === 'save' || $action === 'publish') {
                             'id' => $itemId,
                         ];
                     }
+                    $optionsInput = $itemData['options'] ?? [];
+                    if ($type !== 'choice') {
+                        $optionsInput = [];
+                    }
+                    $saveOptions($itemId, $optionsInput);
                     $itemSeen[] = $itemId;
                     $itemOrder++;
                 }
@@ -288,15 +362,19 @@ if ($action === 'save' || $action === 'publish') {
                 $linkId = trim((string)($itemData['linkId'] ?? ''));
                 $text = trim((string)($itemData['text'] ?? ''));
                 $type = $itemData['type'] ?? 'text';
-                if (!in_array($type, ['text', 'textarea', 'boolean'], true)) {
+                if (!in_array($type, ['text', 'textarea', 'boolean', 'choice'], true)) {
                     $type = 'text';
                 }
                 $weight = isset($itemData['weight_percent']) ? (int)$itemData['weight_percent'] : 0;
+                $allowMultiple = !empty($itemData['allow_multiple']);
+                if ($type !== 'choice') {
+                    $allowMultiple = false;
+                }
 
                 if ($itemId && isset($existingItems[$itemId])) {
-                    $updateItemStmt->execute([null, $linkId, $text, $type, $rootOrder, $weight, $itemId]);
+                    $updateItemStmt->execute([null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $itemId]);
                 } else {
-                    $insertItemStmt->execute([$qid, null, $linkId, $text, $type, $rootOrder, $weight]);
+                    $insertItemStmt->execute([$qid, null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0]);
                     $itemId = (int)$pdo->lastInsertId();
                     if ($itemClientId) {
                         $idMap['items'][$itemClientId] = $itemId;
@@ -305,6 +383,11 @@ if ($action === 'save' || $action === 'publish') {
                         'id' => $itemId,
                     ];
                 }
+                $optionsInput = $itemData['options'] ?? [];
+                if ($type !== 'choice') {
+                    $optionsInput = [];
+                }
+                $saveOptions($itemId, $optionsInput);
                 $itemSeen[] = $itemId;
                 $rootOrder++;
             }
@@ -406,7 +489,8 @@ if (isset($_POST['import'])) {
                 }
 
                 $insertSectionStmt = $pdo->prepare('INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index) VALUES (?, ?, ?, ?)');
-                $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent) VALUES (?,?,?,?,?,?,?)');
+                $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple) VALUES (?,?,?,?,?,?,?,?)');
+                $insertOptionStmt = $pdo->prepare('INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index) VALUES (?,?,?)');
 
                 $sectionOrder = 1;
                 $itemOrder = 1;
@@ -430,6 +514,8 @@ if (isset($_POST['import'])) {
                     switch ($type) {
                         case 'boolean':
                             return 'boolean';
+                        case 'choice':
+                            return 'choice';
                         case 'text':
                         case 'textarea':
                             return 'textarea';
@@ -438,7 +524,23 @@ if (isset($_POST['import'])) {
                     }
                 };
 
-                $processItems = function ($items, $sectionId = null) use (&$processItems, &$sectionOrder, &$itemOrder, $insertSectionStmt, $insertItemStmt, $qid, $toList, $mapType, $pdo) {
+                $isTruthy = static function ($value): bool {
+                    if (is_array($value)) {
+                        if (isset($value['@attributes']['value'])) {
+                            $value = $value['@attributes']['value'];
+                        } elseif (isset($value['value'])) {
+                            $value = $value['value'];
+                        } else {
+                            $value = reset($value);
+                        }
+                    }
+                    if (is_string($value)) {
+                        $value = trim($value);
+                    }
+                    return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+                };
+
+                $processItems = function ($items, $sectionId = null) use (&$processItems, &$sectionOrder, &$itemOrder, $insertSectionStmt, $insertItemStmt, $insertOptionStmt, $qid, $toList, $mapType, $pdo, $isTruthy) {
                     $items = $toList($items);
                     foreach ($items as $it) {
                         if (!is_array($it)) {
@@ -468,15 +570,43 @@ if (isset($_POST['import'])) {
 
                         $linkId = $it['linkId'] ?? ('i'.$itemOrder);
                         $text = $it['text'] ?? $linkId;
+                        $allowMultiple = isset($it['repeats']) ? $isTruthy($it['repeats']) : false;
+                        $dbType = $mapType($type);
+                        $itemOrderIndex = $itemOrder;
                         $insertItemStmt->execute([
                             $qid,
                             $sectionId,
                             $linkId,
                             $text,
-                            $mapType($type),
-                            $itemOrder,
+                            $dbType,
+                            $itemOrderIndex,
                             0,
+                            $dbType === 'choice' && $allowMultiple ? 1 : 0,
                         ]);
+                        $itemId = (int)$pdo->lastInsertId();
+                        if ($dbType === 'choice') {
+                            $options = $toList($it['answerOption'] ?? []);
+                            $optionOrder = 1;
+                            foreach ($options as $option) {
+                                if (!is_array($option)) {
+                                    continue;
+                                }
+                                $value = null;
+                                if (isset($option['valueString'])) {
+                                    $value = $option['valueString'];
+                                } elseif (isset($option['valueCoding']['display'])) {
+                                    $value = $option['valueCoding']['display'];
+                                } elseif (isset($option['valueCoding']['code'])) {
+                                    $value = $option['valueCoding']['code'];
+                                }
+                                $value = trim((string)($value ?? ''));
+                                if ($value === '') {
+                                    continue;
+                                }
+                                $insertOptionStmt->execute([$itemId, $value, $optionOrder]);
+                                $optionOrder++;
+                            }
+                        }
                         $itemOrder++;
                     }
                 };
