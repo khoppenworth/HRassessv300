@@ -61,6 +61,7 @@ $availableLocales = available_locales();
         <a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'analytics', 'Analytics')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'export_data', 'Export Data')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'branding', 'Branding & Landing')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'settings', 'Settings')?></a>
       </div>
     <?php endif; ?>
   </nav>

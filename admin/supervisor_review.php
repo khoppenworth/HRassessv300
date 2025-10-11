@@ -5,6 +5,7 @@ refresh_current_user($pdo);
 require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
+$cfg = get_site_config($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -28,7 +29,7 @@ $rows = $pdo->query("SELECT qr.*, u.username, q.title FROM questionnaire_respons
   <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head>
-<body class="md-bg">
+<body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
 <div class="md-card md-elev-2">

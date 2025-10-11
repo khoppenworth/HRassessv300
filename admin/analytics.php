@@ -5,6 +5,7 @@ refresh_current_user($pdo);
 require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
+$cfg = get_site_config($pdo);
 
 $avg = $pdo->query("SELECT u.username, AVG(score) avg_score, COUNT(*) cnt FROM questionnaire_response qr JOIN users u ON u.id=qr.user_id GROUP BY u.id ORDER BY avg_score DESC")->fetchAll();
 $time = $pdo->query("SELECT DATE(created_at) d, COUNT(*) c FROM questionnaire_response GROUP BY DATE(created_at) ORDER BY d ASC")->fetchAll();
@@ -21,7 +22,7 @@ $looker_sql = "SELECT qr.id as response_id, u.username, u.role, qr.questionnaire
   <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head>
-<body class="md-bg">
+<body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
   <div class="md-card md-elev-2">

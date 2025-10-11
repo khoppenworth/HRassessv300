@@ -5,6 +5,7 @@ refresh_current_user($pdo);
 require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
+$cfg = get_site_config($pdo);
 
 $msg='';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -73,7 +74,7 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
 <link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>"></head>
-<body class="md-bg">
+<body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
 <?php if ($msg): ?><div class="md-alert"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
