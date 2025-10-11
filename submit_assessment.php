@@ -74,6 +74,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $val = ($ans === '1' || $ans === 'true' || $ans === 'on') ? 'true' : 'false';
                     $achieved = ($val === 'true') ? $weight : 0.0;
                     $a = json_encode([['valueBoolean' => $val === 'true']]);
+                } elseif ($it['type'] === 'likert') {
+                    $raw = $_POST[$name] ?? '';
+                    if (is_array($raw)) {
+                        $raw = reset($raw);
+                    }
+                    $selected = is_string($raw) ? trim($raw) : '';
+                    $validOptions = array_map('trim', $optionMap[(int)$it['id']] ?? []);
+                    if ($selected !== '' && $validOptions && !in_array($selected, $validOptions, true)) {
+                        $selected = '';
+                    }
+                    $scoreValue = null;
+                    if ($selected !== '') {
+                        if (preg_match('/^([1-5])/', $selected, $matches)) {
+                            $scoreValue = (int)$matches[1];
+                        } elseif (is_numeric($selected)) {
+                            $candidate = (int)$selected;
+                            if ($candidate >= 1 && $candidate <= 5) {
+                                $scoreValue = $candidate;
+                            }
+                        }
+                    }
+                    if ($scoreValue !== null) {
+                        $achieved = $weight > 0 ? ($weight * $scoreValue / 5.0) : 0.0;
+                    } else {
+                        $achieved = 0.0;
+                    }
+                    if ($selected !== '') {
+                        $answerEntry = [];
+                        if ($scoreValue !== null) {
+                            $answerEntry['valueInteger'] = $scoreValue;
+                        }
+                        $answerEntry['valueString'] = $selected;
+                        $a = json_encode([$answerEntry]);
+                    } else {
+                        $a = json_encode([]);
+                    }
                 } elseif ($it['type'] === 'choice') {
                     $allowMultiple = !empty($it['allow_multiple']);
                     $raw = $_POST[$name] ?? ($allowMultiple ? [] : '');
@@ -167,6 +203,19 @@ $renderQuestionField = static function (array $it, array $t): string {
         <input type="checkbox" name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="true">
       <?php elseif (($it['type'] ?? '') === 'textarea'): ?>
         <textarea name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" rows="3"></textarea>
+      <?php elseif (($it['type'] ?? '') === 'likert' && !empty($options)): ?>
+        <div class="likert-scale" role="radiogroup" aria-label="<?=htmlspecialchars($it['text'] ?? '', ENT_QUOTES, 'UTF-8')?>">
+          <?php foreach ($options as $idx => $opt):
+            $value = $opt['value'] ?? (string)($idx + 1);
+            $label = $opt['value'] ?? ('Option ' . ($idx + 1));
+            $inputId = ($it['linkId'] ?? 'likert') . '_' . ($idx + 1);
+          ?>
+          <label class="likert-scale__option" for="<?=htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8')?>">
+            <input type="radio" id="<?=htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8')?>" name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars($value, ENT_QUOTES, 'UTF-8')?>">
+            <span><?=htmlspecialchars($label, ENT_QUOTES, 'UTF-8')?></span>
+          </label>
+          <?php endforeach; ?>
+        </div>
       <?php elseif (($it['type'] ?? '') === 'choice' && !empty($options)): ?>
         <?php if ($allowMultiple): ?>
         <select name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>[]" multiple size="<?=max(3, min(6, count($options)))?>">

@@ -7,6 +7,14 @@ $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 
+const LIKERT_DEFAULT_OPTIONS = [
+    '1 - Strongly Disagree',
+    '2 - Disagree',
+    '3 - Neutral',
+    '4 - Agree',
+    '5 - Strongly Agree',
+];
+
 function send_json(array $payload, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json');
@@ -316,8 +324,8 @@ if ($action === 'save' || $action === 'publish') {
                     $linkId = trim((string)($itemData['linkId'] ?? ''));
                     $text = trim((string)($itemData['text'] ?? ''));
                     $type = $itemData['type'] ?? 'text';
-                    if (!in_array($type, ['text', 'textarea', 'boolean', 'choice'], true)) {
-                        $type = 'text';
+                    if (!in_array($type, ['likert', 'text', 'textarea', 'boolean', 'choice'], true)) {
+                        $type = 'likert';
                     }
                     $weight = isset($itemData['weight_percent']) ? (int)$itemData['weight_percent'] : 0;
                     $allowMultiple = !empty($itemData['allow_multiple']);
@@ -338,7 +346,7 @@ if ($action === 'save' || $action === 'publish') {
                         ];
                     }
                     $optionsInput = $itemData['options'] ?? [];
-                    if ($type !== 'choice') {
+                    if (!in_array($type, ['choice', 'likert'], true)) {
                         $optionsInput = [];
                     }
                     $saveOptions($itemId, $optionsInput);
@@ -362,8 +370,8 @@ if ($action === 'save' || $action === 'publish') {
                 $linkId = trim((string)($itemData['linkId'] ?? ''));
                 $text = trim((string)($itemData['text'] ?? ''));
                 $type = $itemData['type'] ?? 'text';
-                if (!in_array($type, ['text', 'textarea', 'boolean', 'choice'], true)) {
-                    $type = 'text';
+                if (!in_array($type, ['likert', 'text', 'textarea', 'boolean', 'choice'], true)) {
+                    $type = 'likert';
                 }
                 $weight = isset($itemData['weight_percent']) ? (int)$itemData['weight_percent'] : 0;
                 $allowMultiple = !empty($itemData['allow_multiple']);
@@ -384,7 +392,7 @@ if ($action === 'save' || $action === 'publish') {
                     ];
                 }
                 $optionsInput = $itemData['options'] ?? [];
-                if ($type !== 'choice') {
+                if (!in_array($type, ['choice', 'likert'], true)) {
                     $optionsInput = [];
                 }
                 $saveOptions($itemId, $optionsInput);
@@ -514,6 +522,9 @@ if (isset($_POST['import'])) {
                     switch ($type) {
                         case 'boolean':
                             return 'boolean';
+                        case 'likert':
+                        case 'scale':
+                            return 'likert';
                         case 'choice':
                             return 'choice';
                         case 'text':
@@ -584,7 +595,7 @@ if (isset($_POST['import'])) {
                             $dbType === 'choice' && $allowMultiple ? 1 : 0,
                         ]);
                         $itemId = (int)$pdo->lastInsertId();
-                        if ($dbType === 'choice') {
+                        if ($dbType === 'choice' || $dbType === 'likert') {
                             $options = $toList($it['answerOption'] ?? []);
                             $optionOrder = 1;
                             foreach ($options as $option) {
@@ -605,6 +616,12 @@ if (isset($_POST['import'])) {
                                 }
                                 $insertOptionStmt->execute([$itemId, $value, $optionOrder]);
                                 $optionOrder++;
+                            }
+                            if ($dbType === 'likert' && $optionOrder === 1) {
+                                foreach (LIKERT_DEFAULT_OPTIONS as $label) {
+                                    $insertOptionStmt->execute([$itemId, $label, $optionOrder]);
+                                    $optionOrder++;
+                                }
                             }
                         }
                         $itemOrder++;
