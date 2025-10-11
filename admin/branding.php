@@ -47,7 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($finfo) {
                     finfo_close($finfo);
                 }
-                if (in_array($mime, ['image/png', 'image/jpeg', 'image/svg+xml', 'image/gif'], true)) {
+                $allowedMimes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/svg'];
+                if (in_array($mime, $allowedMimes, true)) {
                     if (move_uploaded_file($logoFile['tmp_name'], $dest)) {
                         $logo_path = 'assets/uploads/' . $fn;
                     } else {
@@ -131,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <label class="md-field"><span><?=t($t,'footer_rights_label','Rights Statement')?></span><input name="footer_rights" value="<?=htmlspecialchars($cfg['footer_rights'] ?? '')?>"></label>
       <div class="md-field">
         <span><?=t($t,'logo','Logo')?></span>
-        <input type="file" name="logo" accept="image/*">
+        <input type="file" name="logo" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
         <?php if (!empty($cfg['logo_path'])): ?>
           <?php $logoSrc = $cfg['logo_path'];
           if (!preg_match('#^https?://#i', (string)$logoSrc)) {
