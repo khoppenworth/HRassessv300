@@ -5,6 +5,7 @@ refresh_current_user($pdo);
 require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
+$cfg = get_site_config($pdo);
 
 function send_json(array $payload, int $status = 200): void {
     http_response_code($status);
@@ -506,7 +507,7 @@ if (isset($_POST['import'])) {
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer></script>
 <script type="module" src="<?=asset_url('assets/js/questionnaire-builder.js')?>" defer></script>
 </head>
-<body class="md-bg">
+<body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
   <?php if ($msg): ?>

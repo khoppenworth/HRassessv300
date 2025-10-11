@@ -34,7 +34,8 @@ CREATE TABLE site_config (
   microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
   microsoft_oauth_client_id VARCHAR(255) NULL,
   microsoft_oauth_client_secret VARCHAR(255) NULL,
-  microsoft_oauth_tenant VARCHAR(255) NULL
+  microsoft_oauth_tenant VARCHAR(255) NULL,
+  color_theme VARCHAR(50) NOT NULL DEFAULT 'light'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE users (
@@ -178,7 +179,8 @@ INSERT INTO site_config (
   microsoft_oauth_enabled,
   microsoft_oauth_client_id,
   microsoft_oauth_client_secret,
-  microsoft_oauth_tenant
+  microsoft_oauth_tenant,
+  color_theme
 ) VALUES (
   1,
   'My Performance',
@@ -201,7 +203,8 @@ INSERT INTO site_config (
   0,
   NULL,
   NULL,
-  'common'
+  'common',
+  'light'
 );
 
 -- default users (bcrypt hashes should be set during runtime; using demo placeholder hashes)

@@ -12,6 +12,35 @@
   --app-shadow-soft: 0 18px 44px rgba(11, 81, 48, 0.12);
 }
 
+body.theme-light {
+  --app-primary: #0d7038;
+  --app-primary-dark: #094e26;
+  --app-secondary: #2ab673;
+  --app-accent: #f6b511;
+  --app-surface: #ffffff;
+  --app-muted: #4b6253;
+  --app-muted-light: #7b9686;
+  --app-border: rgba(13, 112, 56, 0.12);
+  --app-bg: linear-gradient(140deg, #f2f7f3 0%, #e4f1e9 45%, #f7fbf5 100%);
+  --app-shadow-soft: 0 18px 44px rgba(11, 81, 48, 0.12);
+  color: #163126;
+}
+
+body.theme-dark {
+  --app-primary: #3ea76a;
+  --app-primary-dark: #2c7a4b;
+  --app-secondary: #53d89f;
+  --app-accent: #f5d27e;
+  --app-surface: rgba(16, 39, 28, 0.96);
+  --app-muted: #b5d8c6;
+  --app-muted-light: #8fbea7;
+  --app-border: rgba(245, 255, 250, 0.12);
+  --app-bg: radial-gradient(circle at top, #0c1b13 0%, #09140f 45%, #050c09 100%);
+  --app-shadow-soft: 0 18px 44px rgba(4, 12, 8, 0.6);
+  color: #e5f6ee;
+  background-color: #050c09;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -21,7 +50,7 @@ body.md-bg {
   min-height: 100vh;
   margin: 0;
   font-family: "Segoe UI", "Poppins", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
-  color: #163126;
+  color: inherit;
 }
 
 .md-appbar {
@@ -354,6 +383,101 @@ body.md-bg {
   background: rgba(198, 40, 40, 0.12);
   color: #7f1d1d;
   border-left-color: #c62828;
+}
+
+body.theme-dark .md-appbar {
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+
+body.theme-dark .md-drawer {
+  background: var(--app-surface);
+  box-shadow: 14px 0 38px rgba(0, 0, 0, 0.55);
+  border-right: 1px solid var(--app-border);
+}
+
+body.theme-dark .md-drawer-header {
+  background: linear-gradient(140deg, rgba(83, 216, 160, 0.12), rgba(83, 216, 160, 0));
+}
+
+body.theme-dark .md-drawer-title {
+  color: #ecfff6;
+}
+
+body.theme-dark .md-drawer-label {
+  color: rgba(214, 240, 226, 0.78);
+}
+
+body.theme-dark .md-drawer-link {
+  color: #e1f4ea;
+}
+
+body.theme-dark .md-drawer-link:hover,
+body.theme-dark .md-drawer-link:focus,
+body.theme-dark .md-drawer-link.active {
+  background: rgba(83, 216, 160, 0.18);
+  color: #ffffff;
+}
+
+body.theme-dark .md-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow-soft);
+  color: inherit;
+}
+
+body.theme-dark .md-field select,
+body.theme-dark .md-field input,
+body.theme-dark .md-field textarea {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(245, 255, 250, 0.22);
+  color: inherit;
+}
+
+body.theme-dark .md-field input:focus,
+body.theme-dark .md-field select:focus,
+body.theme-dark .md-field textarea:focus {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--app-secondary);
+  box-shadow: 0 0 0 3px rgba(83, 216, 160, 0.3);
+}
+
+body.theme-dark .md-alert {
+  background: rgba(83, 216, 160, 0.12);
+  color: #dff7ec;
+  border-left-color: var(--app-secondary);
+}
+
+body.theme-dark .md-alert.error {
+  background: rgba(198, 40, 40, 0.15);
+  color: #f5d5d5;
+  border-left-color: #f28a8a;
+}
+
+body.theme-dark .md-alert.success {
+  background: rgba(83, 216, 160, 0.2);
+  color: #e9fff4;
+}
+
+body.theme-dark .md-table tbody tr {
+  border-bottom-color: rgba(245, 255, 250, 0.08);
+}
+
+body.theme-dark .md-table thead {
+  color: rgba(226, 248, 237, 0.85);
+}
+
+body.theme-dark .md-table td,
+body.theme-dark .md-table th {
+  border-color: rgba(245, 255, 250, 0.08);
+}
+
+body.theme-dark .md-button {
+  color: inherit;
+}
+
+body.theme-dark .md-button.md-primary {
+  background: var(--app-secondary);
+  color: #0d1a13;
 }
 
 .md-table {

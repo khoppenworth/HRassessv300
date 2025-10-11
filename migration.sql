@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS site_config (
   microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
   microsoft_oauth_client_id VARCHAR(255) NULL,
   microsoft_oauth_client_secret VARCHAR(255) NULL,
-  microsoft_oauth_tenant VARCHAR(255) NULL
+  microsoft_oauth_tenant VARCHAR(255) NULL,
+  color_theme VARCHAR(50) NOT NULL DEFAULT 'light'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS footer_org_name VARCHAR(255) NULL AFTER logo_path,
@@ -41,7 +42,8 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER google_oauth_client_secret,
   ADD COLUMN IF NOT EXISTS microsoft_oauth_client_id VARCHAR(255) NULL AFTER microsoft_oauth_enabled,
   ADD COLUMN IF NOT EXISTS microsoft_oauth_client_secret VARCHAR(255) NULL AFTER microsoft_oauth_client_id,
-  ADD COLUMN IF NOT EXISTS microsoft_oauth_tenant VARCHAR(255) NULL AFTER microsoft_oauth_client_secret;
+  ADD COLUMN IF NOT EXISTS microsoft_oauth_tenant VARCHAR(255) NULL AFTER microsoft_oauth_client_secret,
+  ADD COLUMN IF NOT EXISTS color_theme VARCHAR(50) NOT NULL DEFAULT 'light' AFTER microsoft_oauth_tenant;
 INSERT IGNORE INTO site_config (
   id,
   site_name,
@@ -64,7 +66,8 @@ INSERT IGNORE INTO site_config (
   microsoft_oauth_enabled,
   microsoft_oauth_client_id,
   microsoft_oauth_client_secret,
-  microsoft_oauth_tenant
+  microsoft_oauth_tenant,
+  color_theme
 ) VALUES (
   1,
   'My Performance',
@@ -87,7 +90,8 @@ INSERT IGNORE INTO site_config (
   0,
   NULL,
   NULL,
-  'common'
+  'common',
+  'light'
 );
 
 ALTER TABLE users

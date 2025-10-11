@@ -195,7 +195,8 @@ function ensure_site_config_schema(PDO $pdo): void {
         'microsoft_oauth_enabled' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0',
         'microsoft_oauth_client_id' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_id VARCHAR(255) NULL',
         'microsoft_oauth_client_secret' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_secret VARCHAR(255) NULL',
-        'microsoft_oauth_tenant' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_tenant VARCHAR(255) NULL'
+        'microsoft_oauth_tenant' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_tenant VARCHAR(255) NULL',
+        'color_theme' => "ALTER TABLE site_config ADD COLUMN color_theme VARCHAR(50) NOT NULL DEFAULT 'light'"
     ];
 
     foreach ($schema as $field => $sql) {
@@ -230,11 +231,12 @@ function get_site_config(PDO $pdo): array {
         'microsoft_oauth_client_id' => null,
         'microsoft_oauth_client_secret' => null,
         'microsoft_oauth_tenant' => 'common',
+        'color_theme' => 'light',
     ];
 
     try {
         ensure_site_config_schema($pdo);
-        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common')");
+        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light')");
         $cfg = $pdo->query('SELECT * FROM site_config WHERE id=1')->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         error_log('get_site_config failed: ' . $e->getMessage());
@@ -242,5 +244,23 @@ function get_site_config(PDO $pdo): array {
     }
 
     return array_merge($defaults, $cfg ?: []);
+}
+
+function site_color_theme(array $cfg): string
+{
+    $theme = strtolower((string)($cfg['color_theme'] ?? 'light'));
+    $allowed = ['light', 'dark'];
+    if (!in_array($theme, $allowed, true)) {
+        $theme = 'light';
+    }
+    return $theme;
+}
+
+function site_body_classes(array $cfg): string
+{
+    $classes = ['md-bg'];
+    $theme = site_color_theme($cfg);
+    $classes[] = 'theme-' . $theme;
+    return implode(' ', array_unique(array_filter($classes)));
 }
 ?>

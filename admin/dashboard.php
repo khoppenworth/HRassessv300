@@ -5,6 +5,7 @@ refresh_current_user($pdo);
 require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
+$cfg = get_site_config($pdo);
 
 /**
  * Attempt to fetch a COUNT(*) value while gracefully handling missing tables.
@@ -31,7 +32,7 @@ $r = $fetchCount($pdo, 'SELECT COUNT(*) c FROM questionnaire_response');
 <link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
-</head><body class="md-bg">
+</head><body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section grid">
   <div class="md-card md-elev-2"><h3><?=t($t,'users_count','Users')?></h3><div class="md-kpi"><?=$users?></div></div>
