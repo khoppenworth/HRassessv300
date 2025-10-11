@@ -33,4 +33,49 @@
       });
     });
   }
+  const brandPickers = document.querySelectorAll('[data-brand-color-picker]');
+  brandPickers.forEach((picker) => {
+    const input = picker.querySelector('input[type="color"]');
+    const valueEl = picker.querySelector('.md-color-value');
+    const resetBtn = picker.querySelector('[data-brand-color-reset]');
+    const resetField = picker.querySelector('[data-brand-color-reset-field]');
+    const defaultColor = (picker.dataset.defaultColor || '#2073BF').toUpperCase();
+
+    const formatColor = (value) => {
+      if (typeof value !== 'string' || value === '') {
+        return defaultColor;
+      }
+      return value.toUpperCase();
+    };
+
+    const updateValue = () => {
+      if (input && valueEl) {
+        valueEl.textContent = formatColor(input.value || defaultColor);
+      }
+      if (resetField) {
+        resetField.value = '0';
+      }
+    };
+
+    if (input) {
+      input.addEventListener('input', updateValue);
+      input.addEventListener('change', updateValue);
+      updateValue();
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (input) {
+          input.value = defaultColor;
+        }
+        if (valueEl) {
+          valueEl.textContent = defaultColor;
+        }
+        if (resetField) {
+          resetField.value = '1';
+        }
+      });
+    }
+  });
+
 })();

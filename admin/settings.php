@@ -50,6 +50,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $color_theme = 'light';
     }
 
+    $brand_color_reset = $_POST['brand_color_reset'] ?? '0';
+    $brand_color_input = strtolower(trim($_POST['brand_color'] ?? ''));
+    $brand_color = '';
+    if ($brand_color_reset === '1') {
+        $brand_color = '';
+    } elseif ($brand_color_input !== '') {
+        if (preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $brand_color_input)) {
+            if (strlen($brand_color_input) === 4) {
+                $brand_color_input = '#' . $brand_color_input[1] . $brand_color_input[1] . $brand_color_input[2] . $brand_color_input[2] . $brand_color_input[3] . $brand_color_input[3];
+            }
+            $brand_color = strtolower($brand_color_input);
+        }
+    }
+
     $fields = [
         'google_oauth_enabled' => $google_oauth_enabled,
         'google_oauth_client_id' => $google_oauth_client_id,
@@ -59,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'microsoft_oauth_client_secret' => $microsoft_oauth_client_secret,
         'microsoft_oauth_tenant' => $microsoft_oauth_tenant,
         'color_theme' => $color_theme,
+        'brand_color' => $brand_color !== '' ? $brand_color : null,
         'smtp_enabled' => $smtp_enabled,
         'smtp_host' => $smtp_host !== '' ? $smtp_host : null,
         'smtp_port' => $smtp_port > 0 ? $smtp_port : 587,
@@ -94,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head>
-<body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
+<body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>" style="<?=htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
   <div class="md-card md-elev-2">
@@ -110,6 +125,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <option value="<?=htmlspecialchars($themeValue, ENT_QUOTES, 'UTF-8')?>" <?=site_color_theme($cfg) === $themeValue ? 'selected' : ''?>><?=htmlspecialchars($themeLabel, ENT_QUOTES, 'UTF-8')?></option>
           <?php endforeach; ?>
         </select>
+      </label>
+      <label class="md-field md-field-inline">
+        <span><?=t($t,'brand_color','Brand Color')?></span>
+        <div class="md-color-picker" data-brand-color-picker data-default-color="<?=htmlspecialchars(DEFAULT_BRAND_COLOR, ENT_QUOTES, 'UTF-8')?>">
+          <input type="color" name="brand_color" value="<?=htmlspecialchars(site_brand_color($cfg), ENT_QUOTES, 'UTF-8')?>" aria-label="<?=t($t,'brand_color_picker','Choose a brand color')?>">
+          <span class="md-color-value"><?=htmlspecialchars(strtoupper(site_brand_color($cfg)), ENT_QUOTES, 'UTF-8')?></span>
+          <button type="button" class="md-button md-outline md-compact" data-brand-color-reset><?=t($t,'brand_color_reset','Use default brand color')?></button>
+          <input type="hidden" name="brand_color_reset" value="0" data-brand-color-reset-field>
+        </div>
+        <small class="md-field-hint"><?=t($t,'brand_color_hint','Pick any brand color to personalize buttons, highlights, and gradients.')?></small>
       </label>
       <h3 class="md-subhead"><?=t($t,'sso_settings','Single Sign-On (SSO)')?></h3>
       <div class="md-control">

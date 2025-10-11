@@ -14,20 +14,73 @@ if (!empty($_SESSION['pending_notice'])) {
     unset($_SESSION['pending_notice']);
 }
 
+$phoneCountries = [
+    ['code' => '+251', 'label' => 'Ethiopia', 'flag' => "\u{1F1EA}\u{1F1F9}"],
+    ['code' => '+254', 'label' => 'Kenya', 'flag' => "\u{1F1F0}\u{1F1EA}"],
+    ['code' => '+255', 'label' => 'Tanzania', 'flag' => "\u{1F1F9}\u{1F1FF}"],
+    ['code' => '+256', 'label' => 'Uganda', 'flag' => "\u{1F1FA}\u{1F1EC}"],
+    ['code' => '+253', 'label' => 'Djibouti', 'flag' => "\u{1F1E9}\u{1F1EF}"],
+    ['code' => '+257', 'label' => 'Burundi', 'flag' => "\u{1F1E7}\u{1F1EE}"],
+];
+$defaultPhoneCountry = $phoneCountries[0]['code'];
+
+$splitPhone = static function (?string $phone) use ($phoneCountries, $defaultPhoneCountry): array {
+    $phone = trim((string)$phone);
+    $digitsOnly = preg_replace('/[^0-9]/', '', $phone);
+    foreach ($phoneCountries as $country) {
+        if ($phone !== '' && strpos($phone, $country['code']) === 0) {
+            $local = trim(substr($phone, strlen($country['code'])));
+            $localDigits = preg_replace('/[^0-9]/', '', $local);
+            if ($localDigits === '' && $digitsOnly !== '') {
+                $localDigits = $digitsOnly;
+            }
+            return [$country['code'], $localDigits];
+        }
+    }
+    return [$defaultPhoneCountry, $digitsOnly];
+};
+
+[$phoneCountryValue, $phoneLocalValue] = $splitPhone($user['phone'] ?? '');
+$phoneFlags = [];
+foreach ($phoneCountries as $country) {
+    $phoneFlags[$country['code']] = $country['flag'];
+}
+$phoneFlagValue = $phoneFlags[$phoneCountryValue] ?? $phoneCountries[0]['flag'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $fullName = trim($_POST['full_name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $gender = $_POST['gender'] ?? '';
     $dob = $_POST['date_of_birth'] ?? '';
-    $phone = trim($_POST['phone'] ?? '');
+    $phoneCountry = $_POST['phone_country'] ?? $phoneCountryValue;
+    $phoneLocalRaw = $_POST['phone_local'] ?? '';
+    $phoneCombined = trim($_POST['phone'] ?? '');
     $department = trim($_POST['department'] ?? '');
     $cadre = trim($_POST['cadre'] ?? '');
     $workFunction = $_POST['work_function'] ?? '';
     $language = $_POST['language'] ?? ($_SESSION['lang'] ?? 'en');
     $password = $_POST['password'] ?? '';
 
-    if ($fullName === '' || $email === '' || $gender === '' || $dob === '' || $phone === '' || $department === '' || $cadre === '' || $workFunction === '') {
+    $validCountryCodes = array_column($phoneCountries, 'code');
+    if (!in_array($phoneCountry, $validCountryCodes, true)) {
+        $phoneCountry = $defaultPhoneCountry;
+    }
+
+    $phoneLocalDigits = preg_replace('/[^0-9]/', '', (string)$phoneLocalRaw);
+    if ($phoneLocalDigits === '' && $phoneCombined !== '') {
+        [$derivedCountry, $derivedLocal] = $splitPhone($phoneCombined);
+        $phoneCountry = $derivedCountry;
+        $phoneLocalDigits = $derivedLocal;
+    }
+
+    $language = in_array($language, ['en','am','fr'], true) ? $language : 'en';
+    $phoneCountryValue = $phoneCountry;
+    $phoneLocalValue = $phoneLocalDigits;
+    $phoneFlagValue = $phoneFlags[$phoneCountryValue] ?? $phoneCountries[0]['flag'];
+    $fullPhone = $phoneCountryValue . $phoneLocalDigits;
+
+    if ($fullName === '' || $email === '' || $gender === '' || $dob === '' || $phoneLocalDigits === '' || $department === '' || $cadre === '' || $workFunction === '') {
         $error = t($t,'profile_required','Please complete all required fields.');
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = t($t,'invalid_email','Provide a valid email address.');
@@ -35,13 +88,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = t($t,'invalid_gender','Select a valid gender option.');
     } elseif (!in_array($workFunction, WORK_FUNCTIONS, true)) {
         $error = t($t,'invalid_work_function','Select a valid work function.');
+    } elseif (strlen($phoneLocalDigits) < 6 || strlen($phoneLocalDigits) > 12) {
+        $error = t($t,'invalid_phone','Enter a valid phone number including the country code.');
     } else {
         $fields = [
             'full_name' => $fullName,
             'email' => $email,
             'gender' => $gender,
             'date_of_birth' => $dob,
-            'phone' => $phone,
+            'phone' => $fullPhone,
             'department' => $department,
             'cadre' => $cadre,
             'work_function' => $workFunction,
@@ -67,6 +122,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $t = load_lang($locale);
             refresh_current_user($pdo);
             $user = current_user();
+            [$phoneCountryValue, $phoneLocalValue] = $splitPhone($user['phone'] ?? '');
+            $phoneFlagValue = $phoneFlags[$phoneCountryValue] ?? $phoneCountries[0]['flag'];
             $message = t($t,'profile_updated','Profile updated successfully.');
         }
     }
@@ -79,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
-</head><body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
+</head><body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>" style="<?=htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/templates/header.php'; ?>
 <section class="md-section">
   <div class="md-card md-elev-2">
@@ -116,9 +173,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <span><?=t($t,'date_of_birth','Date of Birth')?></span>
         <input type="date" name="date_of_birth" value="<?=htmlspecialchars($user['date_of_birth'] ?? '')?>" required>
       </label>
-      <label class="md-field">
+      <label class="md-field md-field-inline">
         <span><?=t($t,'phone','Phone Number')?></span>
-        <input name="phone" value="<?=htmlspecialchars($user['phone'] ?? '')?>" required>
+        <div class="md-phone-input" data-phone-field>
+          <span class="md-phone-flag" data-phone-flag><?=htmlspecialchars($phoneFlagValue, ENT_QUOTES, 'UTF-8')?></span>
+          <select class="md-phone-country" name="phone_country" id="phone_country" data-phone-country aria-label="<?=htmlspecialchars(t($t,'phone_country','Country code'), ENT_QUOTES, 'UTF-8')?>">
+            <?php foreach ($phoneCountries as $country): ?>
+              <option value="<?=htmlspecialchars($country['code'], ENT_QUOTES, 'UTF-8')?>" <?=$phoneCountryValue === $country['code'] ? 'selected' : ''?> data-flag="<?=htmlspecialchars($country['flag'], ENT_QUOTES, 'UTF-8')?>">
+                <?=htmlspecialchars($country['flag'], ENT_QUOTES, 'UTF-8')?> <?=htmlspecialchars($country['code'], ENT_QUOTES, 'UTF-8')?> — <?=htmlspecialchars($country['label'], ENT_QUOTES, 'UTF-8')?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <input class="md-phone-local" type="text" name="phone_local" id="phone_local" data-phone-local inputmode="numeric" pattern="[0-9]*" minlength="6" maxlength="12" placeholder="<?=htmlspecialchars(t($t,'phone_number_placeholder','9-digit number'), ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars($phoneLocalValue, ENT_QUOTES, 'UTF-8')?>" aria-label="<?=htmlspecialchars(t($t,'phone','Phone Number'), ENT_QUOTES, 'UTF-8')?>" required>
+          <input type="hidden" name="phone" value="<?=htmlspecialchars($phoneCountryValue . $phoneLocalValue, ENT_QUOTES, 'UTF-8')?>" data-phone-full>
+        </div>
+        <small class="md-field-hint"><?=t($t,'phone_number_hint','Choose a country code and enter digits only.')?></small>
       </label>
       <label class="md-field">
         <span><?=t($t,'department','Department')?></span>
@@ -158,4 +227,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
 </section>
 <?php include __DIR__.'/templates/footer.php'; ?>
+<script type="module" src="<?=asset_url('assets/js/phone-input.js')?>"></script>
 </body></html>

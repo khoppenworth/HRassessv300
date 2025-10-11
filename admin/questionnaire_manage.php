@@ -459,6 +459,7 @@ if ($action === 'save' || $action === 'publish') {
 }
 
 $msg = '';
+$recentImportId = null;
 if (isset($_POST['import'])) {
     csrf_check();
     if (!empty($_FILES['file']['tmp_name'])) {
@@ -491,6 +492,7 @@ if (isset($_POST['import'])) {
                         $resource['description'] ?? null,
                     ]);
                 $qid = (int)$pdo->lastInsertId();
+                $recentImportId = $qid;
                 foreach (WORK_FUNCTIONS as $wf) {
                     $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)')
                         ->execute([$qid, $wf]);
@@ -654,7 +656,7 @@ if (isset($_POST['import'])) {
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer></script>
 <script type="module" src="<?=asset_url('assets/js/questionnaire-builder.js')?>" defer></script>
 </head>
-<body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
+<body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>" style="<?=htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
   <?php if ($msg): ?>
@@ -668,6 +670,7 @@ if (isset($_POST['import'])) {
       <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
     </div>
     <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
+    <div id="qb-tabs" class="qb-tabs" role="tablist" aria-label="<?=htmlspecialchars(t($t,'questionnaire_tabs','Questionnaire navigation'), ENT_QUOTES, 'UTF-8')?>"></div>
     <div id="qb-list" class="qb-list" aria-live="polite"></div>
   </div>
 
@@ -678,9 +681,19 @@ if (isset($_POST['import'])) {
       <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
       <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
     </form>
-    <p><?=t($t,'download_xml_template','Download XML template')?>: <a href="<?=htmlspecialchars(asset_url('samples/sample_questionnaire_template.xml'), ENT_QUOTES, 'UTF-8')?>">sample_questionnaire_template.xml</a></p>
+    <div class="qb-import-actions">
+      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('assets/templates/sample_questionnaire_template.xml'), ENT_QUOTES, 'UTF-8')?>" download>
+        <?=t($t,'download_xml_template','Download XML template')?>
+      </a>
+      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
+        <?=t($t,'download_import_guide','Download Import Guide')?>
+      </a>
+    </div>
   </div>
 </section>
+<?php if ($recentImportId): ?>
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">window.QB_INITIAL_ACTIVE_ID = <?=json_encode($recentImportId, JSON_THROW_ON_ERROR)?>;</script>
+<?php endif; ?>
 <?php include __DIR__.'/../templates/footer.php'; ?>
 </body>
 </html>
