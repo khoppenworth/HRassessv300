@@ -53,7 +53,16 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS microsoft_oauth_client_id VARCHAR(255) NULL AFTER microsoft_oauth_enabled,
   ADD COLUMN IF NOT EXISTS microsoft_oauth_client_secret VARCHAR(255) NULL AFTER microsoft_oauth_client_id,
   ADD COLUMN IF NOT EXISTS microsoft_oauth_tenant VARCHAR(255) NULL AFTER microsoft_oauth_client_secret,
-  ADD COLUMN IF NOT EXISTS color_theme VARCHAR(50) NOT NULL DEFAULT 'light' AFTER microsoft_oauth_tenant;
+  ADD COLUMN IF NOT EXISTS color_theme VARCHAR(50) NOT NULL DEFAULT 'light' AFTER microsoft_oauth_tenant,
+  ADD COLUMN IF NOT EXISTS smtp_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER color_theme,
+  ADD COLUMN IF NOT EXISTS smtp_host VARCHAR(255) NULL AFTER smtp_enabled,
+  ADD COLUMN IF NOT EXISTS smtp_port INT NULL AFTER smtp_host,
+  ADD COLUMN IF NOT EXISTS smtp_username VARCHAR(255) NULL AFTER smtp_port,
+  ADD COLUMN IF NOT EXISTS smtp_password VARCHAR(255) NULL AFTER smtp_username,
+  ADD COLUMN IF NOT EXISTS smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none' AFTER smtp_password,
+  ADD COLUMN IF NOT EXISTS smtp_from_email VARCHAR(255) NULL AFTER smtp_encryption,
+  ADD COLUMN IF NOT EXISTS smtp_from_name VARCHAR(255) NULL AFTER smtp_from_email,
+  ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL AFTER smtp_from_name;
 INSERT IGNORE INTO site_config (
   id,
   site_name,
@@ -113,7 +122,12 @@ ALTER TABLE users
   ADD COLUMN work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL DEFAULT 'general_service' AFTER cadre,
   ADD COLUMN profile_completed TINYINT(1) NOT NULL DEFAULT 0 AFTER work_function,
   ADD COLUMN language VARCHAR(5) NOT NULL DEFAULT 'en' AFTER profile_completed,
-  ADD COLUMN first_login_at DATETIME NULL AFTER language;
+  ADD COLUMN account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active' AFTER language,
+  ADD COLUMN next_assessment_date DATE NULL AFTER account_status,
+  ADD COLUMN first_login_at DATETIME NULL AFTER next_assessment_date,
+  ADD COLUMN approved_by INT NULL AFTER first_login_at,
+  ADD COLUMN approved_at DATETIME NULL AFTER approved_by,
+  ADD COLUMN sso_provider VARCHAR(50) NULL AFTER approved_at;
 
 CREATE TABLE IF NOT EXISTS performance_period (
   id INT AUTO_INCREMENT PRIMARY KEY,

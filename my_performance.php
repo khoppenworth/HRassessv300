@@ -11,6 +11,16 @@ $user = current_user();
 $stmt = $pdo->prepare("SELECT qr.*, q.title, pp.label AS period_label FROM questionnaire_response qr JOIN questionnaire q ON q.id=qr.questionnaire_id JOIN performance_period pp ON pp.id = qr.performance_period_id WHERE qr.user_id=? ORDER BY qr.created_at ASC");
 $stmt->execute([$user['id']]);
 $rows = $stmt->fetchAll();
+$nextAssessmentRaw = $user['next_assessment_date'] ?? null;
+$nextAssessmentDisplay = null;
+if ($nextAssessmentRaw) {
+    $dt = DateTime::createFromFormat('Y-m-d', (string)$nextAssessmentRaw);
+    if ($dt instanceof DateTime) {
+        $nextAssessmentDisplay = $dt->format('F j, Y');
+    } else {
+        $nextAssessmentDisplay = $nextAssessmentRaw;
+    }
+}
 
 $latestScores = [];
 $latestEntry = null;
@@ -71,6 +81,11 @@ if ($flash === 'submitted') {
       <p><?=t($t,'latest_submission','Latest submission:')?> <?=htmlspecialchars($latestEntry['period_label'])?> · <?=htmlspecialchars($latestEntry['title'])?> (<?= is_null($latestEntry['score']) ? '-' : (int)$latestEntry['score'] ?>%)</p>
     <?php else: ?>
       <p><?=t($t,'no_submissions_yet','No submissions recorded yet. Complete your first assessment to see insights.')?></p>
+    <?php endif; ?>
+    <?php if ($nextAssessmentDisplay): ?>
+      <p><?=t($t,'next_assessment_scheduled','Next assessment scheduled:')?> <?=htmlspecialchars($nextAssessmentDisplay)?></p>
+    <?php else: ?>
+      <p class="md-muted"><?=t($t,'next_assessment_not_set','Your next assessment date has not been scheduled yet.')?></p>
     <?php endif; ?>
   </div>
   <div class="md-card md-elev-2">

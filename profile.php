@@ -8,6 +8,11 @@ $cfg = get_site_config($pdo);
 $user = current_user();
 $message = '';
 $error = '';
+$pendingStatus = ($user['account_status'] ?? 'active') === 'pending';
+$pendingNotice = $pendingStatus;
+if (!empty($_SESSION['pending_notice'])) {
+    unset($_SESSION['pending_notice']);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -79,8 +84,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <section class="md-section">
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t,'profile_information','Profile Information')?></h2>
-    <?php if ($message): ?><div class="md-alert success"><?=htmlspecialchars($message, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
-    <?php if ($error): ?><div class="md-alert error"><?=htmlspecialchars($error, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+      <?php if ($message): ?><div class="md-alert success"><?=htmlspecialchars($message, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+      <?php if ($error): ?><div class="md-alert error"><?=htmlspecialchars($error, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+      <?php if ($pendingNotice): ?>
+        <div class="md-alert warning">
+          <?=htmlspecialchars(t($t, 'pending_account_notice', 'Your account is pending supervisor approval. You can update your profile while you wait.'), ENT_QUOTES, 'UTF-8')?>
+        </div>
+      <?php endif; ?>
     <form method="post" class="md-form-grid" action="<?=htmlspecialchars(url_for('profile.php'), ENT_QUOTES, 'UTF-8')?>">
       <input type="hidden" name="csrf" value="<?=csrf_token()?>">
       <label class="md-field">

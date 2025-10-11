@@ -24,6 +24,10 @@ if (!empty($_SESSION['oauth_error'])) {
     $err = (string)$_SESSION['oauth_error'];
     unset($_SESSION['oauth_error']);
 }
+if (!empty($_SESSION['auth_error'])) {
+    $err = (string)$_SESSION['auth_error'];
+    unset($_SESSION['auth_error']);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -33,13 +37,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$username]);
     $u = $stmt->fetch();
     if ($u && password_verify($password, $u['password'])) {
-        if (empty($u['first_login_at'])) {
-            $pdo->prepare('UPDATE users SET first_login_at = NOW() WHERE id = ?')->execute([$u['id']]);
+        if (($u['account_status'] ?? 'active') === 'disabled') {
+            $err = t($t, 'account_disabled', 'Your account has been disabled. Please contact your administrator.');
+        } else {
+            if (empty($u['first_login_at'])) {
+                $pdo->prepare('UPDATE users SET first_login_at = NOW() WHERE id = ?')->execute([$u['id']]);
+                $u['first_login_at'] = date('Y-m-d H:i:s');
+            }
+            $_SESSION['user'] = $u;
+            $_SESSION['lang'] = $u['language'] ?? ($_SESSION['lang'] ?? 'en');
+            if (($u['account_status'] ?? 'active') === 'pending') {
+                $_SESSION['pending_notice'] = true;
+                header('Location: ' . url_for('profile.php?pending=1'));
+            } else {
+                header('Location: ' . url_for('my_performance.php'));
+            }
+            exit;
         }
-        $_SESSION['user'] = $u;
-        $_SESSION['lang'] = $u['language'] ?? ($_SESSION['lang'] ?? 'en');
-        header('Location: ' . url_for('my_performance.php'));
-        exit;
     } else {
         $err = t($t,'invalid_login','Invalid username or password');
     }
