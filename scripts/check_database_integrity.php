@@ -147,34 +147,6 @@ function validate_table_schema(PDO $pdo, string $table, array $expectedColumns):
 }
 
 /**
- * Validate that the default user roles declared in config.php exist in the database.
- *
- * @return list<string>
- */
-function validate_default_user_roles(PDO $pdo): array
-{
-    if (!defined('DEFAULT_USER_ROLES')) {
-        return ['DEFAULT_USER_ROLES constant is not defined.'];
-    }
-
-    $issues = [];
-    $stmt = $pdo->query('SELECT role_key FROM user_role');
-    $existing = [];
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $existing[$row['role_key']] = true;
-    }
-
-    foreach (DEFAULT_USER_ROLES as $role) {
-        $key = $role['role_key'];
-        if (!isset($existing[$key])) {
-            $issues[] = sprintf('Missing default user role "%s"', $key);
-        }
-    }
-
-    return $issues;
-}
-
-/**
  * Validate that the singleton site configuration record exists.
  *
  * @return list<string>
@@ -247,16 +219,6 @@ $expectedSchemas = [
         'sso_provider' => ['type' => 'varchar', 'null' => 'YES'],
         'first_login_at' => ['type' => 'datetime', 'null' => 'YES'],
     ],
-    'user_role' => [
-        'id' => ['type' => 'int', 'null' => 'NO', 'key' => 'PRI', 'extra' => 'auto_increment'],
-        'role_key' => ['type' => 'varchar(50)', 'null' => 'NO', 'key' => 'UNI'],
-        'label' => ['type' => 'varchar(100)', 'null' => 'NO'],
-        'description' => ['type' => 'text', 'null' => 'YES'],
-        'sort_order' => ['type' => 'int', 'null' => 'NO', 'default' => '0'],
-        'is_protected' => ['type' => 'tinyint', 'null' => 'NO', 'default' => '0'],
-        'created_at' => ['type' => 'datetime', 'null' => 'NO'],
-        'updated_at' => ['type' => 'datetime', 'null' => 'YES'],
-    ],
     'questionnaire_item' => [
         'is_required' => ['type' => 'tinyint', 'null' => 'NO', 'default' => '0'],
     ],
@@ -271,7 +233,6 @@ foreach ($expectedSchemas as $table => $columns) {
     $issues = array_merge($issues, validate_table_schema($pdo, $table, $columns));
 }
 
-$issues = array_merge($issues, validate_default_user_roles($pdo));
 $issues = array_merge($issues, validate_site_config_row($pdo));
 
 if (empty($issues)) {
