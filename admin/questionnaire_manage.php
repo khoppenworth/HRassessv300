@@ -60,7 +60,12 @@ if ($action === 'fetch') {
     $sectionsRows = $pdo->query('SELECT * FROM questionnaire_section ORDER BY questionnaire_id, order_index, id')->fetchAll();
     $itemsRows = $pdo->query('SELECT * FROM questionnaire_item ORDER BY questionnaire_id, order_index, id')->fetchAll();
     $optionsRows = $pdo->query('SELECT * FROM questionnaire_item_option ORDER BY questionnaire_item_id, order_index, id')->fetchAll();
-    $wfRows = $pdo->query('SELECT questionnaire_id, work_function FROM questionnaire_work_function')->fetchAll();
+    try {
+        $wfRows = $pdo->query('SELECT questionnaire_id, work_function FROM questionnaire_work_function')->fetchAll();
+    } catch (PDOException $e) {
+        error_log('questionnaire_manage work function fetch failed: ' . $e->getMessage());
+        $wfRows = [];
+    }
 
     $sectionsByQuestionnaire = [];
     foreach ($sectionsRows as $section) {
