@@ -311,7 +311,8 @@ function ensure_site_config_schema(PDO $pdo): void {
         'smtp_encryption' => "ALTER TABLE site_config ADD COLUMN smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none'",
         'smtp_from_email' => 'ALTER TABLE site_config ADD COLUMN smtp_from_email VARCHAR(255) NULL',
         'smtp_from_name' => 'ALTER TABLE site_config ADD COLUMN smtp_from_name VARCHAR(255) NULL',
-        'smtp_timeout' => 'ALTER TABLE site_config ADD COLUMN smtp_timeout INT NULL'
+        'smtp_timeout' => 'ALTER TABLE site_config ADD COLUMN smtp_timeout INT NULL',
+        'enabled_locales' => 'ALTER TABLE site_config ADD COLUMN enabled_locales TEXT NULL'
     ];
 
     foreach ($schema as $field => $sql) {
@@ -319,6 +320,38 @@ function ensure_site_config_schema(PDO $pdo): void {
             $pdo->exec($sql);
         }
     }
+}
+
+function decode_enabled_locales($value): array
+{
+    if (is_array($value)) {
+        return $value;
+    }
+
+    if (is_string($value) && $value !== '') {
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        $parts = array_map('trim', explode(',', $value));
+        return array_filter($parts, static fn($part) => $part !== '');
+    }
+
+    return [];
+}
+
+function encode_enabled_locales(array $locales): string
+{
+    $normalized = enforce_locale_requirements($locales);
+    $json = json_encode($normalized);
+    return $json === false ? '[]' : $json;
+}
+
+function site_enabled_locales(array $cfg): array
+{
+    $raw = $cfg['enabled_locales'] ?? [];
+    return enforce_locale_requirements(decode_enabled_locales($raw));
 }
 
 /** get_site_config(): fetch branding and contact settings (singleton row id=1) */
@@ -357,19 +390,23 @@ function get_site_config(PDO $pdo): array {
         'smtp_from_email' => null,
         'smtp_from_name' => null,
         'smtp_timeout' => 20,
+        'enabled_locales' => ['en', 'fr', 'am'],
     ];
 
     try {
         ensure_site_config_schema($pdo);
-        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20)");
+        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, enabled_locales) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20, '[\"en\",\"fr\",\"am\"]')");
         $cfg = $pdo->query('SELECT * FROM site_config WHERE id=1')->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         error_log('get_site_config failed: ' . $e->getMessage());
+        remember_available_locales($defaults['enabled_locales']);
         return $defaults;
     }
 
     $merged = array_merge($defaults, $cfg ?: []);
     $merged['logo_path'] = normalize_branding_logo_path($merged['logo_path'] ?? null);
+    $merged['enabled_locales'] = site_enabled_locales($merged);
+    remember_available_locales($merged['enabled_locales']);
 
     return $merged;
 }
