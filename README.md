@@ -67,14 +67,6 @@ to work. If no custom logo is configured, the default EPSA logo (`assets/img/eps
 Run `bin/check-upload-env.php` to verify the upload environment. The script reports the resolved base path, upload directory
 permissions, and relevant PHP configuration such as `upload_max_filesize`, `post_max_size`, and Fileinfo availability.
 
-After upgrading from an earlier release, apply the database migrations to ensure the branding columns (`brand_color`, persisted logo path, and SMTP settings) exist:
-
-```sh
-mysql -u root -p < migration.sql
-```
-
-The script adds the missing columns, seeds defaults for the singleton configuration row, and normalises any existing logo path so the new upload handler continues working without manual edits.
-
 ### API documentation
 
 A built-in Swagger UI is available to administrators at `/swagger.php` (linked under **Administration → API Documentation**).
