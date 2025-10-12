@@ -239,7 +239,7 @@ function backup_add_directory(
                 continue;
             }
             $prefix = $skipPath . DIRECTORY_SEPARATOR;
-            if ($normalizedReal === $skipPath || strpos($normalizedReal . DIRECTORY_SEPARATOR, $prefix) === 0) {
+            if ($normalizedReal === $skipPath || str_starts_with($normalizedReal . DIRECTORY_SEPARATOR, $prefix)) {
                 continue 2;
             }
         }
@@ -248,7 +248,7 @@ function backup_add_directory(
         $relative = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
         foreach ($skipRelativePrefixes as $prefix) {
             $cleanPrefix = ltrim($prefix, '/');
-            if ($cleanPrefix !== '' && strpos($relative, $cleanPrefix) === 0) {
+            if ($cleanPrefix !== '' && str_starts_with($relative, $cleanPrefix)) {
                 continue 2;
             }
         }

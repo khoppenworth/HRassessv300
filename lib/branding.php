@@ -55,7 +55,7 @@ function site_logo_file_path(array $cfg): ?string
     $normalizedCandidate = rtrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $candidate), DIRECTORY_SEPARATOR);
     $normalizedRoot = rtrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $uploadsRoot), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
-    if (strpos($normalizedCandidate . DIRECTORY_SEPARATOR, $normalizedRoot) === 0) {
+    if (str_starts_with($normalizedCandidate . DIRECTORY_SEPARATOR, $normalizedRoot)) {
         return $candidate;
     }
 
