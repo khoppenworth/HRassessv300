@@ -5,6 +5,7 @@ const Builder = (() => {
     loading: false,
     saving: false,
     csrfToken: '',
+    activeKey: null,
   };
 
   const selectors = {
@@ -13,6 +14,7 @@ const Builder = (() => {
     publishButton: '#qb-publish',
     message: '#qb-message',
     list: '#qb-list',
+    tabs: '#qb-tabs',
     metaCsrf: 'meta[name="csrf-token"]',
   };
 
@@ -47,6 +49,7 @@ const Builder = (() => {
     const addBtn = document.querySelector(selectors.addButton);
     const saveBtn = document.querySelector(selectors.saveButton);
     const publishBtn = document.querySelector(selectors.publishButton);
+    const tabs = document.querySelector(selectors.tabs);
 
     if (!addBtn || !saveBtn || !publishBtn) {
       return;
@@ -64,6 +67,12 @@ const Builder = (() => {
       list.addEventListener('input', handleInputChange);
       list.addEventListener('change', handleInputChange);
       list.addEventListener('click', handleActionClick);
+    }
+
+    if (tabs) {
+      tabs.addEventListener('click', handleTabClick);
+      tabs.addEventListener('keydown', handleTabKeydown);
+      tabs.setAttribute('role', 'tablist');
     }
 
     fetchData();
@@ -215,6 +224,39 @@ const Builder = (() => {
     }
   }
 
+  function handleTabClick(event) {
+    const tab = event.target.closest('[data-q-key]');
+    if (!tab) return;
+    event.preventDefault();
+    const key = tab.getAttribute('data-q-key');
+    if (!key) return;
+    setActiveKey(key);
+  }
+
+  function handleTabKeydown(event) {
+    const tab = event.target.closest('[data-q-key]');
+    if (!tab) return;
+    const { key } = event;
+    if (key !== 'ArrowLeft' && key !== 'ArrowRight') {
+      return;
+    }
+    const container = event.currentTarget;
+    const tabs = Array.from(container.querySelectorAll('[data-q-key]'));
+    const index = tabs.indexOf(tab);
+    if (index === -1) return;
+    event.preventDefault();
+    const offset = key === 'ArrowLeft' ? -1 : 1;
+    const nextIndex = (index + offset + tabs.length) % tabs.length;
+    const nextTab = tabs[nextIndex];
+    if (nextTab) {
+      const nextKey = nextTab.getAttribute('data-q-key');
+      if (nextKey) {
+        setActiveKey(nextKey);
+      }
+      nextTab.focus();
+    }
+  }
+
   function parseSectionIndex(value) {
     if (value === 'root') return 'root';
     const parsed = parseInt(value ?? '-1', 10);
@@ -258,6 +300,7 @@ const Builder = (() => {
       items: [],
     };
     state.questionnaires.unshift(questionnaire);
+    state.activeKey = keyFor(questionnaire);
     markDirty();
     render();
   }
@@ -266,6 +309,7 @@ const Builder = (() => {
     if (Number.isNaN(qIndex) || !state.questionnaires[qIndex]) return;
     if (!window.confirm('Delete this questionnaire and all of its content?')) return;
     state.questionnaires.splice(qIndex, 1);
+    ensureActiveKey();
     markDirty();
     render();
   }
@@ -365,6 +409,15 @@ const Builder = (() => {
       }
       const questionnaires = Array.isArray(data.questionnaires) ? data.questionnaires : [];
       state.questionnaires = questionnaires.map(normalizeQuestionnaire);
+      if (typeof window.QB_INITIAL_ACTIVE_ID !== 'undefined' && window.QB_INITIAL_ACTIVE_ID !== null) {
+        const requested = Number(window.QB_INITIAL_ACTIVE_ID);
+        const match = state.questionnaires.find((q) => Number(q.id) === requested);
+        if (match) {
+          state.activeKey = keyFor(match);
+        }
+        delete window.QB_INITIAL_ACTIVE_ID;
+      }
+      ensureActiveKey();
       state.dirty = false;
       render();
       if (!silent) {
@@ -467,13 +520,57 @@ const Builder = (() => {
     return `client:${entity.clientId}`;
   }
 
+  function ensureActiveKey() {
+    if (!state.questionnaires.length) {
+      state.activeKey = null;
+      return;
+    }
+    if (state.activeKey && state.questionnaires.some((q) => keyFor(q) === state.activeKey)) {
+      return;
+    }
+    state.activeKey = keyFor(state.questionnaires[0]);
+  }
+
+  function setActiveKey(key) {
+    if (!key || state.activeKey === key) {
+      return;
+    }
+    if (!state.questionnaires.some((q) => keyFor(q) === key)) {
+      return;
+    }
+    state.activeKey = key;
+    render();
+  }
+
   function render() {
     const list = document.querySelector(selectors.list);
     if (!list) return;
+    ensureActiveKey();
+    const tabs = document.querySelector(selectors.tabs);
+    if (tabs) {
+      tabs.innerHTML = '';
+    }
     list.innerHTML = '';
     state.questionnaires.forEach((questionnaire, qIndex) => {
       const card = buildQuestionnaireCard(questionnaire, qIndex);
       list.appendChild(card);
+      if (tabs) {
+        const key = keyFor(questionnaire);
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'qb-tab';
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('data-q-key', key);
+        tab.dataset.qIndex = String(qIndex);
+        const label = questionnaire.title && questionnaire.title.trim() !== ''
+          ? questionnaire.title
+          : `Questionnaire ${qIndex + 1}`;
+        tab.textContent = label;
+        const isActive = key === state.activeKey;
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        tab.setAttribute('tabindex', isActive ? '0' : '-1');
+        tabs.appendChild(tab);
+      }
     });
     initSortable();
     updateDirtyState();
@@ -484,6 +581,11 @@ const Builder = (() => {
     card.className = 'qb-questionnaire';
     card.dataset.key = keyFor(questionnaire);
     card.dataset.qIndex = String(qIndex);
+    card.setAttribute('role', 'tabpanel');
+    const key = keyFor(questionnaire);
+    const isActive = key === state.activeKey;
+    card.hidden = !isActive;
+    card.setAttribute('aria-hidden', isActive ? 'false' : 'true');
 
     const header = document.createElement('div');
     header.className = 'qb-questionnaire-header';

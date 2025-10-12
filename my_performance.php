@@ -11,6 +11,7 @@ $user = current_user();
 $stmt = $pdo->prepare("SELECT qr.*, q.title, pp.label AS period_label FROM questionnaire_response qr JOIN questionnaire q ON q.id=qr.questionnaire_id JOIN performance_period pp ON pp.id = qr.performance_period_id WHERE qr.user_id=? ORDER BY qr.created_at ASC");
 $stmt->execute([$user['id']]);
 $rows = $stmt->fetchAll();
+$draftResponses = array_values(array_filter($rows, static fn($row) => ($row['status'] ?? '') === 'draft'));
 $nextAssessmentRaw = $user['next_assessment_date'] ?? null;
 $nextAssessmentDisplay = null;
 if ($nextAssessmentRaw) {
@@ -57,6 +58,13 @@ if (!empty($user['work_function'])) {
     }
 }
 $recommendedCourses = array_values($recommendedCourses);
+$statusLabels = [
+    'draft' => t($t, 'status_draft', 'Draft'),
+    'submitted' => t($t, 'status_submitted', 'Submitted'),
+    'approved' => t($t, 'status_approved', 'Approved'),
+    'rejected' => t($t, 'status_rejected', 'Rejected'),
+];
+
 $flash = $_GET['msg'] ?? '';
 $flashMessage = '';
 if ($flash === 'submitted') {
@@ -87,6 +95,20 @@ if ($flash === 'submitted') {
     <?php else: ?>
       <p class="md-muted"><?=t($t,'next_assessment_not_set','Your next assessment date has not been scheduled yet.')?></p>
     <?php endif; ?>
+    <?php if ($draftResponses): ?>
+      <div class="md-alert warning md-draft-alert">
+        <strong><?=t($t,'draft_pending_title','Saved drafts awaiting submission')?>:</strong>
+        <ul class="md-draft-list">
+          <?php foreach ($draftResponses as $draft): ?>
+            <li>
+              <a href="<?=htmlspecialchars(url_for('submit_assessment.php?qid=' . $draft['questionnaire_id'] . '&performance_period_id=' . $draft['performance_period_id']), ENT_QUOTES, 'UTF-8')?>">
+                <?=htmlspecialchars($draft['title'])?> · <?=htmlspecialchars($draft['period_label'])?>
+              </a>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    <?php endif; ?>
   </div>
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t,'your_trend','Your Score Trend')?></h2>
@@ -98,15 +120,28 @@ if ($flash === 'submitted') {
       <p><?=t($t,'no_trend_data','Submit assessments to generate your performance trend.')?></p>
     <?php endif; ?>
     <table class="md-table">
-      <thead><tr><th><?=t($t,'date','Date')?></th><th><?=t($t,'questionnaire','Questionnaire')?></th><th><?=t($t,'performance_period','Performance Period')?></th><th><?=t($t,'score','Score (%)')?></th><th><?=t($t,'status','Status')?></th></tr></thead>
+      <thead><tr><th><?=t($t,'date','Date')?></th><th><?=t($t,'questionnaire','Questionnaire')?></th><th><?=t($t,'performance_period','Performance Period')?></th><th><?=t($t,'score','Score (%)')?></th><th><?=t($t,'status','Status')?></th><th><?=t($t,'actions','Actions')?></th></tr></thead>
       <tbody>
       <?php foreach ($rows as $r): ?>
+        <?php
+          $statusKey = $r['status'] ?? 'submitted';
+          $statusLabel = $statusLabels[$statusKey] ?? ucfirst($statusKey);
+          $isDraft = ($statusKey === 'draft');
+          $resumeLink = $isDraft ? url_for('submit_assessment.php?qid=' . $r['questionnaire_id'] . '&performance_period_id=' . $r['performance_period_id']) : null;
+        ?>
         <tr>
           <td><?=htmlspecialchars($r['created_at'])?></td>
           <td><?=htmlspecialchars($r['title'])?></td>
           <td><?=htmlspecialchars($r['period_label'])?></td>
           <td><?= is_null($r['score']) ? '-' : (int)$r['score']?></td>
-          <td><?=htmlspecialchars($r['status'])?></td>
+          <td><?=htmlspecialchars($statusLabel)?></td>
+          <td>
+            <?php if ($resumeLink): ?>
+              <a class="md-button md-compact md-outline" href="<?=htmlspecialchars($resumeLink, ENT_QUOTES, 'UTF-8')?>"><?=t($t,'continue_draft','Continue Draft')?></a>
+            <?php else: ?>
+              <span class="md-muted">—</span>
+            <?php endif; ?>
+          </td>
         </tr>
       <?php endforeach; ?>
       </tbody>
@@ -166,6 +201,21 @@ $chartScoresJson = json_encode($chartScores, JSON_HEX_TAG | JSON_HEX_APOS | JSON
   const labels = <?=$chartLabelsJson?>;
   const dataPoints = <?=$chartScoresJson?>;
   const ctx = ctxElement.getContext('2d');
+  const styles = window.getComputedStyle(document.body);
+  const primaryColor = (styles.getPropertyValue('--app-primary') || '#2073bf').trim() || '#2073bf';
+  const softPrimary = (styles.getPropertyValue('--app-primary-soft') || '').trim();
+  const hexToRgba = (hex, alpha) => {
+    const cleaned = hex.replace('#', '');
+    if (cleaned.length !== 6) {
+      return `rgba(32,115,191,${alpha})`;
+    }
+    const bigint = parseInt(cleaned, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+  const areaFill = softPrimary ? (softPrimary.startsWith('#') ? hexToRgba(softPrimary, 0.24) : softPrimary) : hexToRgba(primaryColor, 0.18);
   new Chart(ctx, {
     type: 'line',
     data: {
@@ -173,8 +223,8 @@ $chartScoresJson = json_encode($chartScores, JSON_HEX_TAG | JSON_HEX_APOS | JSON
       datasets: [{
         label: 'Score (%)',
         data: dataPoints,
-        borderColor: '#0d7038',
-        backgroundColor: 'rgba(13, 112, 56, 0.15)',
+        borderColor: primaryColor,
+        backgroundColor: areaFill,
         borderWidth: 3,
         pointRadius: 4,
         pointHoverRadius: 6,

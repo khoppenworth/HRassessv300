@@ -9,6 +9,39 @@
   flex: 1 1 auto;
 }
 
+.qb-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.qb-tab {
+  border: 1px solid var(--app-border, rgba(32, 115, 191, 0.24));
+  border-radius: 999px;
+  background: var(--app-primary-soft, rgba(32, 115, 191, 0.12));
+  color: var(--app-primary-dark, #165997);
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.qb-tab[aria-selected="true"] {
+  background: var(--app-primary);
+  color: var(--md-on-primary, #f3f8ff);
+  box-shadow: var(--app-shadow-soft, 0 10px 24px rgba(32, 115, 191, 0.2));
+}
+
+.qb-tab:focus-visible {
+  outline: 2px solid var(--app-secondary, #61b3ec);
+  outline-offset: 2px;
+}
+
+.qb-tab[aria-selected="false"] {
+  opacity: 0.8;
+}
+
 .qb-message {
   margin-top: 0.75rem;
   font-size: 0.95rem;
@@ -31,11 +64,11 @@
 }
 
 .qb-questionnaire {
-  background: #fff;
-  border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  padding: 1rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: var(--app-surface, #ffffff);
+  border-radius: 12px;
+  border: 1px solid var(--app-border, rgba(32, 115, 191, 0.12));
+  padding: 1.1rem;
+  box-shadow: var(--app-shadow-soft, 0 10px 24px rgba(32, 115, 191, 0.1));
 }
 
 .qb-questionnaire-header,
@@ -66,7 +99,7 @@
 }
 
 .qb-section {
-  border-left: 4px solid #4f80ff;
+  border-left: 4px solid var(--app-primary, #4f80ff);
   padding-left: 0.75rem;
   margin-top: 1rem;
   display: flex;
@@ -123,9 +156,9 @@
 
 .qb-item {
   align-items: center;
-  background: rgba(79, 128, 255, 0.05);
-  border: 1px solid rgba(79, 128, 255, 0.15);
-  border-radius: 6px;
+  background: var(--app-primary-soft, rgba(32, 115, 191, 0.08));
+  border: 1px solid var(--app-border, rgba(32, 115, 191, 0.18));
+  border-radius: 10px;
   padding: 0.5rem;
   flex-wrap: wrap;
 }
@@ -169,14 +202,14 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(42, 79, 191, 0.08);
-  border: 1px solid rgba(42, 79, 191, 0.2);
-  border-radius: 4px;
+  background: var(--app-primary-soft, rgba(32, 115, 191, 0.12));
+  border: 1px solid var(--app-border, rgba(32, 115, 191, 0.22));
+  border-radius: 6px;
   padding: 0.35rem 0.5rem;
 }
 
 .qb-option-readonly {
-  background: rgba(42, 79, 191, 0.12);
+  background: var(--app-primary-softer, rgba(32, 115, 191, 0.18));
   cursor: default;
 }
 
@@ -188,7 +221,7 @@
 .qb-likert-note {
   margin: 0 0 0.35rem;
   font-size: 0.85rem;
-  color: #2a4fbf;
+  color: var(--app-primary, #2a4fbf);
 }
 
 .qb-option .qb-input {
@@ -205,7 +238,7 @@
   font-size: 1.2rem;
   line-height: 1;
   padding: 0.35rem 0.5rem;
-  color: rgba(0, 0, 0, 0.4);
+  color: rgba(43, 65, 96, 0.4);
 }
 
 .qb-card-handle::before,
@@ -216,13 +249,13 @@
 }
 
 .qb-danger {
-  background: #ffe4e4;
-  color: #b00020;
+  background: var(--app-danger-soft, rgba(198, 40, 40, 0.15));
+  color: var(--app-danger, #b00020);
 }
 
 .qb-action {
-  background: #e7efff;
-  color: #2a4fbf;
+  background: var(--app-primary-soft, rgba(32, 115, 191, 0.12));
+  color: var(--app-primary, #2a4fbf);
 }
 
 .qb-import-form {
