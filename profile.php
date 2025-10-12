@@ -14,15 +14,24 @@ if (!empty($_SESSION['pending_notice'])) {
     unset($_SESSION['pending_notice']);
 }
 
-$phoneCountries = [
-    ['code' => '+251', 'label' => 'Ethiopia', 'flag' => "\u{1F1EA}\u{1F1F9}"],
-    ['code' => '+254', 'label' => 'Kenya', 'flag' => "\u{1F1F0}\u{1F1EA}"],
-    ['code' => '+255', 'label' => 'Tanzania', 'flag' => "\u{1F1F9}\u{1F1FF}"],
-    ['code' => '+256', 'label' => 'Uganda', 'flag' => "\u{1F1FA}\u{1F1EC}"],
-    ['code' => '+253', 'label' => 'Djibouti', 'flag' => "\u{1F1E9}\u{1F1EF}"],
-    ['code' => '+257', 'label' => 'Burundi', 'flag' => "\u{1F1E7}\u{1F1EE}"],
-];
-$defaultPhoneCountry = $phoneCountries[0]['code'];
+$phoneCountries = require __DIR__ . '/lib/phone_countries.php';
+if (!is_array($phoneCountries) || !$phoneCountries) {
+    $phoneCountries = [
+        ['code' => '+251', 'label' => 'Ethiopia', 'flag' => "\u{1F1EA}\u{1F1F9}"],
+    ];
+}
+
+$preferredDefaultCode = '+251';
+$defaultPhoneCountry = $preferredDefaultCode;
+foreach ($phoneCountries as $country) {
+    if ($country['code'] === $preferredDefaultCode) {
+        $defaultPhoneCountry = $country['code'];
+        break;
+    }
+}
+if (!in_array($defaultPhoneCountry, array_column($phoneCountries, 'code'), true)) {
+    $defaultPhoneCountry = $phoneCountries[0]['code'];
+}
 
 $splitPhone = static function (?string $phone) use ($phoneCountries, $defaultPhoneCountry): array {
     $phone = trim((string)$phone);

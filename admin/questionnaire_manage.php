@@ -685,6 +685,9 @@ if (isset($_POST['import'])) {
       <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('assets/templates/sample_questionnaire_template.xml'), ENT_QUOTES, 'UTF-8')?>" download>
         <?=t($t,'download_xml_template','Download XML template')?>
       </a>
+      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('assets/templates/questionnaire_template.xlsx'), ENT_QUOTES, 'UTF-8')?>" download>
+        <?=t($t,'download_excel_template','Download Excel template')?>
+      </a>
       <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
         <?=t($t,'download_import_guide','Download Import Guide')?>
       </a>

@@ -6,6 +6,7 @@ This guide explains how administrators can import questionnaires using the EPSS 
 
 - Administrator access to the HR Assessment platform.
 - A questionnaire definition file in the supported XML format that conforms to the sample template provided with the application (`assets/templates/sample_questionnaire_template.xml`).
+- Optional: start from the Excel planning sheet (`assets/templates/questionnaire_template.xlsx`) to capture sections, items, and work-function assignments before generating the XML payload.
 - Familiarity with the work functions (e.g., WIM, ICT, HRM) that determine questionnaire availability.
 
 ## Preparing Your XML File
@@ -20,6 +21,18 @@ This guide explains how administrators can import questionnaires using the EPSS 
    - Provide `text` for the question prompt.
    - For `likert` or `choice` items, define `<option>` values in the desired order.
 6. Validate that the XML is well-formed before uploading.
+
+## Using the Excel Planning Template
+
+The downloadable Excel workbook contains a single sheet with the following columns:
+
+- **Questionnaire Title** and **Questionnaire Description** — applied to the root questionnaire record.
+- **Section Title** and **Section Description** — create or update named sections. Leave blank to assign items to the questionnaire root.
+- **Item LinkId**, **Item Text**, **Item Type**, **Allow Multiple**, and **Weight (%)** — define question prompts and scoring metadata.
+- **Options (semicolon separated)** — supply response options for `likert` or `choice` items.
+- **Work Functions (semicolon separated)** — list the cadres that should receive the questionnaire (e.g., `general_service;hrm`).
+
+Each row represents a single questionnaire item. Duplicate the questionnaire and section details across rows as needed. After the structure is reviewed, translate the entries into the XML format described below so the importer can create the questionnaire and its related sections automatically.
 
 ## Import Steps
 

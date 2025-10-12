@@ -7,7 +7,10 @@ $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 
-$msg='';
+$msg = $_SESSION['admin_users_flash'] ?? '';
+if ($msg !== '') {
+    unset($_SESSION['admin_users_flash']);
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
@@ -97,6 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0) {
             $stm = $pdo->prepare('DELETE FROM users WHERE id=?');
             $stm->execute([$id]);
+            $_SESSION['admin_users_flash'] = t($t, 'user_deleted', 'User deleted successfully.');
             header('Location: ' . url_for('admin/users.php'));
             exit;
         }
@@ -187,7 +191,7 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
       </form>
     </td>
     <td>
-      <form method="post" class="md-inline-form" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" onsubmit="return confirm('<?=htmlspecialchars(t($t,'confirm_delete','Delete this record?'), ENT_QUOTES, 'UTF-8')?>');">
+      <form method="post" class="md-inline-form" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" data-verify-user="<?=htmlspecialchars($r['username'])?>" data-verify-prompt="<?=htmlspecialchars(t($t,'confirm_delete_prompt','Type the username to confirm deletion.'), ENT_QUOTES, 'UTF-8')?>" data-verify-mismatch="<?=htmlspecialchars(t($t,'delete_verification_failed','The entered username did not match. No changes were made.'), ENT_QUOTES, 'UTF-8')?>">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="id" value="<?=$r['id']?>">
         <button name="delete" class="md-button md-danger md-elev-1" type="submit"><?=t($t,'delete','Delete')?></button>
@@ -200,4 +204,25 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
 </div>
 </section>
 <?php include __DIR__.'/../templates/footer.php'; ?>
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+(function() {
+  const forms = document.querySelectorAll('[data-verify-user]');
+  forms.forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      const expected = form.dataset.verifyUser || '';
+      const promptMessage = form.dataset.verifyPrompt || 'Type the username to confirm deletion.';
+      const mismatch = form.dataset.verifyMismatch || 'The entered username did not match. No changes were made.';
+      const response = window.prompt(promptMessage, '');
+      if (response === null) {
+        event.preventDefault();
+        return;
+      }
+      if (expected && response.trim() !== expected) {
+        window.alert(mismatch);
+        event.preventDefault();
+      }
+    });
+  });
+})();
+</script>
 </body></html>

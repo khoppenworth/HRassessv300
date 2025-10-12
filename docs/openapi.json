@@ -3,7 +3,7 @@
   "info": {
     "title": "HR Assessment Platform API",
     "version": "1.0.0",
-    "description": "API reference for the HR Assessment platform, including FHIR-compatible resources and internal helper endpoints."
+    "description": "API reference for the HR Assessment platform, including FHIR-compatible resources and internal helper endpoints.\n\n## Getting started\n1. Sign in to the web application as an administrator to establish an authenticated session.\n2. Open the Swagger UI page (Administration → API Documentation) to load this specification.\n3. Use the *Authorize* button to send your PHP session cookie with requests, or copy the provided `curl` examples for CLI testing.\n\n## Response formats\nAll endpoints respond with JSON payloads. FHIR resources follow the HL7 FHIR R4 specification. Business endpoints return structured JSON objects documented below.\n\n## Draft questionnaire workflow\nThe submission endpoint accepts the `status` field to manage `draft` versus `completed` QuestionnaireResponse records. Draft responses can be updated until they are submitted." 
   },
   "servers": [
     {
@@ -11,9 +11,20 @@
       "description": "Current deployment"
     }
   ],
+  "tags": [
+    {
+      "name": "FHIR",
+      "description": "FHIR-compatible read and write endpoints."
+    },
+    {
+      "name": "Admin",
+      "description": "Administrative utilities for managing questionnaires."
+    }
+  ],
   "paths": {
     "/fhir/metadata.php": {
       "get": {
+        "tags": ["FHIR"],
         "summary": "FHIR capability statement",
         "description": "Returns a FHIR CapabilityStatement describing the resources supported by the platform.",
         "responses": {
@@ -27,11 +38,13 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/fhir/Questionnaire.php": {
       "get": {
+        "tags": ["FHIR"],
         "summary": "List questionnaires",
         "description": "Returns a Bundle of Questionnaire resources representing the currently configured assessments.",
         "responses": {
@@ -45,11 +58,13 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/fhir/QuestionnaireResponse.php": {
       "get": {
+        "tags": ["FHIR"],
         "summary": "List questionnaire responses",
         "description": "Returns a Bundle of QuestionnaireResponse resources for all submitted assessments.",
         "responses": {
@@ -63,9 +78,11 @@
               }
             }
           }
-        }
+        },
+        "security": []
       },
       "post": {
+        "tags": ["FHIR"],
         "summary": "Submit questionnaire response",
         "description": "Creates a new QuestionnaireResponse resource. Requires the identifiers for the responding user, questionnaire, and performance period.",
         "requestBody": {
@@ -96,11 +113,13 @@
           "400": {
             "description": "Validation error"
           }
-        }
+        },
+        "security": []
       }
     },
     "/admin/questionnaire_manage.php": {
       "get": {
+        "tags": ["Admin"],
         "summary": "Fetch questionnaire definitions",
         "description": "Authenticated administrators can fetch the full questionnaire definition set by providing the action=fetch query parameter.",
         "parameters": [
@@ -121,11 +140,24 @@
           "401": {
             "description": "Authentication required"
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
       }
     }
   },
   "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "PHPSESSID",
+        "description": "Standard PHP session cookie used after authenticating through the web UI."
+      }
+    },
     "schemas": {
       "QuestionnaireResponseInput": {
         "type": "object",
@@ -151,6 +183,12 @@
           "performance_period": {
             "type": "string",
             "description": "Performance period label (used if performance_period_id is not supplied)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Submission state; use `draft` to save progress or `completed` to finalize and score the response.",
+            "enum": ["draft", "completed"],
+            "default": "completed"
           },
           "item": {
             "type": "array",

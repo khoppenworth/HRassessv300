@@ -1,16 +1,17 @@
 /* Minimal Material-inspired design (no external deps) */
 :root {
-  --md-primary: #0d7038;
-  --md-primary-dark: #094e26;
-  --md-on-primary: #f2fbf6;
-  --md-accent: #2ab673;
-  --md-highlight: #f6b511;
-  --md-bg: linear-gradient(140deg, #f2f7f3 0%, #e4f1e9 50%, #f7fbf5 100%);
-  --md-surface: #ffffff;
-  --md-muted: #4b6253;
-  --md-danger: #c62828;
+  --md-primary: var(--app-primary, #2073bf);
+  --md-primary-dark: var(--app-primary-dark, #165997);
+  --md-on-primary: #f3f8ff;
+  --md-accent: var(--app-accent, #f6b511);
+  --md-highlight: var(--app-secondary, #61b3ec);
+  --md-bg: var(--app-bg, linear-gradient(140deg, #f1f5fb 0%, #e3effc 50%, #f8fbff 100%));
+  --md-surface: var(--app-surface, #ffffff);
+  --md-muted: var(--app-muted, #2b4160);
+  --md-muted-light: var(--app-muted-light, #5b7394);
+  --md-danger: var(--app-danger, #c62828);
   --md-radius: 16px;
-  --md-shadow: 0 18px 44px rgba(9, 78, 38, 0.16);
+  --md-shadow: var(--app-shadow-soft, 0 18px 44px rgba(32, 115, 191, 0.18));
 }
 
 * {
@@ -169,8 +170,8 @@ body.md-bg {
   padding: 12px 20px;
   border-radius: 999px;
   border: 0;
-  background: rgba(13, 112, 56, 0.12);
-  color: #0c4a29;
+  background: var(--app-primary-soft, rgba(32, 115, 191, 0.12));
+  color: var(--md-primary-dark);
   text-decoration: none;
   cursor: pointer;
   font-weight: 600;
@@ -179,18 +180,20 @@ body.md-bg {
 
 .md-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(9, 78, 38, 0.18);
-  background: rgba(13, 112, 56, 0.18);
+  box-shadow: var(--app-shadow-soft, 0 8px 18px rgba(32, 115, 191, 0.18));
+  background: var(--app-primary-softer, rgba(32, 115, 191, 0.18));
 }
 
 .md-primary {
   background: var(--md-primary);
   color: var(--md-on-primary);
+  box-shadow: var(--app-shadow-soft, 0 12px 30px rgba(32, 115, 191, 0.24));
 }
 
 .md-danger {
   background: var(--md-danger);
   color: #fff;
+  box-shadow: 0 12px 30px var(--app-danger-soft, rgba(198, 40, 40, 0.24));
 }
 
 .md-field {
@@ -210,11 +213,12 @@ body.md-bg {
 .md-field input,
 .md-field select,
 .md-field textarea {
-  border: 1px solid rgba(13, 112, 56, 0.22);
+  border: 1px solid var(--app-border, rgba(32, 115, 191, 0.16));
   border-radius: 12px;
   padding: 12px 14px;
   font-size: 14px;
-  background: #f5fbf7;
+  background: var(--app-input-bg, #ffffff);
+  color: inherit;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
@@ -222,15 +226,15 @@ body.md-bg {
 .md-field select:focus,
 .md-field textarea:focus {
   outline: none;
-  border-color: var(--md-accent);
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(42, 182, 115, 0.22);
+  border-color: var(--md-primary);
+  background: var(--app-surface, #ffffff);
+  box-shadow: 0 0 0 3px var(--app-primary-soft, rgba(32, 115, 191, 0.22));
 }
 
 .md-alert {
-  background: rgba(246, 181, 17, 0.18);
-  border-left: 4px solid var(--md-highlight);
-  color: #684b0a;
+  background: var(--app-warning-soft, rgba(246, 181, 17, 0.18));
+  border-left: 4px solid var(--app-warning, #f6b511);
+  color: var(--md-muted);
   padding: 12px 16px;
   border-radius: 12px;
   margin: 12px 0;
