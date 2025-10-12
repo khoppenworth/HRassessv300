@@ -12,7 +12,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 
 if (PHP_SAPI !== 'cli' && !headers_sent()) {
     setcookie('lang', '', time() - 3600, locale_cookie_path());
-    header('Location: ' . url_for('index.php'));
+    header('Location: ' . url_for('login.php'));
 }
 exit;
 ?>

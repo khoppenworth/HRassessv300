@@ -146,7 +146,7 @@ exit;
 function oauth_fail(string $message, string $provider): void
 {
     $_SESSION['oauth_error'] = $message;
-    header('Location: ' . url_for('index.php'));
+    header('Location: ' . url_for('login.php'));
     exit;
 }
 

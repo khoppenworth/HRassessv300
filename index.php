@@ -4,65 +4,6 @@ require_once __DIR__ . '/config.php';
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
-$err = '';
-
-$oauthProviders = [];
-if (
-    (int)($cfg['google_oauth_enabled'] ?? 0) === 1
-    && !empty($cfg['google_oauth_client_id'])
-    && !empty($cfg['google_oauth_client_secret'])
-) {
-    $oauthProviders['google'] = t($t, 'sign_in_with_google', 'Sign in with Google');
-}
-if (
-    (int)($cfg['microsoft_oauth_enabled'] ?? 0) === 1
-    && !empty($cfg['microsoft_oauth_client_id'])
-    && !empty($cfg['microsoft_oauth_client_secret'])
-) {
-    $oauthProviders['microsoft'] = t($t, 'sign_in_with_microsoft', 'Sign in with Microsoft');
-}
-
-if (!empty($_SESSION['oauth_error'])) {
-    $err = (string)$_SESSION['oauth_error'];
-    unset($_SESSION['oauth_error']);
-}
-if (!empty($_SESSION['auth_error'])) {
-    $err = (string)$_SESSION['auth_error'];
-    unset($_SESSION['auth_error']);
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_check();
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
-
-    $stmt = $pdo->prepare('SELECT * FROM users WHERE username = ?');
-    $stmt->execute([$username]);
-    $u = $stmt->fetch();
-
-    if ($u && password_verify($password, $u['password'])) {
-        if (($u['account_status'] ?? 'active') === 'disabled') {
-            $err = t($t, 'account_disabled', 'Your account has been disabled. Please contact your administrator.');
-        } else {
-            if (empty($u['first_login_at'])) {
-                $pdo->prepare('UPDATE users SET first_login_at = NOW() WHERE id = ?')->execute([$u['id']]);
-                $u['first_login_at'] = date('Y-m-d H:i:s');
-            }
-            $_SESSION['user'] = $u;
-            $_SESSION['lang'] = $u['language'] ?? ($_SESSION['lang'] ?? 'en');
-
-            if (($u['account_status'] ?? 'active') === 'pending') {
-                $_SESSION['pending_notice'] = true;
-                header('Location: ' . url_for('profile.php?pending=1'));
-            } else {
-                header('Location: ' . url_for('my_performance.php'));
-            }
-            exit;
-        }
-    } else {
-        $err = t($t, 'invalid_login', 'Invalid username or password');
-    }
-}
 
 $logoPath = get_branding_logo_path($cfg);
 if ($logoPath === null) {
@@ -82,6 +23,7 @@ $bodyClass = htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8');
 $bodyStyle = htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8');
 $baseUrl = htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8');
 $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
+$loginUrl = htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
 <html lang="<?= $langAttr ?>" data-base-url="<?= $baseUrl ?>">
@@ -106,40 +48,14 @@ $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
       <?php if ($landingText !== ''): ?>
         <p class="md-subtitle"><?= $landingText ?></p>
       <?php else: ?>
-        <p class="md-subtitle"><?= t($t, 'welcome_msg', 'Sign in to start your self-assessment and track your performance over time.') ?></p>
+        <p class="md-subtitle"><?= t($t, 'landing_intro', 'Welcome to the performance management portal. Discover resources and updates about your organisation\'s assessment program.') ?></p>
       <?php endif; ?>
 
-      <form method="post" class="md-form" action="<?= htmlspecialchars(url_for('index.php'), ENT_QUOTES, 'UTF-8') ?>">
-        <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-        <label class="md-field">
-          <span><?= t($t, 'username', 'Username') ?></span>
-          <input name="username" required>
-        </label>
-        <label class="md-field">
-          <span><?= t($t, 'password', 'Password') ?></span>
-          <input type="password" name="password" required>
-        </label>
-        <?php if ($err !== ''): ?>
-          <div class="md-alert"><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
-        <?php endif; ?>
-        <div class="md-form-actions md-form-actions--center md-login-actions">
-          <button class="md-button md-primary md-elev-2" type="submit">
-            <?= t($t, 'sign_in', 'Sign In') ?>
-          </button>
-        </div>
-      </form>
-
-      <?php if (!empty($oauthProviders)): ?>
-        <div class="md-divider"></div>
-        <div class="md-sso-buttons">
-          <?php foreach ($oauthProviders as $provider => $label): ?>
-            <a
-              class="md-button md-elev-1 md-sso-btn <?= htmlspecialchars($provider, ENT_QUOTES, 'UTF-8') ?>"
-              href="<?= htmlspecialchars(url_for('oauth.php?provider=' . $provider), ENT_QUOTES, 'UTF-8') ?>"
-            ><?= $label ?></a>
-          <?php endforeach; ?>
-        </div>
-      <?php endif; ?>
+      <div class="md-form-actions md-form-actions--center md-login-actions">
+        <a class="md-button md-primary md-elev-2" href="<?= $loginUrl ?>">
+          <?= t($t, 'sign_in', 'Sign In') ?>
+        </a>
+      </div>
 
       <div class="md-meta">
         <?php if ($address !== ''): ?>
@@ -148,6 +64,9 @@ $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
         <?php if ($contact !== ''): ?>
           <div class="md-small"><strong><?= t($t, 'contact_label', 'Contact') ?>:</strong> <?= $contact ?></div>
         <?php endif; ?>
+        <div class="md-small">
+          <a href="<?= $loginUrl ?>"><?= t($t, 'login_now', 'Go to secure login') ?></a>
+        </div>
         <div class="md-small lang-switch">
           <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=en'), ENT_QUOTES, 'UTF-8') ?>">EN</a> ·
           <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=am'), ENT_QUOTES, 'UTF-8') ?>">AM</a> ·

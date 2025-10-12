@@ -42,7 +42,7 @@ function notify_user_account_approved(array $cfg, array $user, ?string $nextAsse
     if ($email === '') {
         return;
     }
-    $loginUrl = url_for('index.php');
+    $loginUrl = url_for('login.php');
     $subject = 'Your HR Assessment access has been approved';
     $body = "Hello " . ($user['full_name'] ?? $user['username'] ?? 'team member') . ",\n\n" .
         "Your supervisor has approved your access to the HR Assessment portal. You can now sign in and complete your assessments." . "\n\n" .
@@ -64,7 +64,7 @@ function notify_user_next_assessment(array $cfg, array $user, string $nextAssess
     $body = "Hello " . ($user['full_name'] ?? $user['username'] ?? 'team member') . ",\n\n" .
         'A supervisor has scheduled your next assessment for ' . $nextAssessmentDate . ".\n" .
         'Please log in to the HR Assessment portal to prepare and complete any required steps.' . "\n\n" .
-        'Portal: ' . url_for('index.php') . "\n\n" .
+        'Portal: ' . url_for('login.php') . "\n\n" .
         'Thank you.';
     send_notification_email($cfg, [$email], $subject, $body);
 }

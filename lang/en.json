@@ -1,6 +1,8 @@
 {
   "invalid_login": "Invalid username or password.",
   "welcome_msg": "Sign in to start your self-assessment and track your performance over time.",
+  "landing_intro": "Welcome to the performance management portal. Discover resources and updates about your organization's assessment program.",
+  "login_now": "Go to secure login",
   "username": "Username",
   "password": "Password",
   "sign_in": "Sign In",

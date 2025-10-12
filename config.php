@@ -190,12 +190,12 @@ function refresh_current_user(PDO $pdo): void {
 }
 
 function auth_required(array $roles = []): void {
-    if (!isset($_SESSION['user'])) { header('Location: ' . BASE_URL . 'index.php'); exit; }
+    if (!isset($_SESSION['user'])) { header('Location: ' . BASE_URL . 'login.php'); exit; }
     $status = $_SESSION['user']['account_status'] ?? 'active';
     if ($status === 'disabled') {
         $_SESSION['auth_error'] = 'Your account has been disabled. Please contact your administrator.';
         unset($_SESSION['user']);
-        header('Location: ' . url_for('index.php'));
+        header('Location: ' . url_for('login.php'));
         exit;
     }
     if ($status === 'pending') {
