@@ -166,8 +166,12 @@ body.md-bg {
 }
 
 .md-button {
-  display: inline-block;
-  padding: 12px 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.6rem;
+  min-height: 2.75rem;
   border-radius: 999px;
   border: 0;
   background: var(--app-primary-soft, rgba(32, 115, 191, 0.12));
@@ -175,6 +179,8 @@ body.md-bg {
   text-decoration: none;
   cursor: pointer;
   font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 

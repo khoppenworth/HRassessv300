@@ -121,7 +121,6 @@
   "fhir_import": "Import FHIR",
   "file": "Fichier",
   "import": "Importer",
-  "download_xml_template": "Télécharger le modèle XML",
   "download_import_guide": "Télécharger le guide d'import",
   "download_excel_template": "Télécharger le modèle Excel",
   "save_draft": "Enregistrer le brouillon",

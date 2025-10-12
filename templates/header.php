@@ -20,6 +20,10 @@ $brandStyle = site_brand_style($cfg);
 <?php if ($brandStyle !== ''): ?>
 <style id="md-brand-style">:root { <?=htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8')?>; }</style>
 <?php endif; ?>
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+  window.APP_DEFAULT_LOCALE = <?=json_encode(AVAILABLE_LOCALES[0], JSON_THROW_ON_ERROR)?>;
+  window.APP_AVAILABLE_LOCALES = <?=json_encode(AVAILABLE_LOCALES, JSON_THROW_ON_ERROR)?>;
+</script>
 <header class="md-appbar md-elev-2">
   <button class="md-appbar-toggle" aria-label="Toggle navigation" data-drawer-toggle>
     <span></span>
@@ -37,6 +41,7 @@ $brandStyle = site_brand_style($cfg);
     <a href="<?=htmlspecialchars(url_for('logout.php'), ENT_QUOTES, 'UTF-8')?>" class="md-appbar-link"><?=t($t, 'logout', 'Logout')?></a>
   </nav>
 </header>
+<div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
 <div class="md-shell">
 <aside class="md-drawer" data-drawer>
   <div class="md-drawer-header">
