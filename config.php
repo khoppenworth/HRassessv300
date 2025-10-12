@@ -1,6 +1,66 @@
 <?php
 declare(strict_types=1);
 
+if (!defined('WORK_FUNCTIONS')) {
+    define('WORK_FUNCTIONS', [
+        'finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification',
+        'records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics'
+    ]);
+}
+
+if (!defined('WORK_FUNCTION_LABELS')) {
+    define('WORK_FUNCTION_LABELS', [
+        'finance' => 'Finance',
+        'general_service' => 'General Service',
+        'hrm' => 'HRM',
+        'ict' => 'ICT',
+        'leadership_tn' => 'Leadership TN',
+        'legal_service' => 'Legal Service',
+        'pme' => 'PME',
+        'quantification' => 'Quantification',
+        'records_documentation' => 'Records & Documentation',
+        'security_driver' => 'Security & Driver',
+        'security' => 'Security',
+        'tmd' => 'TMD',
+        'wim' => 'WIM',
+        'cmd' => 'CMD',
+        'communication' => 'Communication',
+        'dfm' => 'DFM',
+        'driver' => 'Driver',
+        'ethics' => 'Ethics',
+    ]);
+}
+
+if (!defined('DEFAULT_USER_ROLES')) {
+    define('DEFAULT_USER_ROLES', [
+        [
+            'role_key' => 'admin',
+            'label' => 'Administrator',
+            'description' => 'Full administrative access to manage the platform.',
+            'sort_order' => 0,
+            'is_protected' => 1,
+        ],
+        [
+            'role_key' => 'supervisor',
+            'label' => 'Supervisor',
+            'description' => 'Can review assessments and manage assigned staff.',
+            'sort_order' => 10,
+            'is_protected' => 1,
+        ],
+        [
+            'role_key' => 'staff',
+            'label' => 'Staff',
+            'description' => 'Standard access for employees completing assessments.',
+            'sort_order' => 20,
+            'is_protected' => 1,
+        ],
+    ]);
+}
+
+if (!defined('DEFAULT_BRAND_COLOR')) {
+    define('DEFAULT_BRAND_COLOR', '#2073bf');
+}
+
 if (!defined('APP_BOOTSTRAPPED')) {
     define('APP_BOOTSTRAPPED', true);
 
@@ -84,59 +144,6 @@ if (!function_exists('str_starts_with')) {
         return strncmp($haystack, $needle, strlen($needle)) === 0;
     }
 }
-
-const WORK_FUNCTIONS = [
-    'finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification',
-    'records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics'
-];
-
-const WORK_FUNCTION_LABELS = [
-    'finance' => 'Finance',
-    'general_service' => 'General Service',
-    'hrm' => 'HRM',
-    'ict' => 'ICT',
-    'leadership_tn' => 'Leadership TN',
-    'legal_service' => 'Legal Service',
-    'pme' => 'PME',
-    'quantification' => 'Quantification',
-    'records_documentation' => 'Records & Documentation',
-    'security_driver' => 'Security & Driver',
-    'security' => 'Security',
-    'tmd' => 'TMD',
-    'wim' => 'WIM',
-    'cmd' => 'CMD',
-    'communication' => 'Communication',
-    'dfm' => 'DFM',
-    'driver' => 'Driver',
-    'ethics' => 'Ethics',
-];
-
-const DEFAULT_USER_ROLES = [
-    [
-        'role_key' => 'admin',
-        'label' => 'Administrator',
-        'description' => 'Full administrative access to manage the platform.',
-        'sort_order' => 0,
-        'is_protected' => 1,
-    ],
-    [
-        'role_key' => 'supervisor',
-        'label' => 'Supervisor',
-        'description' => 'Can review assessments and manage assigned staff.',
-        'sort_order' => 10,
-        'is_protected' => 1,
-    ],
-    [
-        'role_key' => 'staff',
-        'label' => 'Staff',
-        'description' => 'Standard access for employees completing assessments.',
-        'sort_order' => 20,
-        'is_protected' => 1,
-    ],
-];
-
-const DEFAULT_BRAND_COLOR = '#2073bf';
-
 
 function csrf_token(): string {
     if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }
