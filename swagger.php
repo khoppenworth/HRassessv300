@@ -25,6 +25,7 @@ $openapiUrl = asset_url('docs/openapi.json');
       color: inherit;
       border-radius: 0 0 12px 12px;
       overflow: hidden;
+      min-height: 480px;
     }
     .swagger-ui .topbar {
       background: linear-gradient(92deg, var(--app-primary-dark), var(--app-primary));
@@ -117,7 +118,7 @@ $openapiUrl = asset_url('docs/openapi.json');
 <?php include __DIR__.'/templates/footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js" integrity="sha384-VnuG1v7rmDdGztJ32thSWfW5i8ubrSMVqGpfR+L5/TrF4iAfDdc0AGJi/7luWUv" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js" integrity="sha384-lhDX2PD6o642kvJy3ocHxVhdkIJfnddFktKI1IvY2ag6GLZ35Xwqr7zaCDW8Vh6u" crossorigin="anonymous"></script>
-<script>
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
   window.addEventListener('DOMContentLoaded', function () {
     window.ui = SwaggerUIBundle({
       url: '<?=htmlspecialchars($openapiUrl, ENT_QUOTES, 'UTF-8')?>',

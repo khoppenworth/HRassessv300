@@ -11,6 +11,19 @@ $msg = $_SESSION['admin_users_flash'] ?? '';
 if ($msg !== '') {
     unset($_SESSION['admin_users_flash']);
 }
+$roleOptions = get_user_roles($pdo);
+$roleMap = [];
+foreach ($roleOptions as $roleRow) {
+    $key = (string)$roleRow['role_key'];
+    $roleMap[$key] = $roleRow;
+}
+$defaultRoleKey = 'staff';
+if (!isset($roleMap[$defaultRoleKey]) && $roleOptions) {
+    $first = reset($roleOptions);
+    if ($first) {
+        $defaultRoleKey = (string)$first['role_key'];
+    }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
@@ -38,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($msg === '') {
             if ($username === '' || $password === '') {
                 $msg = t($t, 'admin_user_required', 'Username and password are required.');
-            } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
+            } elseif (!isset($roleMap[$role])) {
                 $msg = t($t, 'invalid_role', 'Invalid role selection.');
             } else {
                 if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
@@ -81,15 +94,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($msg === '') {
-            if ($id <= 0 || $newPassword === '') {
-                $msg = t($t, 'admin_reset_required', 'User and password are required for reset.');
-            } elseif (!in_array($role, ['admin','supervisor','staff'], true)) {
+            if ($id <= 0) {
+                $msg = t($t, 'admin_reset_required', 'User selection is required.');
+            } elseif (!isset($roleMap[$role])) {
                 $msg = t($t, 'invalid_role', 'Invalid role selection.');
             } else {
                 if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
-                $hash = password_hash($newPassword, PASSWORD_DEFAULT);
-                $stm = $pdo->prepare("UPDATE users SET password=?, role=?, work_function=?, account_status=?, next_assessment_date=?, profile_completed=0 WHERE id=?");
-                $stm->execute([$hash, $role, $workFunction, $accountStatus, $nextAssessment, $id]);
+                $fields = ['role = ?', 'work_function = ?', 'account_status = ?', 'next_assessment_date = ?'];
+                $params = [$role, $workFunction, $accountStatus, $nextAssessment, $id];
+                $profileReset = '';
+                if (is_string($newPassword) && trim($newPassword) !== '') {
+                    $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+                    array_unshift($params, $hash);
+                    $fields = array_merge(['password = ?'], $fields);
+                    $profileReset = ', profile_completed = 0';
+                }
+                $sql = 'UPDATE users SET ' . implode(', ', $fields) . $profileReset . ' WHERE id = ?';
+                $stm = $pdo->prepare($sql);
+                $stm->execute($params);
                 $msg = t($t, 'user_updated', 'User updated successfully.');
             }
         }
@@ -107,11 +129,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
-$roleLabels = [
-    'staff' => t($t, 'role_staff', 'staff'),
-    'supervisor' => t($t, 'role_supervisor', 'supervisor'),
-    'admin' => t($t, 'role_admin', 'admin'),
-];
+$roleLabels = [];
+foreach ($roleOptions as $option) {
+    $label = (string)($option['label'] ?? $option['role_key']);
+    $roleLabels[(string)$option['role_key']] = $label;
+}
 $statusLabels = [
     'active' => t($t,'status_active','Active'),
     'pending' => t($t,'status_pending','Pending approval'),
@@ -123,7 +145,30 @@ $statusLabels = [
 <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
 <link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
-<link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>"></head>
+<link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
+<style>
+  .md-user-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+  }
+  .md-user-search {
+    max-width: 320px;
+  }
+  .md-user-card--hidden {
+    display: none !important;
+  }
+  .md-user-grid[data-has-results="false"]::before {
+    content: attr(data-empty-message);
+    display: block;
+    padding: 1rem;
+    color: var(--app-muted);
+    font-style: italic;
+  }
+</style>
+</head>
 <body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
@@ -133,7 +178,14 @@ $statusLabels = [
 <input type="hidden" name="csrf" value="<?=csrf_token()?>">
 <label class="md-field"><span><?=t($t,'username','Username')?></span><input name="username" required></label>
 <label class="md-field"><span><?=t($t,'password','Password')?></span><input name="password" type="password" required></label>
-  <label class="md-field"><span><?=t($t,'role','Role')?></span><select name="role"><option value="staff"><?=t($t,'role_staff','staff')?></option><option value="supervisor"><?=t($t,'role_supervisor','supervisor')?></option><option value="admin"><?=t($t,'role_admin','admin')?></option></select></label>
+  <label class="md-field"><span><?=t($t,'role','Role')?></span>
+    <select name="role">
+      <?php foreach ($roleOptions as $option): ?>
+        <?php $optionKey = (string)$option['role_key']; ?>
+        <option value="<?=htmlspecialchars($optionKey, ENT_QUOTES, 'UTF-8')?>" <?=$optionKey===$defaultRoleKey?'selected':''?>><?=htmlspecialchars($option['label'], ENT_QUOTES, 'UTF-8')?></option>
+      <?php endforeach; ?>
+    </select>
+  </label>
   <label class="md-field"><span><?=t($t,'account_status','Account Status')?></span>
     <select name="account_status">
       <option value="active"><?=t($t,'status_active','Active')?></option>
@@ -158,7 +210,13 @@ $statusLabels = [
   <?php if (!$rows): ?>
     <p class="md-empty-state"><?=t($t,'no_users_found','No user accounts were found. Create a new account to get started.')?></p>
   <?php else: ?>
-    <div class="md-user-grid">
+    <div class="md-user-controls">
+      <label class="md-field md-user-search">
+        <span><?=t($t,'search_last_name','Search by last name')?></span>
+        <input type="search" placeholder="<?=htmlspecialchars(t($t,'search_last_name_placeholder','Start typing a last name'), ENT_QUOTES, 'UTF-8')?>" data-user-search>
+      </label>
+    </div>
+    <div class="md-user-grid" data-has-results="true" data-empty-message="<?=htmlspecialchars(t($t,'no_matching_users','No users match your search.'), ENT_QUOTES, 'UTF-8')?>">
       <?php foreach ($rows as $r): ?>
         <?php
           $statusKey = $r['account_status'] ?? 'active';
@@ -198,8 +256,21 @@ $statusLabels = [
           }
           $roleKey = $r['role'] ?? 'staff';
           $roleLabel = $roleLabels[$roleKey] ?? $roleKey;
+          $lastName = '';
+          if ($fullName !== '') {
+              $lastNameParts = preg_split('/\s+/u', trim($fullName));
+              if ($lastNameParts && count($lastNameParts) > 0) {
+                  $lastName = (string)end($lastNameParts);
+              }
+          }
+          if ($lastName === '') {
+              $lastName = (string)$r['username'];
+          }
+          $searchLast = mb_strtolower($lastName, 'UTF-8');
+          $searchFull = mb_strtolower($displayName, 'UTF-8');
+          $searchUser = mb_strtolower((string)$r['username'], 'UTF-8');
         ?>
-        <article class="md-user-card">
+        <article class="md-user-card" data-last-name="<?=htmlspecialchars($searchLast, ENT_QUOTES, 'UTF-8')?>" data-full-name="<?=htmlspecialchars($searchFull, ENT_QUOTES, 'UTF-8')?>" data-username="<?=htmlspecialchars($searchUser, ENT_QUOTES, 'UTF-8')?>">
           <header class="md-user-card__header">
             <div class="md-user-avatar" aria-hidden="true"><?=htmlspecialchars($initials, ENT_QUOTES, 'UTF-8')?></div>
             <div class="md-user-card__heading">
@@ -237,14 +308,14 @@ $statusLabels = [
               <div class="md-user-form-grid">
                 <label class="md-field md-field--compact">
                   <span><?=t($t,'new_password_reset','New Password')?></span>
-                  <input name="new_password" type="password" required autocomplete="new-password">
+                  <input name="new_password" type="password" autocomplete="new-password" placeholder="<?=htmlspecialchars(t($t,'leave_blank_to_keep','Leave blank to keep current password'), ENT_QUOTES, 'UTF-8')?>">
                 </label>
                 <label class="md-field md-field--compact">
                   <span><?=t($t,'role','Role')?></span>
                   <select name="role">
-                    <option value="staff" <?=$roleKey==='staff'?'selected':''?>><?=t($t,'role_staff','staff')?></option>
-                    <option value="supervisor" <?=$roleKey==='supervisor'?'selected':''?>><?=t($t,'role_supervisor','supervisor')?></option>
-                    <option value="admin" <?=$roleKey==='admin'?'selected':''?>><?=t($t,'role_admin','admin')?></option>
+                    <?php foreach ($roleOptions as $option): ?>
+                      <option value="<?=htmlspecialchars($option['role_key'], ENT_QUOTES, 'UTF-8')?>" <?=$roleKey===$option['role_key']?'selected':''?>><?=htmlspecialchars($option['label'], ENT_QUOTES, 'UTF-8')?></option>
+                    <?php endforeach; ?>
                   </select>
                 </label>
                 <label class="md-field md-field--compact">
@@ -304,6 +375,32 @@ $statusLabels = [
       }
     });
   });
+
+  const searchInput = document.querySelector('[data-user-search]');
+  const cards = Array.from(document.querySelectorAll('.md-user-card'));
+  const grid = document.querySelector('.md-user-grid');
+
+  function applySearch(term) {
+    if (!grid) return;
+    const value = term.trim().toLowerCase();
+    let visibleCount = 0;
+    cards.forEach((card) => {
+      const last = (card.dataset.lastName || '').toLowerCase();
+      const full = (card.dataset.fullName || '').toLowerCase();
+      const username = (card.dataset.username || '').toLowerCase();
+      const matches = !value || last.includes(value) || full.includes(value) || username.includes(value);
+      card.classList.toggle('md-user-card--hidden', !matches);
+      if (matches) {
+        visibleCount++;
+      }
+    });
+    grid.dataset.hasResults = visibleCount > 0 ? 'true' : 'false';
+  }
+
+  if (searchInput && cards.length) {
+    searchInput.addEventListener('input', () => applySearch(searchInput.value));
+    applySearch(searchInput.value || '');
+  }
 })();
 </script>
 </body></html>

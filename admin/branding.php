@@ -48,8 +48,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     finfo_close($finfo);
                 }
                 $allowedMimes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/svg'];
-                if (in_array($mime, $allowedMimes, true)) {
-                    if (move_uploaded_file($logoFile['tmp_name'], $dest)) {
+                $allowedExtensions = ['png', 'jpg', 'jpeg', 'svg', 'svgz'];
+                $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
+                if ($mime === null || $mime === false || $mime === 'application/octet-stream') {
+                    if (in_array($extension, $allowedExtensions, true)) {
+                        $mime = match ($extension) {
+                            'png' => 'image/png',
+                            'jpg', 'jpeg' => 'image/jpeg',
+                            'svg', 'svgz' => 'image/svg+xml',
+                            default => $mime,
+                        };
+                    }
+                }
+                if (in_array($mime, $allowedMimes, true) && in_array($extension, $allowedExtensions, true)) {
+                    if (is_uploaded_file($logoFile['tmp_name']) && move_uploaded_file($logoFile['tmp_name'], $dest)) {
+                        @chmod($dest, 0644);
                         $logo_path = 'assets/uploads/' . $fn;
                     } else {
                         $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');

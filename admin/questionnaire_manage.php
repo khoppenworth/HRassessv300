@@ -671,7 +671,7 @@ if (isset($_POST['import'])) {
     </form>
     <div class="qb-import-actions">
       <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(url_for('scripts/download_questionnaire_template.php'), ENT_QUOTES, 'UTF-8')?>" download>
-        <?=t($t,'download_excel_template','Download Excel template')?>
+        <?=t($t,'download_xml_template','Download XML template')?>
       </a>
       <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
         <?=t($t,'download_import_guide','Download Import Guide')?>
