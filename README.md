@@ -54,6 +54,19 @@ Enable SMTP notifications from **Administration → Settings**. The system sends
 connection details provided. Required fields are the host, port, authentication credentials (if needed), and the "From" address.
 Test the configuration by approving a pending account or scheduling an assessment for a staff member.
 
+### Branding & Logo
+
+Administrators can update the site identity from **Administration → Branding & Landing**. Logo uploads are stored under
+`assets/uploads/branding` inside the project directory. Ensure this folder (and `assets/uploads/`) is writable by the web server
+user. Supported formats include PNG, JPEG, GIF, SVG, and WebP. The application validates uploads using PHP's Fileinfo extension
+and rejects unsupported MIME types.
+
+Uploaded files are saved with randomized filenames and served via relative web paths so deployments under a subdirectory continue
+to work. If no custom logo is configured, the default EPSA logo (`assets/img/epss-logo.svg`) renders automatically.
+
+Run `bin/check-upload-env.php` to verify the upload environment. The script reports the resolved base path, upload directory
+permissions, and relevant PHP configuration such as `upload_max_filesize`, `post_max_size`, and Fileinfo availability.
+
 ### API documentation
 
 A built-in Swagger UI is available to administrators at `/swagger.php` (linked under **Administration → API Documentation**).

@@ -58,13 +58,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $err = t($t,'invalid_login','Invalid username or password');
     }
 }
-$logoPath = (string)($cfg['logo_path'] ?? '');
-if ($logoPath === '') {
-    $logoPath = asset_url('assets/img/epss-logo.svg');
-} elseif (!preg_match('#^https?://#i', $logoPath)) {
-    $logoPath = asset_url(ltrim($logoPath, '/'));
+$logoPath = get_branding_logo_path($cfg);
+if ($logoPath === null) {
+    $logoRenderPath = asset_url('assets/img/epss-logo.svg');
+} elseif (preg_match('#^https?://#i', $logoPath)) {
+    $logoRenderPath = $logoPath;
+} else {
+    $logoRenderPath = asset_url(ltrim($logoPath, '/'));
 }
-$logo = htmlspecialchars($logoPath, ENT_QUOTES, 'UTF-8');
+$logo = htmlspecialchars($logoRenderPath, ENT_QUOTES, 'UTF-8');
 $site_name = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
 $landing_text = htmlspecialchars($cfg['landing_text'] ?? '');
 $address = htmlspecialchars($cfg['address'] ?? '');

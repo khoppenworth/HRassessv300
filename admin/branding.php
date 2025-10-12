@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $landing_text = trim($_POST['landing_text'] ?? '');
     $address = trim($_POST['address'] ?? '');
     $contact = trim($_POST['contact'] ?? '');
-    $logo_path = $cfg['logo_path'] ?? null;
+    $logo_path = get_branding_logo_path($cfg);
     $footer_org_name = trim($_POST['footer_org_name'] ?? '');
     $footer_org_short = trim($_POST['footer_org_short'] ?? '');
     $footer_website_label = trim($_POST['footer_website_label'] ?? '');
@@ -29,87 +29,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $footer_website_url = 'https://' . ltrim($footer_website_url, '/');
     }
 
-    $logoFile = $_FILES['logo'] ?? null;
+    $logoFile = $_FILES['branding_logo'] ?? null;
     $logoErrorCode = (int)($logoFile['error'] ?? UPLOAD_ERR_NO_FILE);
     if ($logoErrorCode !== UPLOAD_ERR_NO_FILE) {
-        if ($logoErrorCode !== UPLOAD_ERR_OK) {
-            $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
-        } elseif (!empty($logoFile['tmp_name'])) {
-            $dir = base_path('assets/uploads');
-            if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-                $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
-            } else {
-                $original = basename((string)$logoFile['name']);
-                $fn = 'logo_' . time() . '_' . preg_replace('/[^A-Za-z0-9_.-]/', '_', $original);
-                $dest = $dir . '/' . $fn;
-                $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                $mime = $finfo ? finfo_file($finfo, $logoFile['tmp_name']) : null;
-                if ($finfo) {
-                    finfo_close($finfo);
-                }
-                if ($mime !== null && $mime !== false) {
-                    $mime = strtolower(trim((string)$mime));
-                    $semicolonPos = strpos($mime, ';');
-                    if ($semicolonPos !== false) {
-                        $mime = substr($mime, 0, $semicolonPos);
-                    }
-                }
-                $allowedMimes = [
-                    'image/png',
-                    'image/x-png',
-                    'image/jpeg',
-                    'image/pjpeg',
-                    'image/jpg',
-                    'image/svg+xml',
-                    'image/svg',
-                    'image/webp',
-                    'image/gif',
-                ];
-                $allowedExtensions = ['png', 'jpg', 'jpeg', 'svg', 'svgz'];
-                $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
-                if ($mime === null || $mime === false || $mime === 'application/octet-stream') {
-                    if (in_array($extension, $allowedExtensions, true)) {
-                        $mime = match ($extension) {
-                            'png' => 'image/png',
-                            'jpg', 'jpeg' => 'image/jpeg',
-                            'svg', 'svgz' => 'image/svg+xml',
-                            default => $mime,
-                        };
-                    }
-                }
-                if ($mime !== null) {
-                    $mime = strtolower($mime);
-                }
-                if (in_array($mime, $allowedMimes, true) && in_array($extension, $allowedExtensions, true)) {
-                    $tmpFile = $logoFile['tmp_name'];
-                    $moved = false;
-                    if (is_uploaded_file($tmpFile)) {
-                        $moved = move_uploaded_file($tmpFile, $dest);
-                    } elseif (is_string($tmpFile) && $tmpFile !== '' && file_exists($tmpFile)) {
-                        $tmpDir = realpath(dirname($tmpFile));
-                        $systemTmp = realpath(sys_get_temp_dir());
-                        if ($tmpDir !== false && $systemTmp !== false && str_starts_with($tmpDir, $systemTmp)) {
-                            $moved = @rename($tmpFile, $dest);
-                            if (!$moved) {
-                                $moved = @copy($tmpFile, $dest);
-                                if ($moved) {
-                                    @unlink($tmpFile);
-                                }
-                            }
-                        }
-                    }
-                    if ($moved) {
-                        @chmod($dest, 0644);
-                        $logo_path = 'assets/uploads/' . $fn;
-                    } else {
-                        $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
-                    }
-                } else {
-                    $logoError = t($t, 'invalid_file_type', 'Invalid file type. Logo was not updated.');
+        try {
+            if ($logoErrorCode !== UPLOAD_ERR_OK) {
+                throw new RuntimeException('Upload error code: ' . $logoErrorCode);
+            }
+
+            if (empty($logoFile['tmp_name'])) {
+                throw new RuntimeException('Upload did not contain a file.');
+            }
+
+            $uploadDirFs = BASE_PATH . '/assets/uploads/branding';
+            if (!is_dir($uploadDirFs)) {
+                if (!mkdir($uploadDirFs, 0775, true) && !is_dir($uploadDirFs)) {
+                    throw new RuntimeException('Failed to create upload dir.');
                 }
             }
-        } else {
-            $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
+
+            if (!class_exists('finfo')) {
+                throw new RuntimeException('PHP fileinfo extension required.');
+            }
+
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $tmp = $logoFile['tmp_name'];
+            $mime = $finfo->file($tmp);
+
+            $allowed = [
+                'image/png' => 'png',
+                'image/jpeg' => 'jpg',
+                'image/gif' => 'gif',
+                'image/svg+xml' => 'svg',
+                'image/webp' => 'webp',
+            ];
+
+            if (!isset($allowed[$mime])) {
+                throw new RuntimeException('Unsupported logo type: ' . (string)$mime);
+            }
+
+            $ext = $allowed[$mime];
+            $name = 'logo_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            $destFs = $uploadDirFs . '/' . $name;
+
+            if (!move_uploaded_file($tmp, $destFs)) {
+                throw new RuntimeException('Failed to move uploaded file.');
+            }
+
+            @chmod($destFs, 0644);
+            $logoWebPath = '/assets/uploads/branding/' . $name;
+            persist_branding_logo_path($pdo, $logoWebPath);
+            $logo_path = $logoWebPath;
+        } catch (RuntimeException $e) {
+            error_log('Logo upload failed: ' . $e->getMessage());
+            if (str_starts_with($e->getMessage(), 'Unsupported')) {
+                $logoError = t($t, 'invalid_file_type', 'Invalid file type. Logo was not updated.');
+            } else {
+                $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
+            }
         }
     }
 
@@ -182,13 +159,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <label class="md-field"><span><?=t($t,'footer_rights_label','Rights Statement')?></span><input name="footer_rights" value="<?=htmlspecialchars($cfg['footer_rights'] ?? '')?>"></label>
       <div class="md-field">
         <span><?=t($t,'logo','Logo')?></span>
-        <input type="file" name="logo" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
-        <?php if (!empty($cfg['logo_path'])): ?>
-          <?php $logoSrc = $cfg['logo_path'];
-          if (!preg_match('#^https?://#i', (string)$logoSrc)) {
-              $logoSrc = asset_url(ltrim((string)$logoSrc, '/'));
-          }
-          ?>
+        <input type="file" name="branding_logo" accept="image/*">
+        <?php $currentLogoPath = get_branding_logo_path($cfg);
+        if (!empty($currentLogoPath)):
+            $logoSrc = preg_match('#^https?://#i', $currentLogoPath) ? $currentLogoPath : asset_url(ltrim($currentLogoPath, '/'));
+        ?>
           <div class="md-thumb"><img src="<?=htmlspecialchars($logoSrc, ENT_QUOTES, 'UTF-8')?>" alt="Logo" height="40"></div>
         <?php endif; ?>
       </div>
