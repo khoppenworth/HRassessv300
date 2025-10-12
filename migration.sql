@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS site_config (
   microsoft_oauth_client_id VARCHAR(255) NULL,
   microsoft_oauth_client_secret VARCHAR(255) NULL,
   microsoft_oauth_tenant VARCHAR(255) NULL,
-  color_theme VARCHAR(50) NOT NULL DEFAULT 'light'
+  color_theme VARCHAR(50) NOT NULL DEFAULT 'light',
+  enabled_locales TEXT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS footer_org_name VARCHAR(255) NULL AFTER logo_path,
@@ -64,7 +65,8 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none' AFTER smtp_password,
   ADD COLUMN IF NOT EXISTS smtp_from_email VARCHAR(255) NULL AFTER smtp_encryption,
   ADD COLUMN IF NOT EXISTS smtp_from_name VARCHAR(255) NULL AFTER smtp_from_email,
-  ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL AFTER smtp_from_name;
+  ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL AFTER smtp_from_name,
+  ADD COLUMN IF NOT EXISTS enabled_locales TEXT NULL AFTER smtp_timeout;
 INSERT IGNORE INTO site_config (
   id,
   site_name,
@@ -98,7 +100,8 @@ INSERT IGNORE INTO site_config (
   smtp_encryption,
   smtp_from_email,
   smtp_from_name,
-  smtp_timeout
+  smtp_timeout,
+  enabled_locales
 ) VALUES (
   1,
   'My Performance',
@@ -132,11 +135,17 @@ INSERT IGNORE INTO site_config (
   'none',
   NULL,
   NULL,
-  20
+  20,
+  '["en","fr","am"]'
 );
 
 UPDATE site_config
 SET brand_color = NULL
+SET enabled_locales = '["en","fr","am"]'
+WHERE id = 1 AND (enabled_locales IS NULL OR enabled_locales = '');
+
+UPDATE site_config
+SET brand_color = '#2073bf'
 WHERE id = 1
   AND (brand_color IS NULL OR brand_color = '');
 

@@ -37,6 +37,7 @@ CREATE TABLE site_config (
   microsoft_oauth_client_secret VARCHAR(255) NULL,
   microsoft_oauth_tenant VARCHAR(255) NULL,
   color_theme VARCHAR(50) NOT NULL DEFAULT 'light',
+  enabled_locales TEXT NULL,
   smtp_enabled TINYINT(1) NOT NULL DEFAULT 0,
   smtp_host VARCHAR(255) NULL,
   smtp_port INT NULL,
@@ -183,6 +184,19 @@ CREATE TABLE questionnaire_work_function (
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE questionnaire_assignment (
+  staff_id INT NOT NULL,
+  questionnaire_id INT NOT NULL,
+  assigned_by INT NULL,
+  assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (staff_id, questionnaire_id),
+  KEY idx_assignment_questionnaire (questionnaire_id),
+  KEY idx_assignment_assigned_by (assigned_by),
+  CONSTRAINT fk_assignment_staff FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assignment_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assignment_supervisor FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 INSERT INTO site_config (
   id,
   site_name,
@@ -207,6 +221,7 @@ INSERT INTO site_config (
   microsoft_oauth_client_secret,
   microsoft_oauth_tenant,
   color_theme,
+  enabled_locales,
   smtp_enabled,
   smtp_host,
   smtp_port,
@@ -240,6 +255,7 @@ INSERT INTO site_config (
   NULL,
   'common',
   'light',
+  '["en","fr","am"]',
   0,
   NULL,
   587,

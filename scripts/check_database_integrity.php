@@ -205,6 +205,7 @@ $expectedSchemas = [
         'smtp_from_email' => ['type' => 'varchar', 'null' => 'YES'],
         'smtp_from_name' => ['type' => 'varchar', 'null' => 'YES'],
         'smtp_timeout' => ['type' => 'int', 'null' => 'YES'],
+        'enabled_locales' => ['type' => 'text', 'null' => 'YES'],
     ],
     'users' => [
         'id' => ['type' => 'int', 'null' => 'NO', 'key' => 'PRI', 'extra' => 'auto_increment'],
@@ -225,6 +226,12 @@ $expectedSchemas = [
     'questionnaire_work_function' => [
         'questionnaire_id' => ['type' => 'int', 'null' => 'NO'],
         'work_function' => ['type' => 'enum', 'null' => 'NO'],
+    ],
+    'questionnaire_assignment' => [
+        'staff_id' => ['type' => 'int', 'null' => 'NO'],
+        'questionnaire_id' => ['type' => 'int', 'null' => 'NO'],
+        'assigned_by' => ['type' => 'int', 'null' => 'YES'],
+        'assigned_at' => ['type' => 'datetime', 'null' => 'NO'],
     ],
 ];
 

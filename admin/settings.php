@@ -13,6 +13,8 @@ $themes = [
 ];
 
 $msg = '';
+$errors = [];
+$enabledLocales = site_enabled_locales($cfg);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -59,6 +61,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $brand_color = $brand_color_input;
     }
 
+    $enabledLocalesInput = $_POST['enabled_locales'] ?? [];
+    if (!is_array($enabledLocalesInput)) {
+        $enabledLocalesInput = [];
+    }
+    $selectedLocales = sanitize_locale_selection($enabledLocalesInput);
+    if (!array_intersect($selectedLocales, ['en', 'fr'])) {
+        $errors[] = t($t, 'language_required_notice', 'At least English or French must remain enabled.');
+    }
+
     $fields = [
         'google_oauth_enabled' => $google_oauth_enabled,
         'google_oauth_client_id' => $google_oauth_client_id,
@@ -80,17 +91,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'smtp_timeout' => $smtp_timeout,
     ];
 
-    $assignments = [];
-    $values = [];
-    foreach ($fields as $column => $value) {
-        $assignments[] = "$column=?";
-        $values[] = ($value !== '') ? $value : null;
-    }
+    if ($errors === []) {
+        $enabledLocales = enforce_locale_requirements($selectedLocales);
+        $fields['enabled_locales'] = encode_enabled_locales($enabledLocales);
 
-    $stm = $pdo->prepare('UPDATE site_config SET ' . implode(', ', $assignments) . ' WHERE id=1');
-    $stm->execute($values);
-    $msg = t($t, 'settings_updated', 'Settings updated successfully.');
-    $cfg = get_site_config($pdo);
+        $assignments = [];
+        $values = [];
+        foreach ($fields as $column => $value) {
+            $assignments[] = "$column=?";
+            $values[] = ($value !== '') ? $value : null;
+        }
+
+        $stm = $pdo->prepare('UPDATE site_config SET ' . implode(', ', $assignments) . ' WHERE id=1');
+        $stm->execute($values);
+        $msg = t($t, 'settings_updated', 'Settings updated successfully.');
+        $cfg = get_site_config($pdo);
+        $enabledLocales = site_enabled_locales($cfg);
+    } else {
+        $enabledLocales = $selectedLocales;
+    }
 }
 ?>
 <!doctype html>
@@ -110,6 +129,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t,'settings','Settings')?></h2>
     <?php if ($msg): ?><div class="md-alert success"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+    <?php if ($errors): ?>
+      <div class="md-alert error">
+        <?php foreach ($errors as $error): ?>
+          <p><?=htmlspecialchars($error, ENT_QUOTES, 'UTF-8')?></p>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
     <form method="post" action="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>">
       <input type="hidden" name="csrf" value="<?=csrf_token()?>">
       <h3 class="md-subhead"><?=t($t,'appearance_settings','Appearance')?></h3>
@@ -131,6 +157,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <small class="md-field-hint"><?=t($t,'brand_color_hint','Pick any brand color to personalize buttons, highlights, and gradients.')?></small>
       </label>
+      <h3 class="md-subhead"><?=t($t,'language_settings','Languages')?></h3>
+      <p class="md-field-hint"><?=t($t,'language_settings_hint','Choose which interface languages are available to users.')?></p>
+      <?php foreach (SUPPORTED_LOCALES as $localeOption): ?>
+        <?php $isChecked = in_array($localeOption, $enabledLocales, true); ?>
+        <div class="md-control">
+          <label>
+            <input type="checkbox" name="enabled_locales[]" value="<?=htmlspecialchars($localeOption, ENT_QUOTES, 'UTF-8')?>" <?=$isChecked ? 'checked' : ''?>>
+            <span><?=htmlspecialchars(t($t, 'language_label_' . $localeOption, locale_display_name($localeOption)), ENT_QUOTES, 'UTF-8')?></span>
+          </label>
+        </div>
+      <?php endforeach; ?>
+      <p class="md-field-hint"><?=t($t,'language_required_notice','At least English or French must remain enabled.')?></p>
       <h3 class="md-subhead"><?=t($t,'sso_settings','Single Sign-On (SSO)')?></h3>
       <div class="md-control">
         <label>

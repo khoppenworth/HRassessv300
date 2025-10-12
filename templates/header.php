@@ -17,14 +17,15 @@ if ($logoPath === null) {
 $logoPathSmall = htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8');
 $siteTitle = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
 $availableLocales = available_locales();
+$defaultLocale = $availableLocales[0] ?? 'en';
 $brandStyle = site_brand_style($cfg);
 ?>
 <?php if ($brandStyle !== ''): ?>
 <style id="md-brand-style">:root { <?=htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8')?>; }</style>
 <?php endif; ?>
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
-  window.APP_DEFAULT_LOCALE = <?=json_encode(AVAILABLE_LOCALES[0], JSON_THROW_ON_ERROR)?>;
-  window.APP_AVAILABLE_LOCALES = <?=json_encode(AVAILABLE_LOCALES, JSON_THROW_ON_ERROR)?>;
+  window.APP_DEFAULT_LOCALE = <?=json_encode($defaultLocale, JSON_THROW_ON_ERROR)?>;
+  window.APP_AVAILABLE_LOCALES = <?=json_encode($availableLocales, JSON_THROW_ON_ERROR)?>;
 </script>
 <header class="md-appbar md-elev-2">
   <button class="md-appbar-toggle" aria-label="Toggle navigation" data-drawer-toggle>
@@ -62,6 +63,7 @@ $brandStyle = site_brand_style($cfg);
         <span class="md-drawer-label"><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
         <a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'review_queue', 'Review Queue')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'pending_accounts', 'Pending Approvals')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a>
       </div>
     <?php endif; ?>
     <?php if ($role === 'admin'): ?>

@@ -205,10 +205,11 @@ The page renders the OpenAPI definition stored at `docs/openapi.json`, covering 
 ## Internationalisation
 
 Translations live in `lang/*.json`. Users can switch between English, French, and Amharic via the language selector. Preferences
-persist in the session and a cookie. To add a language:
+persist in the session and a cookie. Administrators can enable or disable interface languages from **Administration → Settings**
+while keeping at least English or French active. To add a language:
 
 1. Create `lang/<code>.json` with translation keys.
-2. Add the language code to `AVAILABLE_LOCALES` in `i18n.php`.
+2. Add the language code to `SUPPORTED_LOCALES` in `i18n.php`, deploy the translation file, and enable it from the Settings page.
 
 ## Database migrations & data
 
