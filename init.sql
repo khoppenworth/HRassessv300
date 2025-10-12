@@ -10,6 +10,7 @@ DROP TABLE IF EXISTS questionnaire_section;
 DROP TABLE IF EXISTS questionnaire;
 DROP TABLE IF EXISTS logs;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS user_role;
 DROP TABLE IF EXISTS performance_period;
 DROP TABLE IF EXISTS site_config;
 
@@ -48,11 +49,27 @@ CREATE TABLE site_config (
   smtp_timeout INT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE user_role (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  role_key VARCHAR(50) NOT NULL UNIQUE,
+  label VARCHAR(100) NOT NULL,
+  description TEXT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_protected TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO user_role (role_key, label, description, sort_order, is_protected) VALUES
+('admin', 'Administrator', 'Full administrative access to manage the platform.', 0, 1),
+('supervisor', 'Supervisor', 'Can review assessments and manage assigned staff.', 10, 1),
+('staff', 'Staff', 'Standard access for employees completing assessments.', 20, 1);
+
 CREATE TABLE users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(100) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
-  role ENUM('admin','supervisor','staff') NOT NULL DEFAULT 'staff',
+  role VARCHAR(50) NOT NULL DEFAULT 'staff',
   full_name VARCHAR(200) NULL,
   email VARCHAR(200) NULL,
   gender ENUM('female','male','other','prefer_not_say') DEFAULT NULL,
@@ -70,6 +87,7 @@ CREATE TABLE users (
   approved_at DATETIME NULL,
   sso_provider VARCHAR(50) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (role) REFERENCES user_role(role_key) ON UPDATE CASCADE,
   FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

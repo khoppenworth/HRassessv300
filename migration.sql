@@ -4,6 +4,27 @@ ALTER TABLE questionnaire_item ADD COLUMN weight_percent INT NOT NULL DEFAULT 0;
 ALTER TABLE questionnaire_item ADD COLUMN allow_multiple TINYINT(1) NOT NULL DEFAULT 0;
 ALTER TABLE questionnaire_item MODIFY COLUMN type ENUM('likert','text','textarea','boolean','choice') NOT NULL DEFAULT 'likert';
 
+CREATE TABLE IF NOT EXISTS user_role (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  role_key VARCHAR(50) NOT NULL UNIQUE,
+  label VARCHAR(100) NOT NULL,
+  description TEXT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_protected TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO user_role (role_key, label, description, sort_order, is_protected) VALUES
+('admin', 'Administrator', 'Full administrative access to manage the platform.', 0, 1),
+('supervisor', 'Supervisor', 'Can review assessments and manage assigned staff.', 10, 1),
+('staff', 'Staff', 'Standard access for employees completing assessments.', 20, 1)
+ON DUPLICATE KEY UPDATE
+  label=VALUES(label),
+  description=VALUES(description),
+  sort_order=VALUES(sort_order),
+  is_protected=VALUES(is_protected);
+
 CREATE TABLE IF NOT EXISTS questionnaire_item_option (
   id INT AUTO_INCREMENT PRIMARY KEY,
   questionnaire_item_id INT NOT NULL,
@@ -114,6 +135,7 @@ INSERT IGNORE INTO site_config (
 );
 
 ALTER TABLE users
+  MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'staff',
   ADD COLUMN gender ENUM('female','male','other','prefer_not_say') NULL AFTER email,
   ADD COLUMN date_of_birth DATE NULL AFTER gender,
   ADD COLUMN phone VARCHAR(50) NULL AFTER date_of_birth,
