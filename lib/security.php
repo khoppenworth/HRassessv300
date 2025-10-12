@@ -17,6 +17,8 @@ function apply_security_headers(bool $isDebugMode = false): void
         "'self'",
         sprintf("'nonce-%s'", $nonce),
         'https://cdn.jsdelivr.net',
+        'https://translate.google.com',
+        'https://translate.googleapis.com',
     ];
 
     if ($isDebugMode) {
@@ -27,6 +29,7 @@ function apply_security_headers(bool $isDebugMode = false): void
     $styleSrc = [
         "'self'",
         "'unsafe-inline'", // legacy support for third-party stylesheets.
+        'https://translate.googleapis.com',
     ];
 
     $directives = [
@@ -40,6 +43,7 @@ function apply_security_headers(bool $isDebugMode = false): void
         'style-src' => implode(' ', $styleSrc),
         'font-src' => "'self' data:",
         'object-src' => "'none'",
+        'frame-src' => "'self' https://translate.google.com https://translate.googleapis.com https://translate.googleusercontent.com",
     ];
 
     $csp = [];

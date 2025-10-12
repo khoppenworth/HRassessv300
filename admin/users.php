@@ -141,7 +141,7 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
   </select>
 </label>
 <label class="md-field"><span><?=t($t,'next_assessment','Next Assessment Date')?></span><input type="date" name="next_assessment_date"></label>
-<button name="create" class="md-button md-primary md-elev-2"><?=t($t,'create','Create')?></button>
+<button name="create" class="md-button md-primary md-elev-2 md-button--wide"><?=t($t,'create','Create')?></button>
 </form></div>
 
 <div class="md-card md-elev-2"><h2 class="md-card-title"><?=t($t,'manage_users','Manage Users')?></h2>

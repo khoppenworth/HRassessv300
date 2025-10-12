@@ -663,6 +663,23 @@ if (isset($_POST['import'])) {
     <div class="md-alert"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div>
   <?php endif; ?>
   <div class="md-card md-elev-2">
+    <h2 class="md-card-title"><?=t($t,'fhir_import','FHIR Import')?></h2>
+    <form method="post" enctype="multipart/form-data" class="qb-import-form" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
+      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+      <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
+      <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
+    </form>
+    <div class="qb-import-actions">
+      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(url_for('scripts/download_questionnaire_template.php'), ENT_QUOTES, 'UTF-8')?>" download>
+        <?=t($t,'download_excel_template','Download Excel template')?>
+      </a>
+      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
+        <?=t($t,'download_import_guide','Download Import Guide')?>
+      </a>
+    </div>
+  </div>
+
+  <div class="md-card md-elev-2">
     <div class="qb-toolbar">
       <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
       <div class="qb-toolbar-spacer"></div>
@@ -672,26 +689,6 @@ if (isset($_POST['import'])) {
     <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
     <div id="qb-tabs" class="qb-tabs" role="tablist" aria-label="<?=htmlspecialchars(t($t,'questionnaire_tabs','Questionnaire navigation'), ENT_QUOTES, 'UTF-8')?>"></div>
     <div id="qb-list" class="qb-list" aria-live="polite"></div>
-  </div>
-
-  <div class="md-card md-elev-2">
-    <h2 class="md-card-title"><?=t($t,'fhir_import','FHIR Import')?></h2>
-    <form method="post" enctype="multipart/form-data" class="qb-import-form" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
-      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-      <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
-      <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
-    </form>
-    <div class="qb-import-actions">
-      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('assets/templates/sample_questionnaire_template.xml'), ENT_QUOTES, 'UTF-8')?>" download>
-        <?=t($t,'download_xml_template','Download XML template')?>
-      </a>
-      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('assets/templates/questionnaire_template.xlsx'), ENT_QUOTES, 'UTF-8')?>" download>
-        <?=t($t,'download_excel_template','Download Excel template')?>
-      </a>
-      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
-        <?=t($t,'download_import_guide','Download Import Guide')?>
-      </a>
-    </div>
   </div>
 </section>
 <?php if ($recentImportId): ?>

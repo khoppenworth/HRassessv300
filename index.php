@@ -82,6 +82,7 @@ $contact = htmlspecialchars($cfg['contact'] ?? '');
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head>
 <body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>" style="<?=htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8')?>">
+  <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
   <div class="md-container">
     <div class="md-card md-elev-3 md-login">
       <div class="md-card-media">
@@ -128,7 +129,11 @@ $contact = htmlspecialchars($cfg['contact'] ?? '');
       </div>
     </div>
   </div>
-  <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">window.APP_BASE_URL = <?=json_encode(BASE_URL, JSON_THROW_ON_ERROR)?>;</script>
+  <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+    window.APP_BASE_URL = <?=json_encode(BASE_URL, JSON_THROW_ON_ERROR)?>;
+    window.APP_DEFAULT_LOCALE = <?=json_encode(AVAILABLE_LOCALES[0], JSON_THROW_ON_ERROR)?>;
+    window.APP_AVAILABLE_LOCALES = <?=json_encode(AVAILABLE_LOCALES, JSON_THROW_ON_ERROR)?>;
+  </script>
   <script src="<?=asset_url('assets/js/app.js')?>"></script>
 </body>
 </html>

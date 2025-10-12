@@ -121,7 +121,6 @@
   "fhir_import": "FHIR Import",
   "file": "File",
   "import": "Import",
-  "download_xml_template": "Download XML template",
   "download_import_guide": "Download Import Guide",
   "download_excel_template": "Download Excel template",
   "save_draft": "Save Draft",

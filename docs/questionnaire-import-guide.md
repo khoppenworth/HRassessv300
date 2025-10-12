@@ -5,13 +5,13 @@ This guide explains how administrators can import questionnaires using the EPSS 
 ## Prerequisites
 
 - Administrator access to the HR Assessment platform.
-- A questionnaire definition file in the supported XML format that conforms to the sample template provided with the application (`assets/templates/sample_questionnaire_template.xml`).
-- Optional: start from the Excel planning sheet (`assets/templates/questionnaire_template.xlsx`) to capture sections, items, and work-function assignments before generating the XML payload.
+- A questionnaire definition file in the supported XML format that follows the structure described below.
+- Optional: start from the Excel planning sheet (`scripts/download_questionnaire_template.php`) to capture sections, items, and work-function assignments before generating the XML payload.
 - Familiarity with the work functions (e.g., WIM, ICT, HRM) that determine questionnaire availability.
 
 ## Preparing Your XML File
 
-1. Start from the provided sample template to ensure the required structure is present.
+1. Use the structure outlined in this guide (or generate XML from the Excel planning sheet) to ensure the required elements are present.
 2. Update the `<title>` and `<description>` elements to describe your questionnaire.
 3. Review the `<workFunction>` entries to confirm the target audiences. Include `wim` if the questionnaire should remain available to the Warehouse & Inventory Management (WIM) cadre by default.
 4. For each `<section>` element, supply a unique `order` and update the `title` and `description` values.

@@ -50,5 +50,9 @@ $currentYear = date('Y');
     <div class="md-footer-meta">&copy; <?=$currentYear?> <?=$orgName?>. <?=$rights?></div>
   </div>
 </footer>
-<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">window.APP_BASE_URL = <?=json_encode(BASE_URL, JSON_THROW_ON_ERROR)?>;</script>
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+  window.APP_BASE_URL = <?=json_encode(BASE_URL, JSON_THROW_ON_ERROR)?>;
+  window.APP_DEFAULT_LOCALE = window.APP_DEFAULT_LOCALE || <?=json_encode(AVAILABLE_LOCALES[0], JSON_THROW_ON_ERROR)?>;
+  window.APP_AVAILABLE_LOCALES = window.APP_AVAILABLE_LOCALES || <?=json_encode(AVAILABLE_LOCALES, JSON_THROW_ON_ERROR)?>;
+</script>
 <script src="<?=asset_url('assets/js/app.js')?>"></script>
