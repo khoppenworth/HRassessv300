@@ -97,33 +97,84 @@ if (!function_exists('str_starts_with')) {
     }
 }
 
-const WORK_FUNCTIONS = [
-    'finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification',
-    'records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics'
-];
-
-const WORK_FUNCTION_LABELS = [
-    'finance' => 'Finance',
-    'general_service' => 'General Service',
-    'hrm' => 'HRM',
-    'ict' => 'ICT',
-    'leadership_tn' => 'Leadership TN',
-    'legal_service' => 'Legal Service',
-    'pme' => 'PME',
-    'quantification' => 'Quantification',
-    'records_documentation' => 'Records & Documentation',
-    'security_driver' => 'Security & Driver',
-    'security' => 'Security',
-    'tmd' => 'TMD',
-    'wim' => 'WIM',
-    'cmd' => 'CMD',
-    'communication' => 'Communication',
-    'dfm' => 'DFM',
-    'driver' => 'Driver',
-    'ethics' => 'Ethics',
-];
-
 const DEFAULT_BRAND_COLOR = '#2073bf';
+
+function default_work_function_definitions(): array
+{
+    return [
+        'finance' => 'Finance',
+        'general_service' => 'General Service',
+        'hrm' => 'HRM',
+        'ict' => 'ICT',
+        'leadership_tn' => 'Leadership TN',
+        'legal_service' => 'Legal Service',
+        'pme' => 'PME',
+        'quantification' => 'Quantification',
+        'records_documentation' => 'Records & Documentation',
+        'security_driver' => 'Security & Driver',
+        'security' => 'Security',
+        'tmd' => 'TMD',
+        'wim' => 'WIM',
+        'cmd' => 'CMD',
+        'communication' => 'Communication',
+        'dfm' => 'DFM',
+        'driver' => 'Driver',
+        'ethics' => 'Ethics',
+    ];
+}
+
+function work_function_choices(PDO $pdo): array
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+
+    $defaults = default_work_function_definitions();
+    $values = [];
+
+    try {
+        $stmt = $pdo->query('SELECT DISTINCT work_function FROM questionnaire_work_function ORDER BY work_function');
+        if ($stmt) {
+            $values = array_filter(array_map(static fn($value) => trim((string)$value), $stmt->fetchAll(PDO::FETCH_COLUMN)));
+        }
+    } catch (PDOException $e) {
+        error_log('work_function_choices (questionnaire_work_function): ' . $e->getMessage());
+    }
+
+    if (!$values) {
+        try {
+            $stmt = $pdo->query('SELECT DISTINCT work_function FROM users WHERE work_function IS NOT NULL AND work_function <> \'\' ORDER BY work_function');
+            if ($stmt) {
+                $values = array_filter(array_map(static fn($value) => trim((string)$value), $stmt->fetchAll(PDO::FETCH_COLUMN)));
+            }
+        } catch (PDOException $e) {
+            error_log('work_function_choices (users): ' . $e->getMessage());
+        }
+    }
+
+    if (!$values) {
+        $values = array_keys($defaults);
+    }
+
+    $cache = [];
+    foreach ($values as $value) {
+        $cache[$value] = $defaults[$value] ?? ucwords(str_replace('_', ' ', $value));
+    }
+
+    return $cache;
+}
+
+function is_valid_work_function(PDO $pdo, string $value): bool
+{
+    return $value === '' ? false : array_key_exists($value, work_function_choices($pdo));
+}
+
+function work_function_label(PDO $pdo, string $value): string
+{
+    $choices = work_function_choices($pdo);
+    return $choices[$value] ?? $value;
+}
 
 
 function csrf_token(): string {
@@ -414,9 +465,10 @@ function ensure_questionnaire_item_schema(PDO $pdo): void
 function ensure_questionnaire_work_function_schema(PDO $pdo): void
 {
     try {
+        $defaults = array_keys(default_work_function_definitions());
         $enumValues = array_map(static function ($value) {
             return str_replace("'", "''", (string)$value);
-        }, WORK_FUNCTIONS);
+        }, $defaults);
         $enumList = "'" . implode("','", $enumValues) . "'";
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS questionnaire_work_function (
@@ -452,7 +504,7 @@ function ensure_questionnaire_work_function_schema(PDO $pdo): void
                 $insert = $pdo->prepare('INSERT IGNORE INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
                 foreach ($ids as $qid) {
                     $qid = (int)$qid;
-                    foreach (WORK_FUNCTIONS as $wf) {
+                    foreach ($defaults as $wf) {
                         $insert->execute([$qid, $wf]);
                     }
                 }
