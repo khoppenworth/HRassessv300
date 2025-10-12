@@ -69,12 +69,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
                 if ($mime === null || $mime === false || $mime === 'application/octet-stream') {
                     if (in_array($extension, $allowedExtensions, true)) {
-                        $mime = match ($extension) {
-                            'png' => 'image/png',
-                            'jpg', 'jpeg' => 'image/jpeg',
-                            'svg', 'svgz' => 'image/svg+xml',
-                            default => $mime,
-                        };
+                        switch ($extension) {
+                            case 'png':
+                                $mime = 'image/png';
+                                break;
+                            case 'jpg':
+                            case 'jpeg':
+                                $mime = 'image/jpeg';
+                                break;
+                            case 'svg':
+                            case 'svgz':
+                                $mime = 'image/svg+xml';
+                                break;
+                            default:
+                                break;
+                        }
                     }
                 }
                 if ($mime !== null) {
@@ -88,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } elseif (is_string($tmpFile) && $tmpFile !== '' && file_exists($tmpFile)) {
                         $tmpDir = realpath(dirname($tmpFile));
                         $systemTmp = realpath(sys_get_temp_dir());
-                        if ($tmpDir !== false && $systemTmp !== false && str_starts_with($tmpDir, $systemTmp)) {
+                        if ($tmpDir !== false && $systemTmp !== false && strncmp($tmpDir, $systemTmp, strlen($systemTmp)) === 0) {
                             $moved = @rename($tmpFile, $dest);
                             if (!$moved) {
                                 $moved = @copy($tmpFile, $dest);
