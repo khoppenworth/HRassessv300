@@ -33,20 +33,95 @@ if (!defined('APP_BOOTSTRAPPED')) {
 
     apply_security_headers($appDebug);
 
+    if (!defined('WORK_FUNCTIONS')) {
+        define('WORK_FUNCTIONS', [
+            'finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification',
+            'records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics'
+        ]);
+    }
+    if (!defined('WORK_FUNCTION_LABELS')) {
+        define('WORK_FUNCTION_LABELS', [
+            'finance' => 'Finance',
+            'general_service' => 'General Service',
+            'hrm' => 'HRM',
+            'ict' => 'ICT',
+            'leadership_tn' => 'Leadership TN',
+            'legal_service' => 'Legal Service',
+            'pme' => 'PME',
+            'quantification' => 'Quantification',
+            'records_documentation' => 'Records & Documentation',
+            'security_driver' => 'Security & Driver',
+            'security' => 'Security',
+            'tmd' => 'TMD',
+            'wim' => 'WIM',
+            'cmd' => 'CMD',
+            'communication' => 'Communication',
+            'dfm' => 'DFM',
+            'driver' => 'Driver',
+            'ethics' => 'Ethics',
+        ]);
+    }
+    if (!defined('DEFAULT_USER_ROLES')) {
+        define('DEFAULT_USER_ROLES', [
+            [
+                'role_key' => 'admin',
+                'label' => 'Administrator',
+                'description' => 'Full administrative access to manage the platform.',
+                'sort_order' => 0,
+                'is_protected' => 1,
+            ],
+            [
+                'role_key' => 'supervisor',
+                'label' => 'Supervisor',
+                'description' => 'Can review assessments and manage assigned staff.',
+                'sort_order' => 10,
+                'is_protected' => 1,
+            ],
+            [
+                'role_key' => 'staff',
+                'label' => 'Staff',
+                'description' => 'Standard access for employees completing assessments.',
+                'sort_order' => 20,
+                'is_protected' => 1,
+            ],
+        ]);
+    }
+    if (!defined('DEFAULT_BRAND_COLOR')) {
+        define('DEFAULT_BRAND_COLOR', '#2073bf');
+    }
+
+    $dbDriver = strtolower((string)(getenv('DB_DRIVER') ?: 'sqlite'));
     $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
     $dbName = getenv('DB_NAME') ?: 'epss_v300';
     $dbUser = getenv('DB_USER') ?: 'epss_user';
     $dbPass = getenv('DB_PASS') ?: 'StrongPassword123!';
 
-    $dsn = sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $dbHost, $dbName);
+    if ($dbDriver === 'sqlite') {
+        $dbPath = getenv('DB_PATH') ?: (BASE_PATH . '/storage/database.sqlite');
+        $dbPath = str_replace('\\', '/', $dbPath);
+        $dbDir = dirname($dbPath);
+        if (!is_dir($dbDir)) {
+            mkdir($dbDir, 0775, true);
+        }
+        $dsn = 'sqlite:' . $dbPath;
+        $dbUser = null;
+        $dbPass = null;
+    } else {
+        $dbDriver = 'mysql';
+        $dsn = sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $dbHost, $dbName);
+    }
+
     $options = [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
     ];
+    if ($dbDriver === 'mysql') {
+        $options[PDO::ATTR_EMULATE_PREPARES] = false;
+    }
 
     try {
         $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
+        define('DB_DRIVER', $pdo->getAttribute(PDO::ATTR_DRIVER_NAME));
         ensure_site_config_schema($pdo);
         ensure_users_schema($pdo);
         ensure_user_roles_schema($pdo);
@@ -68,58 +143,13 @@ if (!defined('APP_BOOTSTRAPPED')) {
     }
 }
 
-const WORK_FUNCTIONS = [
-    'finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification',
-    'records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics'
-];
-
-const WORK_FUNCTION_LABELS = [
-    'finance' => 'Finance',
-    'general_service' => 'General Service',
-    'hrm' => 'HRM',
-    'ict' => 'ICT',
-    'leadership_tn' => 'Leadership TN',
-    'legal_service' => 'Legal Service',
-    'pme' => 'PME',
-    'quantification' => 'Quantification',
-    'records_documentation' => 'Records & Documentation',
-    'security_driver' => 'Security & Driver',
-    'security' => 'Security',
-    'tmd' => 'TMD',
-    'wim' => 'WIM',
-    'cmd' => 'CMD',
-    'communication' => 'Communication',
-    'dfm' => 'DFM',
-    'driver' => 'Driver',
-    'ethics' => 'Ethics',
-];
-
-const DEFAULT_USER_ROLES = [
-    [
-        'role_key' => 'admin',
-        'label' => 'Administrator',
-        'description' => 'Full administrative access to manage the platform.',
-        'sort_order' => 0,
-        'is_protected' => 1,
-    ],
-    [
-        'role_key' => 'supervisor',
-        'label' => 'Supervisor',
-        'description' => 'Can review assessments and manage assigned staff.',
-        'sort_order' => 10,
-        'is_protected' => 1,
-    ],
-    [
-        'role_key' => 'staff',
-        'label' => 'Staff',
-        'description' => 'Standard access for employees completing assessments.',
-        'sort_order' => 20,
-        'is_protected' => 1,
-    ],
-];
-
-const DEFAULT_BRAND_COLOR = '#2073bf';
-
+function pdo_driver(PDO $pdo): string
+{
+    if (defined('DB_DRIVER')) {
+        return DB_DRIVER;
+    }
+    return (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+}
 
 function csrf_token(): string {
     if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }
@@ -194,68 +224,149 @@ function require_profile_completion(PDO $pdo, string $redirect = 'profile.php'):
 require_once __DIR__.'/i18n.php';
 
 function ensure_site_config_schema(PDO $pdo): void {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS site_config (
-        id INT PRIMARY KEY,
-        site_name VARCHAR(200) NULL,
-        landing_text TEXT NULL,
-        address VARCHAR(255) NULL,
-        contact VARCHAR(255) NULL,
-        logo_path VARCHAR(255) NULL,
-        footer_org_name VARCHAR(255) NULL,
-        footer_org_short VARCHAR(100) NULL,
-        footer_website_label VARCHAR(255) NULL,
-        footer_website_url VARCHAR(255) NULL,
-        footer_email VARCHAR(255) NULL,
-        footer_phone VARCHAR(255) NULL,
-        footer_hotline_label VARCHAR(255) NULL,
-        footer_hotline_number VARCHAR(50) NULL,
-        footer_rights VARCHAR(255) NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $driver = pdo_driver($pdo);
 
-    $existing = [];
-    $columns = $pdo->query('SHOW COLUMNS FROM site_config');
-    if ($columns) {
-        while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
-            if (isset($col['Field'])) {
-                $existing[$col['Field']] = true;
+    if ($driver === 'sqlite') {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS site_config (
+            id INTEGER PRIMARY KEY,
+            site_name TEXT NULL,
+            landing_text TEXT NULL,
+            address TEXT NULL,
+            contact TEXT NULL,
+            logo_path TEXT NULL,
+            footer_org_name TEXT NULL,
+            footer_org_short TEXT NULL,
+            footer_website_label TEXT NULL,
+            footer_website_url TEXT NULL,
+            footer_email TEXT NULL,
+            footer_phone TEXT NULL,
+            footer_hotline_label TEXT NULL,
+            footer_hotline_number TEXT NULL,
+            footer_rights TEXT NULL,
+            google_oauth_enabled INTEGER NOT NULL DEFAULT 0,
+            google_oauth_client_id TEXT NULL,
+            google_oauth_client_secret TEXT NULL,
+            microsoft_oauth_enabled INTEGER NOT NULL DEFAULT 0,
+            microsoft_oauth_client_id TEXT NULL,
+            microsoft_oauth_client_secret TEXT NULL,
+            microsoft_oauth_tenant TEXT NULL,
+            color_theme TEXT NOT NULL DEFAULT 'light',
+            brand_color TEXT NULL,
+            smtp_enabled INTEGER NOT NULL DEFAULT 0,
+            smtp_host TEXT NULL,
+            smtp_port INTEGER NULL,
+            smtp_username TEXT NULL,
+            smtp_password TEXT NULL,
+            smtp_encryption TEXT NOT NULL DEFAULT 'none',
+            smtp_from_email TEXT NULL,
+            smtp_from_name TEXT NULL,
+            smtp_timeout INTEGER NULL
+        )");
+        $columns = $pdo->query('PRAGMA table_info(site_config)');
+        $existing = [];
+        if ($columns) {
+            while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
+                if (isset($col['name'])) {
+                    $existing[$col['name']] = true;
+                }
             }
         }
+        $schema = [
+            'site_name' => 'ALTER TABLE site_config ADD COLUMN site_name TEXT NULL',
+            'landing_text' => 'ALTER TABLE site_config ADD COLUMN landing_text TEXT NULL',
+            'address' => 'ALTER TABLE site_config ADD COLUMN address TEXT NULL',
+            'contact' => 'ALTER TABLE site_config ADD COLUMN contact TEXT NULL',
+            'logo_path' => 'ALTER TABLE site_config ADD COLUMN logo_path TEXT NULL',
+            'footer_org_name' => 'ALTER TABLE site_config ADD COLUMN footer_org_name TEXT NULL',
+            'footer_org_short' => 'ALTER TABLE site_config ADD COLUMN footer_org_short TEXT NULL',
+            'footer_website_label' => 'ALTER TABLE site_config ADD COLUMN footer_website_label TEXT NULL',
+            'footer_website_url' => 'ALTER TABLE site_config ADD COLUMN footer_website_url TEXT NULL',
+            'footer_email' => 'ALTER TABLE site_config ADD COLUMN footer_email TEXT NULL',
+            'footer_phone' => 'ALTER TABLE site_config ADD COLUMN footer_phone TEXT NULL',
+            'footer_hotline_label' => 'ALTER TABLE site_config ADD COLUMN footer_hotline_label TEXT NULL',
+            'footer_hotline_number' => 'ALTER TABLE site_config ADD COLUMN footer_hotline_number TEXT NULL',
+            'footer_rights' => 'ALTER TABLE site_config ADD COLUMN footer_rights TEXT NULL',
+            'google_oauth_enabled' => 'ALTER TABLE site_config ADD COLUMN google_oauth_enabled INTEGER NOT NULL DEFAULT 0',
+            'google_oauth_client_id' => 'ALTER TABLE site_config ADD COLUMN google_oauth_client_id TEXT NULL',
+            'google_oauth_client_secret' => 'ALTER TABLE site_config ADD COLUMN google_oauth_client_secret TEXT NULL',
+            'microsoft_oauth_enabled' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_enabled INTEGER NOT NULL DEFAULT 0',
+            'microsoft_oauth_client_id' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_id TEXT NULL',
+            'microsoft_oauth_client_secret' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_secret TEXT NULL',
+            'microsoft_oauth_tenant' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_tenant TEXT NULL',
+            'color_theme' => "ALTER TABLE site_config ADD COLUMN color_theme TEXT NOT NULL DEFAULT 'light'",
+            'brand_color' => 'ALTER TABLE site_config ADD COLUMN brand_color TEXT NULL',
+            'smtp_enabled' => 'ALTER TABLE site_config ADD COLUMN smtp_enabled INTEGER NOT NULL DEFAULT 0',
+            'smtp_host' => 'ALTER TABLE site_config ADD COLUMN smtp_host TEXT NULL',
+            'smtp_port' => 'ALTER TABLE site_config ADD COLUMN smtp_port INTEGER NULL',
+            'smtp_username' => 'ALTER TABLE site_config ADD COLUMN smtp_username TEXT NULL',
+            'smtp_password' => 'ALTER TABLE site_config ADD COLUMN smtp_password TEXT NULL',
+            'smtp_encryption' => "ALTER TABLE site_config ADD COLUMN smtp_encryption TEXT NOT NULL DEFAULT 'none'",
+            'smtp_from_email' => 'ALTER TABLE site_config ADD COLUMN smtp_from_email TEXT NULL',
+            'smtp_from_name' => 'ALTER TABLE site_config ADD COLUMN smtp_from_name TEXT NULL',
+            'smtp_timeout' => 'ALTER TABLE site_config ADD COLUMN smtp_timeout INTEGER NULL',
+        ];
+    } else {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS site_config (
+            id INT PRIMARY KEY,
+            site_name VARCHAR(200) NULL,
+            landing_text TEXT NULL,
+            address VARCHAR(255) NULL,
+            contact VARCHAR(255) NULL,
+            logo_path VARCHAR(255) NULL,
+            footer_org_name VARCHAR(255) NULL,
+            footer_org_short VARCHAR(100) NULL,
+            footer_website_label VARCHAR(255) NULL,
+            footer_website_url VARCHAR(255) NULL,
+            footer_email VARCHAR(255) NULL,
+            footer_phone VARCHAR(255) NULL,
+            footer_hotline_label VARCHAR(255) NULL,
+            footer_hotline_number VARCHAR(50) NULL,
+            footer_rights VARCHAR(255) NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $columns = $pdo->query('SHOW COLUMNS FROM site_config');
+        $existing = [];
+        if ($columns) {
+            while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
+                if (isset($col['Field'])) {
+                    $existing[$col['Field']] = true;
+                }
+            }
+        }
+        $schema = [
+            'site_name' => 'ALTER TABLE site_config ADD COLUMN site_name VARCHAR(200) NULL',
+            'landing_text' => 'ALTER TABLE site_config ADD COLUMN landing_text TEXT NULL',
+            'address' => 'ALTER TABLE site_config ADD COLUMN address VARCHAR(255) NULL',
+            'contact' => 'ALTER TABLE site_config ADD COLUMN contact VARCHAR(255) NULL',
+            'logo_path' => 'ALTER TABLE site_config ADD COLUMN logo_path VARCHAR(255) NULL',
+            'footer_org_name' => 'ALTER TABLE site_config ADD COLUMN footer_org_name VARCHAR(255) NULL',
+            'footer_org_short' => 'ALTER TABLE site_config ADD COLUMN footer_org_short VARCHAR(100) NULL',
+            'footer_website_label' => 'ALTER TABLE site_config ADD COLUMN footer_website_label VARCHAR(255) NULL',
+            'footer_website_url' => 'ALTER TABLE site_config ADD COLUMN footer_website_url VARCHAR(255) NULL',
+            'footer_email' => 'ALTER TABLE site_config ADD COLUMN footer_email VARCHAR(255) NULL',
+            'footer_phone' => 'ALTER TABLE site_config ADD COLUMN footer_phone VARCHAR(255) NULL',
+            'footer_hotline_label' => 'ALTER TABLE site_config ADD COLUMN footer_hotline_label VARCHAR(255) NULL',
+            'footer_hotline_number' => 'ALTER TABLE site_config ADD COLUMN footer_hotline_number VARCHAR(50) NULL',
+            'footer_rights' => 'ALTER TABLE site_config ADD COLUMN footer_rights VARCHAR(255) NULL',
+            'google_oauth_enabled' => 'ALTER TABLE site_config ADD COLUMN google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0',
+            'google_oauth_client_id' => 'ALTER TABLE site_config ADD COLUMN google_oauth_client_id VARCHAR(255) NULL',
+            'google_oauth_client_secret' => 'ALTER TABLE site_config ADD COLUMN google_oauth_client_secret VARCHAR(255) NULL',
+            'microsoft_oauth_enabled' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0',
+            'microsoft_oauth_client_id' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_id VARCHAR(255) NULL',
+            'microsoft_oauth_client_secret' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_secret VARCHAR(255) NULL',
+            'microsoft_oauth_tenant' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_tenant VARCHAR(255) NULL',
+            'color_theme' => "ALTER TABLE site_config ADD COLUMN color_theme VARCHAR(50) NOT NULL DEFAULT 'light'",
+            'brand_color' => "ALTER TABLE site_config ADD COLUMN brand_color VARCHAR(7) NULL AFTER color_theme",
+            'smtp_enabled' => 'ALTER TABLE site_config ADD COLUMN smtp_enabled TINYINT(1) NOT NULL DEFAULT 0',
+            'smtp_host' => 'ALTER TABLE site_config ADD COLUMN smtp_host VARCHAR(255) NULL',
+            'smtp_port' => 'ALTER TABLE site_config ADD COLUMN smtp_port INT NULL',
+            'smtp_username' => 'ALTER TABLE site_config ADD COLUMN smtp_username VARCHAR(255) NULL',
+            'smtp_password' => 'ALTER TABLE site_config ADD COLUMN smtp_password VARCHAR(255) NULL',
+            'smtp_encryption' => "ALTER TABLE site_config ADD COLUMN smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none'",
+            'smtp_from_email' => 'ALTER TABLE site_config ADD COLUMN smtp_from_email VARCHAR(255) NULL',
+            'smtp_from_name' => 'ALTER TABLE site_config ADD COLUMN smtp_from_name VARCHAR(255) NULL',
+            'smtp_timeout' => 'ALTER TABLE site_config ADD COLUMN smtp_timeout INT NULL'
+        ];
     }
-
-    $schema = [
-        'site_name' => 'ALTER TABLE site_config ADD COLUMN site_name VARCHAR(200) NULL',
-        'landing_text' => 'ALTER TABLE site_config ADD COLUMN landing_text TEXT NULL',
-        'address' => 'ALTER TABLE site_config ADD COLUMN address VARCHAR(255) NULL',
-        'contact' => 'ALTER TABLE site_config ADD COLUMN contact VARCHAR(255) NULL',
-        'logo_path' => 'ALTER TABLE site_config ADD COLUMN logo_path VARCHAR(255) NULL',
-        'footer_org_name' => 'ALTER TABLE site_config ADD COLUMN footer_org_name VARCHAR(255) NULL',
-        'footer_org_short' => 'ALTER TABLE site_config ADD COLUMN footer_org_short VARCHAR(100) NULL',
-        'footer_website_label' => 'ALTER TABLE site_config ADD COLUMN footer_website_label VARCHAR(255) NULL',
-        'footer_website_url' => 'ALTER TABLE site_config ADD COLUMN footer_website_url VARCHAR(255) NULL',
-        'footer_email' => 'ALTER TABLE site_config ADD COLUMN footer_email VARCHAR(255) NULL',
-        'footer_phone' => 'ALTER TABLE site_config ADD COLUMN footer_phone VARCHAR(255) NULL',
-        'footer_hotline_label' => 'ALTER TABLE site_config ADD COLUMN footer_hotline_label VARCHAR(255) NULL',
-        'footer_hotline_number' => 'ALTER TABLE site_config ADD COLUMN footer_hotline_number VARCHAR(50) NULL',
-        'footer_rights' => 'ALTER TABLE site_config ADD COLUMN footer_rights VARCHAR(255) NULL',
-        'google_oauth_enabled' => 'ALTER TABLE site_config ADD COLUMN google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0',
-        'google_oauth_client_id' => 'ALTER TABLE site_config ADD COLUMN google_oauth_client_id VARCHAR(255) NULL',
-        'google_oauth_client_secret' => 'ALTER TABLE site_config ADD COLUMN google_oauth_client_secret VARCHAR(255) NULL',
-        'microsoft_oauth_enabled' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0',
-        'microsoft_oauth_client_id' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_id VARCHAR(255) NULL',
-        'microsoft_oauth_client_secret' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_secret VARCHAR(255) NULL',
-        'microsoft_oauth_tenant' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_tenant VARCHAR(255) NULL',
-        'color_theme' => "ALTER TABLE site_config ADD COLUMN color_theme VARCHAR(50) NOT NULL DEFAULT 'light'",
-        'brand_color' => "ALTER TABLE site_config ADD COLUMN brand_color VARCHAR(7) NULL AFTER color_theme",
-        'smtp_enabled' => 'ALTER TABLE site_config ADD COLUMN smtp_enabled TINYINT(1) NOT NULL DEFAULT 0',
-        'smtp_host' => 'ALTER TABLE site_config ADD COLUMN smtp_host VARCHAR(255) NULL',
-        'smtp_port' => 'ALTER TABLE site_config ADD COLUMN smtp_port INT NULL',
-        'smtp_username' => 'ALTER TABLE site_config ADD COLUMN smtp_username VARCHAR(255) NULL',
-        'smtp_password' => 'ALTER TABLE site_config ADD COLUMN smtp_password VARCHAR(255) NULL',
-        'smtp_encryption' => "ALTER TABLE site_config ADD COLUMN smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none'",
-        'smtp_from_email' => 'ALTER TABLE site_config ADD COLUMN smtp_from_email VARCHAR(255) NULL',
-        'smtp_from_name' => 'ALTER TABLE site_config ADD COLUMN smtp_from_name VARCHAR(255) NULL',
-        'smtp_timeout' => 'ALTER TABLE site_config ADD COLUMN smtp_timeout INT NULL'
-    ];
 
     foreach ($schema as $field => $sql) {
         if (!isset($existing[$field])) {
@@ -304,7 +415,12 @@ function get_site_config(PDO $pdo): array {
 
     try {
         ensure_site_config_schema($pdo);
-        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20)");
+        $driver = pdo_driver($pdo);
+        if ($driver === 'sqlite') {
+            $pdo->exec("INSERT INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20) ON CONFLICT(id) DO NOTHING");
+        } else {
+            $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20)");
+        }
         $cfg = $pdo->query('SELECT * FROM site_config WHERE id=1')->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         error_log('get_site_config failed: ' . $e->getMessage());
@@ -316,6 +432,57 @@ function get_site_config(PDO $pdo): array {
 
 function ensure_users_schema(PDO $pdo): void
 {
+    $driver = pdo_driver($pdo);
+
+    if ($driver === 'sqlite') {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'staff',
+            full_name TEXT NULL,
+            email TEXT NULL,
+            gender TEXT NULL,
+            date_of_birth TEXT NULL,
+            phone TEXT NULL,
+            department TEXT NULL,
+            cadre TEXT NULL,
+            work_function TEXT NOT NULL DEFAULT 'general_service',
+            profile_completed INTEGER NOT NULL DEFAULT 0,
+            language TEXT NOT NULL DEFAULT 'en',
+            account_status TEXT NOT NULL DEFAULT 'active',
+            next_assessment_date TEXT NULL,
+            first_login_at TEXT NULL,
+            approved_by INTEGER NULL,
+            approved_at TEXT NULL,
+            sso_provider TEXT NULL
+        )");
+        $columns = $pdo->query('PRAGMA table_info(users)');
+        $existing = [];
+        if ($columns) {
+            while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
+                if (isset($col['name'])) {
+                    $existing[$col['name']] = true;
+                }
+            }
+        }
+        $changes = [
+            'profile_completed' => 'ALTER TABLE users ADD COLUMN profile_completed INTEGER NOT NULL DEFAULT 0',
+            'language' => "ALTER TABLE users ADD COLUMN language TEXT NOT NULL DEFAULT 'en'",
+            'account_status' => "ALTER TABLE users ADD COLUMN account_status TEXT NOT NULL DEFAULT 'active'",
+            'next_assessment_date' => 'ALTER TABLE users ADD COLUMN next_assessment_date TEXT NULL',
+            'approved_by' => 'ALTER TABLE users ADD COLUMN approved_by INTEGER NULL',
+            'approved_at' => 'ALTER TABLE users ADD COLUMN approved_at TEXT NULL',
+            'sso_provider' => 'ALTER TABLE users ADD COLUMN sso_provider TEXT NULL',
+        ];
+        foreach ($changes as $field => $sql) {
+            if (!isset($existing[$field])) {
+                $pdo->exec($sql);
+            }
+        }
+        return;
+    }
+
     $existing = [];
     try {
         $columns = $pdo->query('SHOW COLUMNS FROM users');
@@ -356,42 +523,82 @@ function ensure_users_schema(PDO $pdo): void
 
 function ensure_user_roles_schema(PDO $pdo): void
 {
+    $driver = pdo_driver($pdo);
+
     try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS user_role (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            role_key VARCHAR(50) NOT NULL UNIQUE,
-            label VARCHAR(100) NOT NULL,
-            description TEXT NULL,
-            sort_order INT NOT NULL DEFAULT 0,
-            is_protected TINYINT(1) NOT NULL DEFAULT 0,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-        $columns = $pdo->query('SHOW COLUMNS FROM user_role');
-        $existing = [];
-        if ($columns) {
-            while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
-                $existing[$col['Field']] = true;
+        if ($driver === 'sqlite') {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS user_role (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                role_key TEXT NOT NULL UNIQUE,
+                label TEXT NOT NULL,
+                description TEXT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                is_protected INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NULL
+            )");
+            $columns = $pdo->query('PRAGMA table_info(user_role)');
+            $existing = [];
+            if ($columns) {
+                while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
+                    if (isset($col['name'])) {
+                        $existing[$col['name']] = true;
+                    }
+                }
             }
-        }
-
-        $required = [
-            'description' => 'ALTER TABLE user_role ADD COLUMN description TEXT NULL AFTER label',
-            'sort_order' => 'ALTER TABLE user_role ADD COLUMN sort_order INT NOT NULL DEFAULT 0 AFTER description',
-            'is_protected' => 'ALTER TABLE user_role ADD COLUMN is_protected TINYINT(1) NOT NULL DEFAULT 0 AFTER sort_order',
-            'created_at' => 'ALTER TABLE user_role ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER is_protected',
-            'updated_at' => 'ALTER TABLE user_role ADD COLUMN updated_at DATETIME NULL DEFAULT NULL AFTER created_at',
-        ];
-
-        foreach ($required as $field => $sql) {
-            if (!isset($existing[$field])) {
-                $pdo->exec($sql);
+            $required = [
+                'description' => 'ALTER TABLE user_role ADD COLUMN description TEXT NULL',
+                'sort_order' => 'ALTER TABLE user_role ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0',
+                'is_protected' => 'ALTER TABLE user_role ADD COLUMN is_protected INTEGER NOT NULL DEFAULT 0',
+                'created_at' => "ALTER TABLE user_role ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))",
+                'updated_at' => 'ALTER TABLE user_role ADD COLUMN updated_at TEXT NULL',
+            ];
+            foreach ($required as $field => $sql) {
+                if (!isset($existing[$field])) {
+                    $pdo->exec($sql);
+                }
             }
+            $insertSql = 'INSERT INTO user_role (role_key, label, description, sort_order, is_protected) VALUES (?,?,?,?,?) '
+                . 'ON CONFLICT(role_key) DO UPDATE SET label=excluded.label, description=excluded.description, sort_order=excluded.sort_order, is_protected=excluded.is_protected';
+        } else {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS user_role (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                role_key VARCHAR(50) NOT NULL UNIQUE,
+                label VARCHAR(100) NOT NULL,
+                description TEXT NULL,
+                sort_order INT NOT NULL DEFAULT 0,
+                is_protected TINYINT(1) NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+            $columns = $pdo->query('SHOW COLUMNS FROM user_role');
+            $existing = [];
+            if ($columns) {
+                while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
+                    $existing[$col['Field']] = true;
+                }
+            }
+
+            $required = [
+                'description' => 'ALTER TABLE user_role ADD COLUMN description TEXT NULL AFTER label',
+                'sort_order' => 'ALTER TABLE user_role ADD COLUMN sort_order INT NOT NULL DEFAULT 0 AFTER description',
+                'is_protected' => 'ALTER TABLE user_role ADD COLUMN is_protected TINYINT(1) NOT NULL DEFAULT 0 AFTER sort_order',
+                'created_at' => 'ALTER TABLE user_role ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER is_protected',
+                'updated_at' => 'ALTER TABLE user_role ADD COLUMN updated_at DATETIME NULL DEFAULT NULL AFTER created_at',
+            ];
+
+            foreach ($required as $field => $sql) {
+                if (!isset($existing[$field])) {
+                    $pdo->exec($sql);
+                }
+            }
+            $insertSql = 'INSERT INTO user_role (role_key, label, description, sort_order, is_protected) VALUES (?,?,?,?,?) '
+                . 'ON DUPLICATE KEY UPDATE label=VALUES(label), description=VALUES(description), sort_order=VALUES(sort_order), is_protected=VALUES(is_protected)';
         }
 
         foreach (DEFAULT_USER_ROLES as $index => $role) {
-            $stmt = $pdo->prepare('INSERT INTO user_role (role_key, label, description, sort_order, is_protected) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE label=VALUES(label), description=VALUES(description), sort_order=VALUES(sort_order), is_protected=VALUES(is_protected)');
+            $stmt = $pdo->prepare($insertSql);
             $stmt->execute([
                 $role['role_key'],
                 $role['label'],
