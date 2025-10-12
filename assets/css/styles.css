@@ -778,7 +778,7 @@ body.theme-dark .md-field.md-field--compact select {
 }
 
 .md-login .md-form .md-button {
-  margin: 1.25rem auto 0;
+  margin: 0;
   display: inline-flex;
 }
 .md-button.md-compact {
@@ -804,6 +804,10 @@ body.theme-dark .md-field.md-field--compact select {
   flex-wrap: wrap;
 }
 
+.md-form-actions--center {
+  justify-content: center;
+}
+
 .md-form-actions--stack {
   flex-direction: column;
   align-items: stretch;
@@ -814,6 +818,56 @@ body.theme-dark .md-field.md-field--compact select {
     flex-direction: row;
     align-items: center;
   }
+}
+
+.md-login-actions {
+  margin-top: 1.25rem;
+}
+
+.md-login-actions .md-button {
+  min-width: 9rem;
+}
+
+.md-radar-grid {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.md-radar-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.md-radar-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.md-radar-meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--app-muted-light);
+}
+
+.md-radar-canvas {
+  position: relative;
+  width: 100%;
+  height: 280px;
+}
+
+@media (min-width: 768px) {
+  .md-radar-canvas {
+    height: 320px;
+  }
+}
+
+.md-radar-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .md-assessment-form {
@@ -1246,6 +1300,10 @@ body.theme-dark .md-button.md-primary {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.md-dashboard-card--upgrade {
+  margin-bottom: 1.5rem;
 }
 
 .md-stat-list {
