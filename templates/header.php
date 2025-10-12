@@ -15,7 +15,11 @@ if ($logoPath === '') {
 $logoPathSmall = htmlspecialchars($logoPath, ENT_QUOTES, 'UTF-8');
 $siteTitle = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
 $availableLocales = available_locales();
+$brandStyle = site_brand_style($cfg);
 ?>
+<?php if ($brandStyle !== ''): ?>
+<style id="md-brand-style">:root { <?=htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8')?>; }</style>
+<?php endif; ?>
 <header class="md-appbar md-elev-2">
   <button class="md-appbar-toggle" aria-label="Toggle navigation" data-drawer-toggle>
     <span></span>

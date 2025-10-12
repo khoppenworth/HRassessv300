@@ -145,6 +145,7 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
 </form></div>
 
 <div class="md-card md-elev-2"><h2 class="md-card-title"><?=t($t,'manage_users','Manage Users')?></h2>
+<div class="md-table-responsive">
 <table class="md-table">
   <thead><tr><th><?=t($t,'id','ID')?></th><th><?=t($t,'username','Username')?></th><th><?=t($t,'role','Role')?></th><th><?=t($t,'full_name','Full Name')?></th><th><?=t($t,'email','Email')?></th><th><?=t($t,'work_function','Work Function / Cadre')?></th><th><?=t($t,'account_status','Account Status')?></th><th><?=t($t,'next_assessment','Next Assessment')?></th><th><?=t($t,'reset','Reset')?></th><th><?=t($t,'delete','Delete')?></th></tr></thead>
   <tbody>
@@ -170,7 +171,7 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
       <form method="post" class="md-inline-form" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="id" value="<?=$r['id']?>">
-        <input name="new_password" placeholder="<?=htmlspecialchars(t($t,'new_password_reset','New Password'), ENT_QUOTES, 'UTF-8')?>" required>
+        <input name="new_password" type="password" placeholder="<?=htmlspecialchars(t($t,'new_password_reset','New Password'), ENT_QUOTES, 'UTF-8')?>" required>
           <select name="role">
             <option value="staff" <?=$r['role']=='staff'?'selected':''?>><?=t($t,'role_staff','staff')?></option>
             <option value="supervisor" <?=$r['role']=='supervisor'?'selected':''?>><?=t($t,'role_supervisor','supervisor')?></option>
@@ -201,6 +202,7 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
   <?php endforeach; ?>
   </tbody>
 </table>
+</div>
 </div>
 </section>
 <?php include __DIR__.'/../templates/footer.php'; ?>

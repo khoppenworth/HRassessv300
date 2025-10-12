@@ -42,6 +42,7 @@ foreach ($rows as $row) {
     $chartLabels[] = date('Y-m-d', strtotime($row['created_at'])) . ' · ' . $row['period_label'];
     $chartScores[] = $row['score'] !== null ? (int)$row['score'] : null;
 }
+$chartVersion = $latestEntry ? strtotime((string)$latestEntry['created_at']) : time();
 
 $recommendedCourses = [];
 if (!empty($user['work_function'])) {
@@ -114,7 +115,7 @@ if ($flash === 'submitted') {
     <h2 class="md-card-title"><?=t($t,'your_trend','Your Score Trend')?></h2>
     <?php if ($chartLabels): ?>
       <div class="trend-chart-wrap">
-        <canvas id="performance-trend-chart" height="220"></canvas>
+        <img src="<?=htmlspecialchars(url_for('charts/performance_timeline.php?v=' . $chartVersion), ENT_QUOTES, 'UTF-8')?>" alt="<?=htmlspecialchars(t($t,'performance_timeline_alt','Line chart showing your performance timeline'), ENT_QUOTES, 'UTF-8')?>">
       </div>
     <?php else: ?>
       <p><?=t($t,'no_trend_data','Submit assessments to generate your performance trend.')?></p>
@@ -187,89 +188,4 @@ if ($flash === 'submitted') {
   </div>
 </section>
 <?php include __DIR__.'/templates/footer.php'; ?>
-<?php
-$chartLabelsJson = json_encode($chartLabels, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
-$chartScoresJson = json_encode($chartScores, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
-?>
-<script src="<?=asset_url('assets/adminlte/plugins/chart.js/Chart.bundle.min.js')?>"></script>
-<script>
-(function() {
-  const ctxElement = document.getElementById('performance-trend-chart');
-  if (!ctxElement || typeof Chart === 'undefined') {
-    return;
-  }
-  const labels = <?=$chartLabelsJson?>;
-  const dataPoints = <?=$chartScoresJson?>;
-  const ctx = ctxElement.getContext('2d');
-  const styles = window.getComputedStyle(document.body);
-  const primaryColor = (styles.getPropertyValue('--app-primary') || '#2073bf').trim() || '#2073bf';
-  const softPrimary = (styles.getPropertyValue('--app-primary-soft') || '').trim();
-  const hexToRgba = (hex, alpha) => {
-    const cleaned = hex.replace('#', '');
-    if (cleaned.length !== 6) {
-      return `rgba(32,115,191,${alpha})`;
-    }
-    const bigint = parseInt(cleaned, 16);
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  };
-  const areaFill = softPrimary ? (softPrimary.startsWith('#') ? hexToRgba(softPrimary, 0.24) : softPrimary) : hexToRgba(primaryColor, 0.18);
-  new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Score (%)',
-        data: dataPoints,
-        borderColor: primaryColor,
-        backgroundColor: areaFill,
-        borderWidth: 3,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        lineTension: 0.25,
-        spanGaps: true,
-      }],
-    },
-    options: {
-      maintainAspectRatio: false,
-      legend: {
-        display: false,
-      },
-      tooltips: {
-        callbacks: {
-          label: function(tooltipItem) {
-            const value = tooltipItem.yLabel;
-            if (value === null || typeof value === 'undefined') {
-              return 'No score';
-            }
-            return value + '%';
-          },
-        },
-      },
-      scales: {
-        yAxes: [{
-          ticks: {
-            suggestedMin: 0,
-            suggestedMax: 100,
-          },
-          gridLines: {
-            color: 'rgba(13, 112, 56, 0.1)',
-          },
-        }],
-        xAxes: [{
-          gridLines: {
-            display: false,
-          },
-          ticks: {
-            autoSkip: true,
-            maxTicksLimit: 8,
-          },
-        }],
-      },
-    },
-  });
-})();
-</script>
 </body></html>
