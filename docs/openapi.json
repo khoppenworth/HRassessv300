@@ -3,7 +3,7 @@
   "info": {
     "title": "HR Assessment Platform API",
     "version": "1.0.0",
-    "description": "API reference for the HR Assessment platform, including FHIR-compatible resources and internal helper endpoints.\n\n## Getting started\n1. Sign in to the web application as an administrator to establish an authenticated session.\n2. Open the Swagger UI page (Administration → API Documentation) to load this specification.\n3. Use the *Authorize* button to send your PHP session cookie with requests, or copy the provided `curl` examples for CLI testing.\n\n## Response formats\nAll endpoints respond with JSON payloads. FHIR resources follow the HL7 FHIR R4 specification. Business endpoints return structured JSON objects documented below.\n\n## Draft questionnaire workflow\nThe submission endpoint accepts the `status` field to manage `draft` versus `completed` QuestionnaireResponse records. Draft responses can be updated until they are submitted." 
+    "description": "API reference for the HR Assessment platform, including FHIR-compatible resources and internal helper endpoints.\n\n## Getting started\n1. Sign in to the web application as an administrator to establish an authenticated session.\n2. Open the Swagger UI page (Administration → API Documentation) to load this specification.\n3. Use the *Authorize* button to send your PHP session cookie with requests, or copy the provided `curl` examples for CLI testing.\n\n## Response formats\nAll endpoints respond with JSON payloads. FHIR resources follow the HL7 FHIR R4 specification. Business endpoints return structured JSON objects documented below.\n\n## Draft questionnaire workflow\nThe submission endpoint accepts the `status` field to manage `draft` versus `submitted` QuestionnaireResponse records. Draft responses can be updated until they are submitted."
   },
   "servers": [
     {
@@ -24,7 +24,9 @@
   "paths": {
     "/fhir/metadata.php": {
       "get": {
-        "tags": ["FHIR"],
+        "tags": [
+          "FHIR"
+        ],
         "summary": "FHIR capability statement",
         "description": "Returns a FHIR CapabilityStatement describing the resources supported by the platform.",
         "responses": {
@@ -44,7 +46,9 @@
     },
     "/fhir/Questionnaire.php": {
       "get": {
-        "tags": ["FHIR"],
+        "tags": [
+          "FHIR"
+        ],
         "summary": "List questionnaires",
         "description": "Returns a Bundle of Questionnaire resources representing the currently configured assessments.",
         "responses": {
@@ -59,12 +63,18 @@
             }
           }
         },
-        "security": []
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
       }
     },
     "/fhir/QuestionnaireResponse.php": {
       "get": {
-        "tags": ["FHIR"],
+        "tags": [
+          "FHIR"
+        ],
         "summary": "List questionnaire responses",
         "description": "Returns a Bundle of QuestionnaireResponse resources for all submitted assessments.",
         "responses": {
@@ -79,10 +89,16 @@
             }
           }
         },
-        "security": []
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
       },
       "post": {
-        "tags": ["FHIR"],
+        "tags": [
+          "FHIR"
+        ],
         "summary": "Submit questionnaire response",
         "description": "Creates a new QuestionnaireResponse resource. Requires the identifiers for the responding user, questionnaire, and performance period.",
         "requestBody": {
@@ -103,8 +119,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": { "type": "integer" },
-                    "status": { "type": "string" }
+                    "id": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -114,12 +134,18 @@
             "description": "Validation error"
           }
         },
-        "security": []
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
       }
     },
     "/admin/questionnaire_manage.php": {
       "get": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "summary": "Fetch questionnaire definitions",
         "description": "Authenticated administrators can fetch the full questionnaire definition set by providing the action=fetch query parameter.",
         "parameters": [
@@ -129,7 +155,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": ["fetch"]
+              "enum": [
+                "fetch"
+              ]
             }
           }
         ],
@@ -161,11 +189,17 @@
     "schemas": {
       "QuestionnaireResponseInput": {
         "type": "object",
-        "required": ["resourceType", "user_id", "questionnaire"],
+        "required": [
+          "resourceType",
+          "user_id",
+          "questionnaire"
+        ],
         "properties": {
           "resourceType": {
             "type": "string",
-            "enum": ["QuestionnaireResponse"],
+            "enum": [
+              "QuestionnaireResponse"
+            ],
             "example": "QuestionnaireResponse"
           },
           "user_id": {
@@ -186,16 +220,21 @@
           },
           "status": {
             "type": "string",
-            "description": "Submission state; use `draft` to save progress or `completed` to finalize and score the response.",
-            "enum": ["draft", "completed"],
-            "default": "completed"
+            "description": "Submission state; use `draft` to save progress or `submitted` to finalize and score the response.",
+            "enum": [
+              "draft",
+              "submitted"
+            ],
+            "default": "submitted"
           },
           "item": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "linkId": { "type": "string" },
+                "linkId": {
+                  "type": "string"
+                },
                 "answer": {
                   "type": "array",
                   "items": {
@@ -209,5 +248,10 @@
         }
       }
     }
-  }
+  },
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ]
 }

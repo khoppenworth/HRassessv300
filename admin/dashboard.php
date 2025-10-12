@@ -72,25 +72,112 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
 
         case 'download_backups':
+            if (!class_exists('ZipArchive')) {
+                $flashMessage = t($t, 'backup_failed', 'The ZipArchive extension is required to generate backups.');
+                $flashType = 'error';
+                break;
+            }
+
             $backupDir = base_path('assets/backups');
             if (!is_dir($backupDir) && !mkdir($backupDir, 0755, true) && !is_dir($backupDir)) {
                 $flashMessage = t($t, 'backup_failed', 'Unable to prepare the backup directory.');
                 $flashType = 'error';
                 break;
             }
+
             $timestamp = date('Ymd_His');
-            $filename = 'system-backup-' . $timestamp . '.txt';
+            $filename = 'system-backup-' . $timestamp . '.zip';
             $fullPath = $backupDir . '/' . $filename;
-            $summary = "System backup created on " . date('c') . "\n";
-            $summary .= "Users: " . $fetchCount($pdo, 'SELECT COUNT(*) c FROM users') . "\n";
-            $summary .= "Assessments: " . $fetchCount($pdo, 'SELECT COUNT(*) c FROM questionnaire_response') . "\n";
-            file_put_contents($fullPath, $summary);
+
+            try {
+                $zip = new ZipArchive();
+                if ($zip->open($fullPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+                    throw new RuntimeException('Unable to create backup archive.');
+                }
+
+                $summaryLines = [
+                    'System backup created on ' . date('c'),
+                    'Users: ' . $fetchCount($pdo, 'SELECT COUNT(*) c FROM users'),
+                    'Assessments: ' . $fetchCount($pdo, 'SELECT COUNT(*) c FROM questionnaire_response'),
+                    'Draft responses: ' . $fetchCount($pdo, "SELECT COUNT(*) c FROM questionnaire_response WHERE status='draft'"),
+                ];
+                $zip->addFromString('summary.txt', implode("\n", $summaryLines) . "\n");
+
+                $addJson = static function (ZipArchive $archive, string $name, array $data): void {
+                    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                    if ($json === false) {
+                        throw new RuntimeException('Failed to encode backup data for ' . $name);
+                    }
+                    $archive->addFromString($name, $json . "\n");
+                };
+
+                $configStmt = $pdo->query('SELECT * FROM site_config ORDER BY id');
+                $configRows = $configStmt ? $configStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+                $addJson($zip, 'data/site_config.json', $configRows);
+
+                $usersStmt = $pdo->query('SELECT id, username, role, full_name, email, work_function, account_status, next_assessment_date, first_login_at, created_at FROM users ORDER BY id');
+                $users = [];
+                foreach ($usersStmt ? $usersStmt->fetchAll(PDO::FETCH_ASSOC) : [] as $row) {
+                    unset($row['password']);
+                    $users[] = $row;
+                }
+                $addJson($zip, 'data/users.json', $users);
+
+                $questionnairesStmt = $pdo->query('SELECT id, title, description, created_at FROM questionnaire ORDER BY id');
+                $addJson($zip, 'data/questionnaires.json', $questionnairesStmt ? $questionnairesStmt->fetchAll(PDO::FETCH_ASSOC) : []);
+
+                $itemsStmt = $pdo->query('SELECT id, questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple FROM questionnaire_item ORDER BY questionnaire_id, order_index');
+                $addJson($zip, 'data/questionnaire_items.json', $itemsStmt ? $itemsStmt->fetchAll(PDO::FETCH_ASSOC) : []);
+
+                $responsesStmt = $pdo->query('SELECT id, user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at FROM questionnaire_response ORDER BY id');
+                $addJson($zip, 'data/questionnaire_responses.json', $responsesStmt ? $responsesStmt->fetchAll(PDO::FETCH_ASSOC) : []);
+
+                $responseItemsStmt = $pdo->query('SELECT response_id, linkId, answer FROM questionnaire_response_item ORDER BY response_id, id');
+                $addJson($zip, 'data/questionnaire_response_items.json', $responseItemsStmt ? $responseItemsStmt->fetchAll(PDO::FETCH_ASSOC) : []);
+
+                $uploadsDir = base_path('assets/uploads');
+                if (is_dir($uploadsDir)) {
+                    $iterator = new RecursiveIteratorIterator(
+                        new RecursiveDirectoryIterator($uploadsDir, FilesystemIterator::SKIP_DOTS)
+                    );
+                    foreach ($iterator as $fileInfo) {
+                        if ($fileInfo->isFile()) {
+                            $relative = substr($fileInfo->getPathname(), strlen($uploadsDir) + 1);
+                            $relative = str_replace('\\', '/', $relative);
+                            $zip->addFile($fileInfo->getPathname(), 'uploads/' . $relative);
+                        }
+                    }
+                }
+
+                $zip->close();
+            } catch (Throwable $backupError) {
+                if (isset($zip) && $zip instanceof ZipArchive) {
+                    $zip->close();
+                }
+                if (is_file($fullPath)) {
+                    @unlink($fullPath);
+                }
+                error_log('Admin backup failed: ' . $backupError->getMessage());
+                $flashMessage = t($t, 'backup_failed', 'Unable to generate the backup archive.');
+                $flashType = 'error';
+                break;
+            }
+
             $upgradeState['backup_ready'] = true;
             $upgradeState['last_backup_at'] = time();
             $upgradeState['last_backup_path'] = 'assets/backups/' . $filename;
-            $flashMessage = t($t, 'backup_ready_message', 'System backup archive created successfully.');
-            $flashType = 'success';
-            break;
+
+            $_SESSION['admin_upgrade_state'] = $upgradeState;
+            $_SESSION['admin_dashboard_flash'] = t($t, 'backup_ready_message', 'System backup archive created successfully.');
+            $_SESSION['admin_dashboard_flash_type'] = 'success';
+
+            session_write_close();
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
+            header('Content-Length: ' . (string)filesize($fullPath));
+            header('Cache-Control: private, max-age=0');
+            readfile($fullPath);
+            exit;
 
         case 'install_upgrade':
             if (empty($upgradeState['backup_ready'])) {

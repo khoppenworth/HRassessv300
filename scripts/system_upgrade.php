@@ -54,7 +54,13 @@ $backupDir = isset($options['backup-dir'])
 ensureDirectory($backupDir);
 
 $preserve = array_filter(array_map('trim', explode(',', (string)($options['preserve'] ?? ''))));
-$defaultPreserve = ['config.php', 'backups'];
+$defaultPreserve = [
+    'config.php',
+    'backups',
+    'assets/backups',
+    'assets/uploads',
+    'storage',
+];
 $preservePaths = array_values(array_unique(array_merge($defaultPreserve, $preserve)));
 
 switch ($action) {
