@@ -221,6 +221,9 @@ questionnaire aligned with EPSA requirements.
 ## Development tooling
 
 - `make lint` – run `php -l` across all PHP files.
+- `php scripts/check_database_integrity.php` – confirm the deployed database
+  tables and columns match the expectations in the PHP application (e.g.,
+  `config.php`, `index.php`) and that default roles/site configuration exist.
 - GitHub Actions workflow `.github/workflows/ci.yml` lints PHP and checks MySQL availability.
 
 ## System upgrades
