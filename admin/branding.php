@@ -6,6 +6,7 @@ require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$previousLogo = (string)($cfg['logo_path'] ?? '');
 $msg = '';
 $logoError = null;
 
@@ -100,6 +101,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     if ($moved) {
                         @chmod($dest, 0644);
+                        if ($previousLogo !== '' && !preg_match('#^https?://#i', $previousLogo)) {
+                            $oldPath = site_logo_file_path(['logo_path' => $previousLogo]);
+                            if ($oldPath !== null && is_file($oldPath)) {
+                                @unlink($oldPath);
+                            }
+                        }
                         $logo_path = 'assets/uploads/' . $fn;
                     } else {
                         $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
@@ -183,12 +190,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="md-field">
         <span><?=t($t,'logo','Logo')?></span>
         <input type="file" name="logo" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
-        <?php if (!empty($cfg['logo_path'])): ?>
-          <?php $logoSrc = $cfg['logo_path'];
-          if (!preg_match('#^https?://#i', (string)$logoSrc)) {
-              $logoSrc = asset_url(ltrim((string)$logoSrc, '/'));
-          }
-          ?>
+        <?php if (site_logo_is_custom($cfg)): ?>
+          <?php $logoSrc = site_logo_url($cfg); ?>
           <div class="md-thumb"><img src="<?=htmlspecialchars($logoSrc, ENT_QUOTES, 'UTF-8')?>" alt="Logo" height="40"></div>
         <?php endif; ?>
       </div>

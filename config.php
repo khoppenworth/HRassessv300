@@ -22,6 +22,8 @@ if (!defined('APP_BOOTSTRAPPED')) {
 
     require_once __DIR__ . '/i18n.php';
     require_once __DIR__ . '/lib/path.php';
+    require_once __DIR__ . '/lib/branding.php';
+    require_once __DIR__ . '/lib/backup.php';
     require_once __DIR__ . '/lib/security.php';
     require_once __DIR__ . '/lib/mailer.php';
     require_once __DIR__ . '/lib/notifications.php';
