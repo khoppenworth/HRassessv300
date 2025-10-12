@@ -312,6 +312,32 @@ body.md-bg {
   align-items: flex-end;
 }
 
+.md-inline-form > * {
+  flex: 1 1 180px;
+  min-width: 150px;
+}
+
+.md-inline-form input[type="date"],
+.md-inline-form input[type="password"],
+.md-inline-form input[type="text"],
+.md-inline-form select {
+  width: 100%;
+}
+
+.md-inline-form button {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.md-table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.md-table-responsive .md-table {
+  min-width: 960px;
+}
+
 .md-form-grid {
   display: grid;
   gap: 1rem;
@@ -887,10 +913,106 @@ body.theme-dark .md-button.md-primary {
 
 .trend-chart-wrap {
   width: 100%;
-  height: 260px;
+  max-width: 100%;
   margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.trend-chart-wrap canvas {
-  max-height: 100%;
+.trend-chart-wrap img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.md-dashboard-grid {
+  display: grid;
+  gap: 1.35rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.md-dashboard-card {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.md-stat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.md-stat-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid rgba(32, 115, 191, 0.12);
+}
+
+.md-stat-item:last-child {
+  border-bottom: none;
+}
+
+.md-stat-label {
+  font-size: 0.9rem;
+  color: var(--app-muted);
+}
+
+.md-stat-value {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--app-primary-dark);
+}
+
+.md-upgrade-status {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.md-upgrade-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.md-upgrade-meta {
+  font-size: 0.85rem;
+  color: var(--app-muted-light);
+}
+
+.md-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: rgba(46, 130, 206, 0.16);
+  color: var(--app-primary-dark);
+  font-weight: 600;
+}
+
+.md-status-badge.success {
+  background: rgba(46, 191, 125, 0.18);
+  color: #0f6a3d;
+}
+
+.md-status-badge.warning {
+  background: rgba(246, 181, 17, 0.18);
+  color: #684b0a;
+}
+
+.md-status-badge.danger {
+  background: rgba(198, 40, 40, 0.16);
+  color: #7f1d1d;
+}
+
+.md-upgrade-actions form {
+  display: inline-flex;
 }
