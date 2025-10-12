@@ -56,18 +56,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
                 $hash = password_hash($password, PASSWORD_DEFAULT);
-                $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function,account_status,next_assessment_date) VALUES (?,?,?,?,?,?,?,?)");
-                $stm->execute([
-                    $username,
-                    $hash,
-                    $role,
-                    $_POST['full_name'] ?? null,
-                    $_POST['email'] ?? null,
-                    $workFunction,
-                    $accountStatus,
-                    $nextAssessment
-                ]);
-                $msg = t($t, 'user_created', 'User created successfully.');
+                try {
+                    $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function,account_status,next_assessment_date) VALUES (?,?,?,?,?,?,?,?)");
+                    $stm->execute([
+                        $username,
+                        $hash,
+                        $role,
+                        $_POST['full_name'] ?? null,
+                        $_POST['email'] ?? null,
+                        $workFunction,
+                        $accountStatus,
+                        $nextAssessment
+                    ]);
+                    $msg = t($t, 'user_created', 'User created successfully.');
+                } catch (PDOException $e) {
+                    if ((int)$e->getCode() === 23000) {
+                        $msg = t($t, 'username_exists', 'A user with that username already exists.');
+                    } else {
+                        error_log('Admin user create failed: ' . $e->getMessage());
+                        $msg = t($t, 'user_create_failed', 'Unable to create user. Please try again.');
+                    }
+                }
             }
         }
     }
@@ -110,9 +119,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $profileReset = ', profile_completed = 0';
                 }
                 $sql = 'UPDATE users SET ' . implode(', ', $fields) . $profileReset . ' WHERE id = ?';
-                $stm = $pdo->prepare($sql);
-                $stm->execute($params);
-                $msg = t($t, 'user_updated', 'User updated successfully.');
+                try {
+                    $stm = $pdo->prepare($sql);
+                    $stm->execute($params);
+                    $msg = t($t, 'user_updated', 'User updated successfully.');
+                } catch (PDOException $e) {
+                    error_log('Admin user update failed: ' . $e->getMessage());
+                    $msg = t($t, 'user_update_failed', 'Unable to update user. Please try again.');
+                }
             }
         }
     }
