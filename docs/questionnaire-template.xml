@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Questionnaire xmlns="http://hl7.org/fhir">
+  <id value="sample-questionnaire"/>
+  <title value="Sample Performance Questionnaire"/>
+  <status value="draft"/>
+  <item>
+    <linkId value="section-1"/>
+    <text value="General Performance"/>
+    <type value="group"/>
+    <item>
+      <linkId value="q1"/>
+      <text value="Completes assigned tasks on time."/>
+      <type value="choice"/>
+      <answerOption>
+        <valueString value="Strongly Disagree"/>
+      </answerOption>
+      <answerOption>
+        <valueString value="Disagree"/>
+      </answerOption>
+      <answerOption>
+        <valueString value="Neutral"/>
+      </answerOption>
+      <answerOption>
+        <valueString value="Agree"/>
+      </answerOption>
+      <answerOption>
+        <valueString value="Strongly Agree"/>
+      </answerOption>
+    </item>
+    <item>
+      <linkId value="q2"/>
+      <text value="Communicates effectively with the team."/>
+      <type value="choice"/>
+      <answerOption>
+        <valueString value="Strongly Disagree"/>
+      </answerOption>
+      <answerOption>
+        <valueString value="Disagree"/>
+      </answerOption>
+      <answerOption>
+        <valueString value="Neutral"/>
+      </answerOption>
+      <answerOption>
+        <valueString value="Agree"/>
+      </answerOption>
+      <answerOption>
+        <valueString value="Strongly Agree"/>
+      </answerOption>
+    </item>
+  </item>
+</Questionnaire>
