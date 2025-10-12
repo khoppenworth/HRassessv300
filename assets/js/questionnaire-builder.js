@@ -175,6 +175,8 @@ const Builder = (() => {
         item.weight_percent = parseInt(target.value || '0', 10) || 0;
       } else if (role === 'item-allow-multiple') {
         item.allow_multiple = target.checked;
+      } else if (role === 'item-required') {
+        item.is_required = target.checked;
       }
     } else if (role === 'option-value') {
       const sectionIndex = parseSectionIndex(target.dataset.sectionIndex);
@@ -348,6 +350,7 @@ const Builder = (() => {
       type: 'likert',
       weight_percent: 0,
       allow_multiple: false,
+      is_required: false,
       options: createLikertOptions(),
     });
     markDirty();
@@ -472,6 +475,7 @@ const Builder = (() => {
         type: normalizedType,
         weight_percent: Number.isFinite(item.weight_percent) ? item.weight_percent : parseInt(item.weight_percent || '0', 10) || 0,
         allow_multiple: normalizedType === 'choice' ? Boolean(item.allow_multiple) : false,
+        is_required: Boolean(item.is_required),
         options: normalizedOptions,
       };
     });
@@ -837,6 +841,21 @@ const Builder = (() => {
     weight.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
     weight.dataset.itemIndex = String(itemIndex);
     itemEl.appendChild(weight);
+
+    const requiredWrap = document.createElement('label');
+    requiredWrap.className = 'qb-checkbox qb-required-toggle';
+    const requiredInput = document.createElement('input');
+    requiredInput.type = 'checkbox';
+    requiredInput.checked = Boolean(item.is_required);
+    requiredInput.dataset.role = 'item-required';
+    requiredInput.dataset.qIndex = String(qIndex);
+    requiredInput.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+    requiredInput.dataset.itemIndex = String(itemIndex);
+    const requiredText = document.createElement('span');
+    requiredText.textContent = 'Required response';
+    requiredWrap.appendChild(requiredInput);
+    requiredWrap.appendChild(requiredText);
+    itemEl.appendChild(requiredWrap);
 
     if (isOptionType(item.type)) {
       const choiceWrap = document.createElement('div');

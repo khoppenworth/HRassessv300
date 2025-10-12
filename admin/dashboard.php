@@ -156,6 +156,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $responseItemsStmt = $pdo->query('SELECT response_id, linkId, answer FROM questionnaire_response_item ORDER BY response_id, id');
                 $addJson($zip, 'data/questionnaire_response_items.json', $responseItemsStmt ? $responseItemsStmt->fetchAll(PDO::FETCH_ASSOC) : []);
 
+                try {
+                    $tablesStmt = $pdo->query('SHOW TABLES');
+                    $tables = $tablesStmt ? $tablesStmt->fetchAll(PDO::FETCH_COLUMN) : [];
+                    if ($tables) {
+                        $dumpLines = [];
+                        $dumpLines[] = '-- Database backup generated ' . date('c');
+                        foreach ($tables as $tableName) {
+                            $table = (string)$tableName;
+                            if ($table === '') {
+                                continue;
+                            }
+                            $safeTable = str_replace('`', '``', $table);
+                            $dumpLines[] = '';
+                            $dumpLines[] = 'DROP TABLE IF EXISTS `' . $safeTable . '`;';
+                            $createStmt = $pdo->query('SHOW CREATE TABLE `' . $safeTable . '`');
+                            $createRow = $createStmt ? $createStmt->fetch(PDO::FETCH_ASSOC) : null;
+                            if ($createRow) {
+                                $createSql = $createRow['Create Table'] ?? ($createRow['Create View'] ?? null);
+                                if ($createSql) {
+                                    $dumpLines[] = $createSql . ';';
+                                }
+                            }
+                            $dataStmt = $pdo->query('SELECT * FROM `' . $safeTable . '`');
+                            if ($dataStmt) {
+                                while ($row = $dataStmt->fetch(PDO::FETCH_ASSOC)) {
+                                    $columns = array_map(static function ($column) {
+                                        return '`' . str_replace('`', '``', (string)$column) . '`';
+                                    }, array_keys($row));
+                                    $values = array_map(static function ($value) use ($pdo) {
+                                        if ($value === null) {
+                                            return 'NULL';
+                                        }
+                                        return $pdo->quote((string)$value);
+                                    }, array_values($row));
+                                    $dumpLines[] = sprintf(
+                                        'INSERT INTO `%s` (%s) VALUES (%s);',
+                                        $safeTable,
+                                        implode(', ', $columns),
+                                        implode(', ', $values)
+                                    );
+                                }
+                            }
+                        }
+                        $zip->addFromString('database/backup.sql', implode("\n", $dumpLines) . "\n");
+                    }
+                } catch (Throwable $dumpError) {
+                    error_log('Database backup export failed: ' . $dumpError->getMessage());
+                }
+
                 $uploadsDir = base_path('assets/uploads');
                 if (is_dir($uploadsDir)) {
                     $iterator = new RecursiveIteratorIterator(
@@ -168,6 +217,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $zip->addFile($fileInfo->getPathname(), 'uploads/' . $relative);
                         }
                     }
+                }
+
+                try {
+                    $appRoot = base_path('');
+                    $zip->addEmptyDir('application');
+                    $iterator = new RecursiveIteratorIterator(
+                        new RecursiveDirectoryIterator($appRoot, FilesystemIterator::SKIP_DOTS)
+                    );
+                    foreach ($iterator as $fileInfo) {
+                        if (!$fileInfo->isFile()) {
+                            continue;
+                        }
+                        $pathName = $fileInfo->getPathname();
+                        if (strpos($pathName, $backupDir) === 0) {
+                            continue;
+                        }
+                        $relative = substr($pathName, strlen($appRoot) + 1);
+                        if ($relative === false) {
+                            continue;
+                        }
+                        $relative = str_replace('\\', '/', $relative);
+                        if (strpos($relative, '.git/') === 0) {
+                            continue;
+                        }
+                        $zip->addFile($pathName, 'application/' . $relative);
+                    }
+                } catch (Throwable $archiveError) {
+                    error_log('Application archive export failed: ' . $archiveError->getMessage());
                 }
 
                 $zip->close();

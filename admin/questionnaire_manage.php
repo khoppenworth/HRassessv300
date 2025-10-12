@@ -100,6 +100,7 @@ if ($action === 'fetch') {
             'order_index' => (int)$item['order_index'],
             'weight_percent' => (int)$item['weight_percent'],
             'allow_multiple' => (bool)$item['allow_multiple'],
+            'is_required' => (bool)($item['is_required'] ?? false),
             'options' => $optionsByItem[(int)$item['id']] ?? [],
         ];
         if ($sid) {
@@ -202,8 +203,8 @@ if ($action === 'save' || $action === 'publish') {
         $insertSectionStmt = $pdo->prepare('INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index) VALUES (?, ?, ?, ?)');
         $updateSectionStmt = $pdo->prepare('UPDATE questionnaire_section SET title=?, description=?, order_index=? WHERE id=?');
 
-        $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-        $updateItemStmt = $pdo->prepare('UPDATE questionnaire_item SET section_id=?, linkId=?, text=?, type=?, order_index=?, weight_percent=?, allow_multiple=? WHERE id=?');
+        $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $updateItemStmt = $pdo->prepare('UPDATE questionnaire_item SET section_id=?, linkId=?, text=?, type=?, order_index=?, weight_percent=?, allow_multiple=?, is_required=? WHERE id=?');
         $insertOptionStmt = $pdo->prepare('INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index) VALUES (?, ?, ?)');
         $updateOptionStmt = $pdo->prepare('UPDATE questionnaire_item_option SET value=?, order_index=? WHERE id=?');
         $insertWorkFunctionStmt = $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
@@ -329,14 +330,15 @@ if ($action === 'save' || $action === 'publish') {
                     }
                     $weight = isset($itemData['weight_percent']) ? (int)$itemData['weight_percent'] : 0;
                     $allowMultiple = !empty($itemData['allow_multiple']);
+                    $isRequired = !empty($itemData['is_required']);
                     if ($type !== 'choice') {
                         $allowMultiple = false;
                     }
 
                     if ($itemId && isset($existingItems[$itemId])) {
-                        $updateItemStmt->execute([$sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $itemId]);
+                        $updateItemStmt->execute([$sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemId]);
                     } else {
-                        $insertItemStmt->execute([$qid, $sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0]);
+                        $insertItemStmt->execute([$qid, $sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0]);
                         $itemId = (int)$pdo->lastInsertId();
                         if ($itemClientId) {
                             $idMap['items'][$itemClientId] = $itemId;
@@ -375,14 +377,15 @@ if ($action === 'save' || $action === 'publish') {
                 }
                 $weight = isset($itemData['weight_percent']) ? (int)$itemData['weight_percent'] : 0;
                 $allowMultiple = !empty($itemData['allow_multiple']);
+                $isRequired = !empty($itemData['is_required']);
                 if ($type !== 'choice') {
                     $allowMultiple = false;
                 }
 
                 if ($itemId && isset($existingItems[$itemId])) {
-                    $updateItemStmt->execute([null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $itemId]);
+                    $updateItemStmt->execute([null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemId]);
                 } else {
-                    $insertItemStmt->execute([$qid, null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0]);
+                    $insertItemStmt->execute([$qid, null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0]);
                     $itemId = (int)$pdo->lastInsertId();
                     if ($itemClientId) {
                         $idMap['items'][$itemClientId] = $itemId;
@@ -499,7 +502,7 @@ if (isset($_POST['import'])) {
                 }
 
                 $insertSectionStmt = $pdo->prepare('INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index) VALUES (?, ?, ?, ?)');
-                $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple) VALUES (?,?,?,?,?,?,?,?)');
+                $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required) VALUES (?,?,?,?,?,?,?,?,?)');
                 $insertOptionStmt = $pdo->prepare('INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index) VALUES (?,?,?)');
 
                 $sectionOrder = 1;
@@ -595,6 +598,7 @@ if (isset($_POST['import'])) {
                             $itemOrderIndex,
                             0,
                             $dbType === 'choice' && $allowMultiple ? 1 : 0,
+                            $isTruthy($it['required'] ?? false) ? 1 : 0,
                         ]);
                         $itemId = (int)$pdo->lastInsertId();
                         if ($dbType === 'choice' || $dbType === 'likert') {

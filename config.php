@@ -50,6 +50,7 @@ if (!defined('APP_BOOTSTRAPPED')) {
         ensure_site_config_schema($pdo);
         ensure_users_schema($pdo);
         ensure_user_roles_schema($pdo);
+        ensure_questionnaire_item_schema($pdo);
     } catch (PDOException $e) {
         $friendly = 'Unable to connect to the application database. Please try again later or contact support.';
         error_log('DB connection failed: ' . $e->getMessage());
@@ -402,6 +403,24 @@ function ensure_user_roles_schema(PDO $pdo): void
         }
     } catch (PDOException $e) {
         error_log('ensure_user_roles_schema: ' . $e->getMessage());
+    }
+}
+
+function ensure_questionnaire_item_schema(PDO $pdo): void
+{
+    try {
+        $columns = $pdo->query('SHOW COLUMNS FROM questionnaire_item');
+        $existing = [];
+        if ($columns) {
+            while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
+                $existing[$col['Field']] = $col;
+            }
+        }
+        if (!isset($existing['is_required'])) {
+            $pdo->exec("ALTER TABLE questionnaire_item ADD COLUMN is_required TINYINT(1) NOT NULL DEFAULT 0 AFTER allow_multiple");
+        }
+    } catch (PDOException $e) {
+        error_log('ensure_questionnaire_item_schema: ' . $e->getMessage());
     }
 }
 
