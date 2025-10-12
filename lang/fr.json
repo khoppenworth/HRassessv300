@@ -1,6 +1,8 @@
 {
   "invalid_login": "Nom d'utilisateur ou mot de passe invalide",
   "welcome_msg": "Connectez-vous pour commencer votre auto-évaluation et suivre vos performances dans le temps.",
+  "landing_intro": "Bienvenue sur le portail de gestion de la performance. Découvrez les ressources et les actualités sur le programme d'évaluation de votre organisation.",
+  "login_now": "Accéder à la connexion sécurisée",
   "username": "Nom d'utilisateur",
   "password": "Mot de passe",
   "sign_in": "Connexion",
