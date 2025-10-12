@@ -55,7 +55,8 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS microsoft_oauth_client_secret VARCHAR(255) NULL AFTER microsoft_oauth_client_id,
   ADD COLUMN IF NOT EXISTS microsoft_oauth_tenant VARCHAR(255) NULL AFTER microsoft_oauth_client_secret,
   ADD COLUMN IF NOT EXISTS color_theme VARCHAR(50) NOT NULL DEFAULT 'light' AFTER microsoft_oauth_tenant,
-  ADD COLUMN IF NOT EXISTS smtp_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER color_theme,
+  ADD COLUMN IF NOT EXISTS brand_color VARCHAR(7) NULL AFTER color_theme,
+  ADD COLUMN IF NOT EXISTS smtp_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER brand_color,
   ADD COLUMN IF NOT EXISTS smtp_host VARCHAR(255) NULL AFTER smtp_enabled,
   ADD COLUMN IF NOT EXISTS smtp_port INT NULL AFTER smtp_host,
   ADD COLUMN IF NOT EXISTS smtp_username VARCHAR(255) NULL AFTER smtp_port,
@@ -87,7 +88,17 @@ INSERT IGNORE INTO site_config (
   microsoft_oauth_client_id,
   microsoft_oauth_client_secret,
   microsoft_oauth_tenant,
-  color_theme
+  color_theme,
+  brand_color,
+  smtp_enabled,
+  smtp_host,
+  smtp_port,
+  smtp_username,
+  smtp_password,
+  smtp_encryption,
+  smtp_from_email,
+  smtp_from_name,
+  smtp_timeout
 ) VALUES (
   1,
   'My Performance',
@@ -111,8 +122,31 @@ INSERT IGNORE INTO site_config (
   NULL,
   NULL,
   'common',
-  'light'
+  'light',
+  '#2073bf',
+  0,
+  NULL,
+  587,
+  NULL,
+  NULL,
+  'none',
+  NULL,
+  NULL,
+  20
 );
+
+UPDATE site_config
+SET brand_color = '#2073bf'
+WHERE id = 1
+  AND (brand_color IS NULL OR brand_color = '');
+
+UPDATE site_config
+SET logo_path = CONCAT('/', TRIM(BOTH '/' FROM logo_path))
+WHERE id = 1
+  AND logo_path IS NOT NULL
+  AND logo_path <> ''
+  AND logo_path NOT LIKE 'http://%'
+  AND logo_path NOT LIKE 'https://%';
 
 ALTER TABLE users
   ADD COLUMN gender ENUM('female','male','other','prefer_not_say') NULL AFTER email,
