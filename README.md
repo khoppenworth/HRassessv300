@@ -55,8 +55,10 @@ git clone https://github.com/your-org/HRassessv300.git /var/www/hrassess
 cp /var/www/hrassess/.env.example /var/www/hrassess/.env
 ```
 
-Populate the `.env` file with the production database connection, base URL, and SMTP settings. When deploying behind a
-reverse proxy or subdirectory, adjust `BASE_URL` accordingly. Ensure writable directories exist for uploads:
+Populate the `.env` file with the production database connection, base URL, and SMTP settings. The application bootstrap
+loads `/var/www/hrassess/.env` automatically so both Apache and CLI commands inherit the same configuration. When
+deploying behind a reverse proxy or subdirectory, adjust `BASE_URL` accordingly. Ensure writable directories exist for
+uploads:
 
 ```sh
 mkdir -p /var/www/hrassess/assets/uploads/branding
@@ -150,7 +152,8 @@ and backups for future releases.
 
 ## Configuration
 
-Environment variables are read directly via `getenv`. Set them in your shell or a `.env` file (loaded by your web server):
+Environment variables are read directly via `getenv`. The bootstrap loads a project-local `.env` file if present, so the
+values apply consistently to web requests and CLI scripts:
 
 - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`
 - `BASE_URL` (defaults to `/`)
