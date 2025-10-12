@@ -508,28 +508,17 @@ function ensure_questionnaire_work_function_schema(PDO $pdo): void
             $pdo->exec('ALTER TABLE questionnaire_work_function ADD PRIMARY KEY (questionnaire_id, work_function)');
         }
 
-        $countStmt = $pdo->query('SELECT COUNT(*) AS total FROM questionnaire_work_function');
-        $rowCount = $countStmt ? (int)$countStmt->fetchColumn() : 0;
-        if ($rowCount > 0) {
-            return;
-        }
-
-        $tableExistsStmt = $pdo->query("SHOW TABLES LIKE 'questionnaire'");
-        $questionnaireTableExists = $tableExistsStmt && $tableExistsStmt->fetch(PDO::FETCH_NUM);
-        if (!$questionnaireTableExists) {
-            return;
-        }
-
         $questionnaireStmt = $pdo->query('SELECT id FROM questionnaire');
-        if (!$questionnaireStmt) {
-            return;
-        }
-
-        $insert = $pdo->prepare('INSERT IGNORE INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
-        while (($qid = $questionnaireStmt->fetchColumn()) !== false) {
-            $qid = (int)$qid;
-            foreach (WORK_FUNCTIONS as $wf) {
-                $insert->execute([$qid, $wf]);
+        if ($questionnaireStmt) {
+            $ids = $questionnaireStmt->fetchAll(PDO::FETCH_COLUMN);
+            if ($ids) {
+                $insert = $pdo->prepare('INSERT IGNORE INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
+                foreach ($ids as $qid) {
+                    $qid = (int)$qid;
+                    foreach (WORK_FUNCTIONS as $wf) {
+                        $insert->execute([$qid, $wf]);
+                    }
+                }
             }
         }
     } catch (PDOException $e) {
