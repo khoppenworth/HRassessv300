@@ -4,6 +4,8 @@ require_once __DIR__ . '/config.php';
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$availableLocales = available_locales();
+$defaultLocale = $availableLocales[0] ?? 'en';
 $err = '';
 
 $oauthProviders = [];
@@ -49,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $u['first_login_at'] = date('Y-m-d H:i:s');
             }
             $_SESSION['user'] = $u;
-            $_SESSION['lang'] = $u['language'] ?? ($_SESSION['lang'] ?? 'en');
+            $_SESSION['lang'] = resolve_locale($u['language'] ?? ($_SESSION['lang'] ?? 'en'));
 
             if (($u['account_status'] ?? 'active') === 'pending') {
                 $_SESSION['pending_notice'] = true;
@@ -149,9 +151,15 @@ $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
           <div class="md-small"><strong><?= t($t, 'contact_label', 'Contact') ?>:</strong> <?= $contact ?></div>
         <?php endif; ?>
         <div class="md-small lang-switch">
-          <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=en'), ENT_QUOTES, 'UTF-8') ?>">EN</a> ·
-          <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=am'), ENT_QUOTES, 'UTF-8') ?>">AM</a> ·
-          <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=fr'), ENT_QUOTES, 'UTF-8') ?>">FR</a>
+          <?php
+          $links = [];
+          foreach ($availableLocales as $loc) {
+              $url = htmlspecialchars(url_for('set_lang.php?lang=' . $loc), ENT_QUOTES, 'UTF-8');
+              $label = htmlspecialchars(strtoupper($loc), ENT_QUOTES, 'UTF-8');
+              $links[] = "<a href='" . $url . "'>" . $label . "</a>";
+          }
+          echo implode(' · ', $links);
+          ?>
         </div>
       </div>
     </div>
@@ -159,8 +167,8 @@ $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
 
   <script nonce="<?= htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8') ?>">
     window.APP_BASE_URL = <?= json_encode(BASE_URL, JSON_THROW_ON_ERROR) ?>;
-    window.APP_DEFAULT_LOCALE = <?= json_encode(AVAILABLE_LOCALES[0], JSON_THROW_ON_ERROR) ?>;
-    window.APP_AVAILABLE_LOCALES = <?= json_encode(AVAILABLE_LOCALES, JSON_THROW_ON_ERROR) ?>;
+    window.APP_DEFAULT_LOCALE = <?= json_encode($defaultLocale, JSON_THROW_ON_ERROR) ?>;
+    window.APP_AVAILABLE_LOCALES = <?= json_encode($availableLocales, JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="<?= asset_url('assets/js/app.js') ?>"></script>
 </body>

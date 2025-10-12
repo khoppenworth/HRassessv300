@@ -1,14 +1,89 @@
 <?php
 
-const AVAILABLE_LOCALES = ['en', 'fr', 'am'];
+const SUPPORTED_LOCALES = ['en', 'fr', 'am'];
+
+function sanitize_locale_selection(array $locales): array {
+    $requested = [];
+    foreach ($locales as $locale) {
+        $locale = strtolower(trim((string)$locale));
+        if ($locale !== '' && !isset($requested[$locale])) {
+            $requested[$locale] = true;
+        }
+    }
+
+    $result = [];
+    foreach (SUPPORTED_LOCALES as $supported) {
+        if (isset($requested[$supported])) {
+            $result[] = $supported;
+        }
+    }
+
+    return $result;
+}
+
+function enforce_locale_requirements(array $locales): array
+{
+    $sanitized = sanitize_locale_selection($locales);
+    if (!$sanitized) {
+        $sanitized = sanitize_locale_selection(SUPPORTED_LOCALES);
+    }
+
+    if (!array_intersect($sanitized, ['en', 'fr'])) {
+        $sanitized[] = 'en';
+        $sanitized = sanitize_locale_selection($sanitized);
+    }
+
+    return $sanitized;
+}
+
+function remember_available_locales(array $locales): void
+{
+    $normalized = enforce_locale_requirements($locales);
+    $_SESSION['enabled_locales'] = $normalized;
+
+    if (!empty($_SESSION['lang']) && !in_array($_SESSION['lang'], $normalized, true)) {
+        $_SESSION['lang'] = $normalized[0];
+    }
+    if (!empty($_SESSION['user']['language']) && !in_array($_SESSION['user']['language'], $normalized, true)) {
+        $_SESSION['user']['language'] = $normalized[0];
+    }
+}
+
+function locale_display_name(string $locale): string
+{
+    $names = [
+        'en' => 'English',
+        'fr' => 'French',
+        'am' => 'Amharic',
+    ];
+
+    $locale = strtolower($locale);
+    return $names[$locale] ?? strtoupper($locale);
+}
 
 function available_locales(): array {
-    return AVAILABLE_LOCALES;
+    $sessionValue = $_SESSION['enabled_locales'] ?? null;
+
+    if (is_string($sessionValue) && $sessionValue !== '') {
+        $decoded = json_decode($sessionValue, true);
+        $sessionValue = is_array($decoded) ? $decoded : null;
+    }
+
+    if (is_array($sessionValue)) {
+        $locales = enforce_locale_requirements($sessionValue);
+        $_SESSION['enabled_locales'] = $locales;
+        return $locales;
+    }
+
+    $defaults = enforce_locale_requirements(SUPPORTED_LOCALES);
+    $_SESSION['enabled_locales'] = $defaults;
+    return $defaults;
 }
 
 function resolve_locale(?string $locale): string {
     $locale = strtolower((string)$locale);
-    return in_array($locale, AVAILABLE_LOCALES, true) ? $locale : 'en';
+    $enabled = available_locales();
+    return in_array($locale, $enabled, true) ? $locale : ($enabled[0] ?? 'en');
 }
 
 function locale_cookie_path(): string {

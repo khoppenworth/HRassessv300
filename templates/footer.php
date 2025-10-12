@@ -4,6 +4,8 @@ require_once __DIR__ . '/../config.php';
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$availableLocales = available_locales();
+$defaultLocale = $availableLocales[0] ?? 'en';
 $siteTitle = htmlspecialchars($cfg['site_name'] ?? t($t, 'footer_default_site', 'Ethiopian Pharmaceutical Supply Service'), ENT_QUOTES, 'UTF-8');
 $orgName = htmlspecialchars(($cfg['footer_org_name'] ?? null) ?: t($t, 'footer_org', 'Ethiopian Pharmaceutical Supply Service'), ENT_QUOTES, 'UTF-8');
 $orgShort = htmlspecialchars(($cfg['footer_org_short'] ?? null) ?: t($t, 'footer_org_short', 'EPSS / EPS'), ENT_QUOTES, 'UTF-8');
@@ -52,7 +54,7 @@ $currentYear = date('Y');
 </footer>
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
   window.APP_BASE_URL = <?=json_encode(BASE_URL, JSON_THROW_ON_ERROR)?>;
-  window.APP_DEFAULT_LOCALE = window.APP_DEFAULT_LOCALE || <?=json_encode(AVAILABLE_LOCALES[0], JSON_THROW_ON_ERROR)?>;
-  window.APP_AVAILABLE_LOCALES = window.APP_AVAILABLE_LOCALES || <?=json_encode(AVAILABLE_LOCALES, JSON_THROW_ON_ERROR)?>;
+  window.APP_DEFAULT_LOCALE = window.APP_DEFAULT_LOCALE || <?=json_encode($defaultLocale, JSON_THROW_ON_ERROR)?>;
+  window.APP_AVAILABLE_LOCALES = window.APP_AVAILABLE_LOCALES || <?=json_encode($availableLocales, JSON_THROW_ON_ERROR)?>;
 </script>
 <script src="<?=asset_url('assets/js/app.js')?>"></script>

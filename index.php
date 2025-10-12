@@ -4,6 +4,8 @@ require_once __DIR__ . '/config.php';
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$availableLocales = available_locales();
+$defaultLocale = $availableLocales[0] ?? 'en';
 
 $logoPath = get_branding_logo_path($cfg);
 if ($logoPath === null) {
@@ -68,9 +70,15 @@ $loginUrl = htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8');
           <a href="<?= $loginUrl ?>"><?= t($t, 'login_now', 'Go to secure login') ?></a>
         </div>
         <div class="md-small lang-switch">
-          <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=en'), ENT_QUOTES, 'UTF-8') ?>">EN</a> ·
-          <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=am'), ENT_QUOTES, 'UTF-8') ?>">AM</a> ·
-          <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=fr'), ENT_QUOTES, 'UTF-8') ?>">FR</a>
+          <?php
+          $links = [];
+          foreach ($availableLocales as $loc) {
+              $url = htmlspecialchars(url_for('set_lang.php?lang=' . $loc), ENT_QUOTES, 'UTF-8');
+              $label = htmlspecialchars(strtoupper($loc), ENT_QUOTES, 'UTF-8');
+              $links[] = "<a href='" . $url . "'>" . $label . "</a>";
+          }
+          echo implode(' · ', $links);
+          ?>
         </div>
       </div>
     </div>
@@ -78,8 +86,8 @@ $loginUrl = htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8');
 
   <script nonce="<?= htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8') ?>">
     window.APP_BASE_URL = <?= json_encode(BASE_URL, JSON_THROW_ON_ERROR) ?>;
-    window.APP_DEFAULT_LOCALE = <?= json_encode(AVAILABLE_LOCALES[0], JSON_THROW_ON_ERROR) ?>;
-    window.APP_AVAILABLE_LOCALES = <?= json_encode(AVAILABLE_LOCALES, JSON_THROW_ON_ERROR) ?>;
+    window.APP_DEFAULT_LOCALE = <?= json_encode($defaultLocale, JSON_THROW_ON_ERROR) ?>;
+    window.APP_AVAILABLE_LOCALES = <?= json_encode($availableLocales, JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="<?= asset_url('assets/js/app.js') ?>"></script>
 </body>
