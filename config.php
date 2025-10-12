@@ -55,6 +55,7 @@ if (!defined('APP_BOOTSTRAPPED')) {
         ensure_users_schema($pdo);
         ensure_user_roles_schema($pdo);
         ensure_questionnaire_item_schema($pdo);
+        ensure_questionnaire_work_function_schema($pdo);
     } catch (PDOException $e) {
         $friendly = 'Unable to connect to the application database. Please try again later or contact support.';
         error_log('DB connection failed: ' . $e->getMessage());
@@ -470,6 +471,69 @@ function ensure_questionnaire_item_schema(PDO $pdo): void
         }
     } catch (PDOException $e) {
         error_log('ensure_questionnaire_item_schema: ' . $e->getMessage());
+    }
+}
+
+function ensure_questionnaire_work_function_schema(PDO $pdo): void
+{
+    try {
+        $enumValues = array_map(static function ($value) {
+            return str_replace("'", "''", (string)$value);
+        }, WORK_FUNCTIONS);
+        $enumList = "'" . implode("','", $enumValues) . "'";
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS questionnaire_work_function (
+            questionnaire_id INT NOT NULL,
+            work_function ENUM($enumList) NOT NULL,
+            PRIMARY KEY (questionnaire_id, work_function)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $columnsStmt = $pdo->query('SHOW COLUMNS FROM questionnaire_work_function');
+        $columns = [];
+        if ($columnsStmt) {
+            while ($column = $columnsStmt->fetch(PDO::FETCH_ASSOC)) {
+                $columns[$column['Field']] = $column;
+            }
+        }
+
+        if (!isset($columns['work_function'])) {
+            $pdo->exec("ALTER TABLE questionnaire_work_function ADD COLUMN work_function ENUM($enumList) NOT NULL AFTER questionnaire_id");
+        } else {
+            $pdo->exec("ALTER TABLE questionnaire_work_function MODIFY COLUMN work_function ENUM($enumList) NOT NULL");
+        }
+
+        $primaryIndex = $pdo->query("SHOW INDEX FROM questionnaire_work_function WHERE Key_name = 'PRIMARY'");
+        $hasPrimary = $primaryIndex && $primaryIndex->fetch(PDO::FETCH_ASSOC);
+        if (!$hasPrimary) {
+            $pdo->exec('ALTER TABLE questionnaire_work_function ADD PRIMARY KEY (questionnaire_id, work_function)');
+        }
+
+        $countStmt = $pdo->query('SELECT COUNT(*) AS total FROM questionnaire_work_function');
+        $rowCount = $countStmt ? (int)$countStmt->fetchColumn() : 0;
+        if ($rowCount > 0) {
+            return;
+        }
+
+        $tableExistsStmt = $pdo->query("SHOW TABLES LIKE 'questionnaire'");
+        $questionnaireTableExists = $tableExistsStmt && $tableExistsStmt->fetch(PDO::FETCH_NUM);
+        if (!$questionnaireTableExists) {
+            return;
+        }
+
+        $questionnaireStmt = $pdo->query('SELECT id FROM questionnaire');
+        if (!$questionnaireStmt) {
+            return;
+        }
+
+        $insert = $pdo->prepare('INSERT IGNORE INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
+        while (($qid = $questionnaireStmt->fetchColumn()) !== false) {
+            $qid = (int)$qid;
+            foreach (WORK_FUNCTIONS as $wf) {
+                $insert->execute([$qid, $wf]);
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('ensure_questionnaire_work_function_schema: ' . $e->getMessage());
     }
 }
 
