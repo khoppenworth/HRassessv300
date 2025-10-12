@@ -61,31 +61,6 @@ if (!defined('APP_BOOTSTRAPPED')) {
             'ethics' => 'Ethics',
         ]);
     }
-    if (!defined('DEFAULT_USER_ROLES')) {
-        define('DEFAULT_USER_ROLES', [
-            [
-                'role_key' => 'admin',
-                'label' => 'Administrator',
-                'description' => 'Full administrative access to manage the platform.',
-                'sort_order' => 0,
-                'is_protected' => 1,
-            ],
-            [
-                'role_key' => 'supervisor',
-                'label' => 'Supervisor',
-                'description' => 'Can review assessments and manage assigned staff.',
-                'sort_order' => 10,
-                'is_protected' => 1,
-            ],
-            [
-                'role_key' => 'staff',
-                'label' => 'Staff',
-                'description' => 'Standard access for employees completing assessments.',
-                'sort_order' => 20,
-                'is_protected' => 1,
-            ],
-        ]);
-    }
     if (!defined('DEFAULT_BRAND_COLOR')) {
         define('DEFAULT_BRAND_COLOR', '#2073bf');
     }
@@ -124,7 +99,6 @@ if (!defined('APP_BOOTSTRAPPED')) {
         define('DB_DRIVER', $pdo->getAttribute(PDO::ATTR_DRIVER_NAME));
         ensure_site_config_schema($pdo);
         ensure_users_schema($pdo);
-        ensure_user_roles_schema($pdo);
     } catch (PDOException $e) {
         $friendly = 'Unable to connect to the application database. Please try again later or contact support.';
         error_log('DB connection failed: ' . $e->getMessage());
@@ -490,20 +464,12 @@ function ensure_users_schema(PDO $pdo): void
         error_log('ensure_users_schema: ' . $e->getMessage());
         return;
     }
-    $roleColumn = null;
     if ($columns) {
         while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
             if (isset($col['Field'])) {
                 $existing[$col['Field']] = true;
             }
-            if (($col['Field'] ?? '') === 'role') {
-                $roleColumn = $col;
-            }
         }
-    }
-
-    if ($roleColumn && isset($roleColumn['Type']) && stripos((string)$roleColumn['Type'], 'enum(') !== false) {
-        $pdo->exec("ALTER TABLE users MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'staff'");
     }
 
     $changes = [
@@ -519,137 +485,6 @@ function ensure_users_schema(PDO $pdo): void
             $pdo->exec($sql);
         }
     }
-}
-
-function ensure_user_roles_schema(PDO $pdo): void
-{
-    $driver = pdo_driver($pdo);
-
-    try {
-        if ($driver === 'sqlite') {
-            $pdo->exec("CREATE TABLE IF NOT EXISTS user_role (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                role_key TEXT NOT NULL UNIQUE,
-                label TEXT NOT NULL,
-                description TEXT NULL,
-                sort_order INTEGER NOT NULL DEFAULT 0,
-                is_protected INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NULL
-            )");
-            $columns = $pdo->query('PRAGMA table_info(user_role)');
-            $existing = [];
-            if ($columns) {
-                while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
-                    if (isset($col['name'])) {
-                        $existing[$col['name']] = true;
-                    }
-                }
-            }
-            $required = [
-                'description' => 'ALTER TABLE user_role ADD COLUMN description TEXT NULL',
-                'sort_order' => 'ALTER TABLE user_role ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0',
-                'is_protected' => 'ALTER TABLE user_role ADD COLUMN is_protected INTEGER NOT NULL DEFAULT 0',
-                'created_at' => "ALTER TABLE user_role ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))",
-                'updated_at' => 'ALTER TABLE user_role ADD COLUMN updated_at TEXT NULL',
-            ];
-            foreach ($required as $field => $sql) {
-                if (!isset($existing[$field])) {
-                    $pdo->exec($sql);
-                }
-            }
-            $insertSql = 'INSERT INTO user_role (role_key, label, description, sort_order, is_protected) VALUES (?,?,?,?,?) '
-                . 'ON CONFLICT(role_key) DO UPDATE SET label=excluded.label, description=excluded.description, sort_order=excluded.sort_order, is_protected=excluded.is_protected';
-        } else {
-            $pdo->exec("CREATE TABLE IF NOT EXISTS user_role (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                role_key VARCHAR(50) NOT NULL UNIQUE,
-                label VARCHAR(100) NOT NULL,
-                description TEXT NULL,
-                sort_order INT NOT NULL DEFAULT 0,
-                is_protected TINYINT(1) NOT NULL DEFAULT 0,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-            $columns = $pdo->query('SHOW COLUMNS FROM user_role');
-            $existing = [];
-            if ($columns) {
-                while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
-                    $existing[$col['Field']] = true;
-                }
-            }
-
-            $required = [
-                'description' => 'ALTER TABLE user_role ADD COLUMN description TEXT NULL AFTER label',
-                'sort_order' => 'ALTER TABLE user_role ADD COLUMN sort_order INT NOT NULL DEFAULT 0 AFTER description',
-                'is_protected' => 'ALTER TABLE user_role ADD COLUMN is_protected TINYINT(1) NOT NULL DEFAULT 0 AFTER sort_order',
-                'created_at' => 'ALTER TABLE user_role ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER is_protected',
-                'updated_at' => 'ALTER TABLE user_role ADD COLUMN updated_at DATETIME NULL DEFAULT NULL AFTER created_at',
-            ];
-
-            foreach ($required as $field => $sql) {
-                if (!isset($existing[$field])) {
-                    $pdo->exec($sql);
-                }
-            }
-            $insertSql = 'INSERT INTO user_role (role_key, label, description, sort_order, is_protected) VALUES (?,?,?,?,?) '
-                . 'ON DUPLICATE KEY UPDATE label=VALUES(label), description=VALUES(description), sort_order=VALUES(sort_order), is_protected=VALUES(is_protected)';
-        }
-
-        foreach (DEFAULT_USER_ROLES as $index => $role) {
-            $stmt = $pdo->prepare($insertSql);
-            $stmt->execute([
-                $role['role_key'],
-                $role['label'],
-                $role['description'],
-                $role['sort_order'] ?? ($index * 10),
-                $role['is_protected'] ?? 0,
-            ]);
-        }
-    } catch (PDOException $e) {
-        error_log('ensure_user_roles_schema: ' . $e->getMessage());
-    }
-}
-
-function load_user_roles(PDO $pdo, bool $forceRefresh = false): array
-{
-    static $cache = null;
-    if ($forceRefresh || $cache === null) {
-        try {
-            $stmt = $pdo->query('SELECT id, role_key, label, description, sort_order, is_protected FROM user_role ORDER BY sort_order ASC, label ASC');
-            $cache = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
-        } catch (PDOException $e) {
-            error_log('load_user_roles: ' . $e->getMessage());
-            $cache = [];
-        }
-    }
-    return $cache ?? [];
-}
-
-function get_user_roles(PDO $pdo, bool $includeProtected = true): array
-{
-    $roles = load_user_roles($pdo);
-    if ($includeProtected) {
-        return $roles;
-    }
-    return array_values(array_filter($roles, static function ($role) {
-        return (int)($role['is_protected'] ?? 0) === 0;
-    }));
-}
-
-function get_user_role_map(PDO $pdo): array
-{
-    $map = [];
-    foreach (load_user_roles($pdo) as $role) {
-        $map[(string)$role['role_key']] = $role;
-    }
-    return $map;
-}
-
-function refresh_user_role_cache(PDO $pdo): void
-{
-    load_user_roles($pdo, true);
 }
 
 function site_color_theme(array $cfg): string

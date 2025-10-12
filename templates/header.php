@@ -67,7 +67,6 @@ $brandStyle = site_brand_style($cfg);
         <span class="md-drawer-label"><?=t($t, 'admin_navigation', 'Administration')?></span>
         <a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'admin_dashboard', 'Admin Dashboard')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'manage_users', 'Manage Users')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/metadata_roles.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'role_metadata', 'Role Metadata')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'analytics', 'Analytics')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'export_data', 'Export Data')?></a>
