@@ -6,13 +6,7 @@ $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $user = current_user();
 $role = $user['role'] ?? ($_SESSION['user']['role'] ?? null);
-$logoPath = (string)($cfg['logo_path'] ?? '');
-if ($logoPath === '') {
-    $logoPath = asset_url('assets/img/epss-logo.svg');
-} elseif (!preg_match('#^https?://#i', $logoPath)) {
-    $logoPath = asset_url(ltrim($logoPath, '/'));
-}
-$logoPathSmall = htmlspecialchars($logoPath, ENT_QUOTES, 'UTF-8');
+$logoPathSmall = htmlspecialchars(site_logo_url($cfg), ENT_QUOTES, 'UTF-8');
 $siteTitle = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
 $availableLocales = available_locales();
 $brandStyle = site_brand_style($cfg);
