@@ -125,36 +125,6 @@ DEALLOCATE PREPARE stmt;
 ALTER TABLE questionnaire_item
   ADD COLUMN IF NOT EXISTS is_required TINYINT(1) NOT NULL DEFAULT 0 AFTER allow_multiple;
 
--- Ensure user_role table exists with required metadata.
-CREATE TABLE IF NOT EXISTS user_role (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  role_key VARCHAR(50) NOT NULL UNIQUE,
-  label VARCHAR(100) NOT NULL,
-  description TEXT NULL,
-  sort_order INT NOT NULL DEFAULT 0,
-  is_protected TINYINT(1) NOT NULL DEFAULT 0,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-ALTER TABLE user_role
-  ADD COLUMN IF NOT EXISTS description TEXT NULL AFTER label,
-  ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 0 AFTER description,
-  ADD COLUMN IF NOT EXISTS is_protected TINYINT(1) NOT NULL DEFAULT 0 AFTER sort_order,
-  ADD COLUMN IF NOT EXISTS created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER is_protected,
-  ADD COLUMN IF NOT EXISTS updated_at DATETIME NULL DEFAULT NULL AFTER created_at;
-
-INSERT INTO user_role (role_key, label, description, sort_order, is_protected)
-VALUES
-  ('admin', 'Administrator', 'Full administrative access to manage the platform.', 0, 1),
-  ('supervisor', 'Supervisor', 'Can review assessments and manage assigned staff.', 10, 1),
-  ('staff', 'Staff', 'Standard access for employees completing assessments.', 20, 1)
-ON DUPLICATE KEY UPDATE
-  label = VALUES(label),
-  description = VALUES(description),
-  sort_order = VALUES(sort_order),
-  is_protected = VALUES(is_protected);
-
 -- Ensure questionnaire_work_function exists and is keyed properly.
 CREATE TABLE IF NOT EXISTS questionnaire_work_function (
   questionnaire_id INT NOT NULL,

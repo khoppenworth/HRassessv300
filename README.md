@@ -130,7 +130,7 @@ mysql -u hrassess -p hrassess < /var/www/hrassess/migration.sql
 mysql -u hrassess -p hrassess < /var/www/hrassess/dummy_data.sql
 ```
 
-If you are upgrading from an installation that predates v3.0.0, apply the consolidated upgrade script to provision the new `user_role` table, questionnaire work-function mapping, and SMTP configuration columns:
+If you are upgrading from an installation that predates v3.0.0, apply the consolidated upgrade script to provision the questionnaire work-function mapping and SMTP configuration columns:
 
 ```sh
 mysql -u hrassess -p hrassess < /var/www/hrassess/upgrade_to_v3.sql

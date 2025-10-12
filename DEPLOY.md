@@ -79,7 +79,7 @@ mysql -u epss_user -p epss_v300 < init.sql
 mysql -u epss_user -p epss_v300 < dummy_data.sql
 ```
 
-Upgrading from releases prior to v3.0.0? Run the consolidated upgrade helper to add the `user_role` table, questionnaire work-function mapping, and SMTP settings columns:
+Upgrading from releases prior to v3.0.0? Run the consolidated upgrade helper to add the questionnaire work-function mapping and SMTP settings columns:
 
 ```bash
 mysql -u epss_user -p epss_v300 < upgrade_to_v3.sql
