@@ -11,19 +11,26 @@ $msg = $_SESSION['admin_users_flash'] ?? '';
 if ($msg !== '') {
     unset($_SESSION['admin_users_flash']);
 }
-$roleOptions = get_user_roles($pdo);
+$roleOptions = [
+    [
+        'role_key' => 'staff',
+        'label' => t($t, 'role_staff', 'staff'),
+    ],
+    [
+        'role_key' => 'supervisor',
+        'label' => t($t, 'role_supervisor', 'supervisor'),
+    ],
+    [
+        'role_key' => 'admin',
+        'label' => t($t, 'role_admin', 'admin'),
+    ],
+];
 $roleMap = [];
 foreach ($roleOptions as $roleRow) {
     $key = (string)$roleRow['role_key'];
     $roleMap[$key] = $roleRow;
 }
-$defaultRoleKey = 'staff';
-if (!isset($roleMap[$defaultRoleKey]) && $roleOptions) {
-    $first = reset($roleOptions);
-    if ($first) {
-        $defaultRoleKey = (string)$first['role_key'];
-    }
-}
+$defaultRoleKey = isset($roleMap['staff']) ? 'staff' : ($roleOptions ? (string)$roleOptions[0]['role_key'] : 'staff');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 

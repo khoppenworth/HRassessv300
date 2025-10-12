@@ -215,8 +215,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $migrationPath = base_path('migration.sql');
                 $runSqlScript($pdo, $migrationPath);
                 ensure_users_schema($pdo);
-                ensure_user_roles_schema($pdo);
-                refresh_user_role_cache($pdo);
                 $upgradeState['current_version'] = $upgradeState['available_version'];
                 $upgradeState['available_version'] = null;
                 $upgradeState['backup_ready'] = false;
