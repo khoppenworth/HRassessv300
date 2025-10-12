@@ -1,0 +1,181 @@
+-- Upgrade script to align existing HRassess databases with the v3.0 schema requirements.
+-- The statements are idempotent and can be run multiple times.
+
+-- Ensure site_config table exists with all required columns.
+CREATE TABLE IF NOT EXISTS site_config (
+  id INT PRIMARY KEY,
+  site_name VARCHAR(200) NULL,
+  landing_text TEXT NULL,
+  address VARCHAR(255) NULL,
+  contact VARCHAR(255) NULL,
+  logo_path VARCHAR(255) NULL,
+  footer_org_name VARCHAR(255) NULL,
+  footer_org_short VARCHAR(100) NULL,
+  footer_website_label VARCHAR(255) NULL,
+  footer_website_url VARCHAR(255) NULL,
+  footer_email VARCHAR(255) NULL,
+  footer_phone VARCHAR(255) NULL,
+  footer_hotline_label VARCHAR(255) NULL,
+  footer_hotline_number VARCHAR(50) NULL,
+  footer_rights VARCHAR(255) NULL,
+  google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  google_oauth_client_id VARCHAR(255) NULL,
+  google_oauth_client_secret VARCHAR(255) NULL,
+  microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  microsoft_oauth_client_id VARCHAR(255) NULL,
+  microsoft_oauth_client_secret VARCHAR(255) NULL,
+  microsoft_oauth_tenant VARCHAR(255) NULL,
+  color_theme VARCHAR(50) NOT NULL DEFAULT 'light',
+  brand_color VARCHAR(7) NULL,
+  smtp_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  smtp_host VARCHAR(255) NULL,
+  smtp_port INT NULL,
+  smtp_username VARCHAR(255) NULL,
+  smtp_password VARCHAR(255) NULL,
+  smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none',
+  smtp_from_email VARCHAR(255) NULL,
+  smtp_from_name VARCHAR(255) NULL,
+  smtp_timeout INT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE site_config
+  ADD COLUMN IF NOT EXISTS site_name VARCHAR(200) NULL,
+  ADD COLUMN IF NOT EXISTS landing_text TEXT NULL,
+  ADD COLUMN IF NOT EXISTS address VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS contact VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS logo_path VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS footer_org_name VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS footer_org_short VARCHAR(100) NULL,
+  ADD COLUMN IF NOT EXISTS footer_website_label VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS footer_website_url VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS footer_email VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS footer_phone VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS footer_hotline_label VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS footer_hotline_number VARCHAR(50) NULL,
+  ADD COLUMN IF NOT EXISTS footer_rights VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS google_oauth_client_id VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS google_oauth_client_secret VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS microsoft_oauth_client_id VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS microsoft_oauth_client_secret VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS microsoft_oauth_tenant VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS color_theme VARCHAR(50) NOT NULL DEFAULT 'light',
+  ADD COLUMN IF NOT EXISTS brand_color VARCHAR(7) NULL,
+  ADD COLUMN IF NOT EXISTS smtp_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS smtp_host VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS smtp_port INT NULL,
+  ADD COLUMN IF NOT EXISTS smtp_username VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS smtp_password VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none',
+  ADD COLUMN IF NOT EXISTS smtp_from_email VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS smtp_from_name VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL;
+
+INSERT INTO site_config (
+  id, site_name, landing_text, address, contact, logo_path,
+  footer_org_name, footer_org_short, footer_website_label, footer_website_url,
+  footer_email, footer_phone, footer_hotline_label, footer_hotline_number,
+  footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret,
+  microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant,
+  color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password,
+  smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout
+) VALUES (
+  1, 'My Performance', NULL, NULL, NULL, NULL,
+  'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et',
+  'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939',
+  'All rights reserved.', 0, NULL, NULL,
+  0, NULL, NULL, 'common',
+  'light', '#2073bf', 0, NULL, 587, NULL, NULL,
+  'none', NULL, NULL, 20
+) ON DUPLICATE KEY UPDATE
+  site_name = COALESCE(site_config.site_name, VALUES(site_name)),
+  brand_color = IFNULL(site_config.brand_color, VALUES(brand_color)),
+  color_theme = IFNULL(site_config.color_theme, VALUES(color_theme)),
+  smtp_port = IFNULL(site_config.smtp_port, VALUES(smtp_port)),
+  smtp_timeout = IFNULL(site_config.smtp_timeout, VALUES(smtp_timeout));
+
+-- Ensure users table columns match the application expectations.
+ALTER TABLE users
+  MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'staff';
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active' AFTER language,
+  ADD COLUMN IF NOT EXISTS next_assessment_date DATE NULL AFTER account_status,
+  ADD COLUMN IF NOT EXISTS approved_by INT NULL AFTER next_assessment_date,
+  ADD COLUMN IF NOT EXISTS approved_at DATETIME NULL AFTER approved_by,
+  ADD COLUMN IF NOT EXISTS sso_provider VARCHAR(50) NULL AFTER approved_at;
+
+SET @has_fk_users_approved_by := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND CONSTRAINT_NAME = 'fk_users_approved_by'
+);
+SET @sql_users_fk := IF(
+  @has_fk_users_approved_by = 0,
+  'ALTER TABLE users ADD CONSTRAINT fk_users_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL;',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_users_fk;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Ensure questionnaire_item includes the is_required flag.
+ALTER TABLE questionnaire_item
+  ADD COLUMN IF NOT EXISTS is_required TINYINT(1) NOT NULL DEFAULT 0 AFTER allow_multiple;
+
+-- Ensure user_role table exists with required metadata.
+CREATE TABLE IF NOT EXISTS user_role (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  role_key VARCHAR(50) NOT NULL UNIQUE,
+  label VARCHAR(100) NOT NULL,
+  description TEXT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_protected TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE user_role
+  ADD COLUMN IF NOT EXISTS description TEXT NULL AFTER label,
+  ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 0 AFTER description,
+  ADD COLUMN IF NOT EXISTS is_protected TINYINT(1) NOT NULL DEFAULT 0 AFTER sort_order,
+  ADD COLUMN IF NOT EXISTS created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER is_protected,
+  ADD COLUMN IF NOT EXISTS updated_at DATETIME NULL DEFAULT NULL AFTER created_at;
+
+INSERT INTO user_role (role_key, label, description, sort_order, is_protected)
+VALUES
+  ('admin', 'Administrator', 'Full administrative access to manage the platform.', 0, 1),
+  ('supervisor', 'Supervisor', 'Can review assessments and manage assigned staff.', 10, 1),
+  ('staff', 'Staff', 'Standard access for employees completing assessments.', 20, 1)
+ON DUPLICATE KEY UPDATE
+  label = VALUES(label),
+  description = VALUES(description),
+  sort_order = VALUES(sort_order),
+  is_protected = VALUES(is_protected);
+
+-- Ensure questionnaire_work_function exists and is keyed properly.
+CREATE TABLE IF NOT EXISTS questionnaire_work_function (
+  questionnaire_id INT NOT NULL,
+  work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL,
+  PRIMARY KEY (questionnaire_id, work_function)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE questionnaire_work_function
+  MODIFY COLUMN work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL;
+
+SET @has_qwf_fk := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_work_function'
+    AND CONSTRAINT_NAME = 'fk_qwf_questionnaire'
+);
+SET @sql_qwf_fk := IF(
+  @has_qwf_fk = 0,
+  'ALTER TABLE questionnaire_work_function ADD CONSTRAINT fk_qwf_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE;',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_qwf_fk;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
