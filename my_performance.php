@@ -320,7 +320,7 @@ if ($flash === 'submitted') {
 <meta charset="utf-8"><title><?=htmlspecialchars(t($t,'my_performance','My Performance'), ENT_QUOTES, 'UTF-8')?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
-<link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+<link rel="manifest" href="<?=asset_url('manifest.php')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head><body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
@@ -455,13 +455,29 @@ if ($flash === 'submitted') {
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
   (function () {
     const radarData = <?=json_encode($sectionBreakdowns, $radarJsonFlags)?>;
+    const rootStyles = getComputedStyle(document.documentElement);
+    const cssVar = (name, fallback) => {
+      const value = rootStyles.getPropertyValue(name);
+      if (value && value.trim()) {
+        return value.trim();
+      }
+      if (fallback) {
+        const fallbackValue = rootStyles.getPropertyValue(fallback);
+        if (fallbackValue && fallbackValue.trim()) {
+          return fallbackValue.trim();
+        }
+      }
+      return '';
+    };
     const palette = [
-      { bg: 'rgba(32, 115, 191, 0.18)', border: 'rgba(32, 115, 191, 0.85)' },
-      { bg: 'rgba(97, 179, 236, 0.18)', border: 'rgba(97, 179, 236, 0.85)' },
-      { bg: 'rgba(246, 181, 17, 0.18)', border: 'rgba(246, 181, 17, 0.85)' },
-      { bg: 'rgba(80, 180, 99, 0.18)', border: 'rgba(80, 180, 99, 0.85)' },
-      { bg: 'rgba(171, 71, 188, 0.18)', border: 'rgba(171, 71, 188, 0.85)' }
-    ];
+      { bg: cssVar('--app-primary-soft'), border: cssVar('--app-primary') },
+      { bg: cssVar('--status-warning-soft'), border: cssVar('--status-warning') },
+      { bg: cssVar('--status-success-soft'), border: cssVar('--status-success') },
+      { bg: cssVar('--status-info-soft'), border: cssVar('--status-info', '--app-secondary') }
+    ].filter((entry) => entry.bg && entry.border);
+    if (!palette.length) {
+      palette.push({ bg: cssVar('--app-primary-soft'), border: cssVar('--app-primary') });
+    }
 
     function formatLabel(label, value) {
       const rounded = typeof value === 'number' ? value.toFixed(1) : value;
@@ -498,7 +514,7 @@ if ($flash === 'submitted') {
               borderColor: colors.border,
               borderWidth: 2,
               pointBackgroundColor: colors.border,
-              pointBorderColor: '#ffffff',
+              pointBorderColor: cssVar('--app-surface', '--brand-bg'),
               pointRadius: 4,
               pointHoverRadius: 5
             }]

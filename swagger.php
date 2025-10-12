@@ -15,7 +15,7 @@ $openapiUrl = asset_url('docs/openapi.json');
   <title><?=htmlspecialchars(t($t,'api_documentation','API Documentation'), ENT_QUOTES, 'UTF-8')?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
-  <link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+  <link rel="manifest" href="<?=asset_url('manifest.php')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" integrity="sha384-x3uAv89xDSHLVQQDBlnJrped1IovnHgwlHGawEq+y3OC/YLXTr4Wr9PXgC7cmkQC" crossorigin="anonymous">
@@ -32,7 +32,7 @@ $openapiUrl = asset_url('docs/openapi.json');
       border-bottom: 1px solid var(--app-border);
     }
     .swagger-ui .topbar a span {
-      color: #fff !important;
+      color: var(--app-text-inverse) !important;
       font-weight: 600;
       letter-spacing: 0.01em;
     }
@@ -45,8 +45,8 @@ $openapiUrl = asset_url('docs/openapi.json');
     .swagger-ui .btn.authorize {
       background: var(--app-primary) !important;
       border-color: var(--app-primary-dark) !important;
-      color: #fff !important;
-      box-shadow: 0 6px 16px rgba(17, 68, 117, 0.24);
+      color: var(--app-on-primary) !important;
+      box-shadow: var(--floating-shadow);
     }
     .swagger-ui .btn.authorize svg {
       fill: currentColor;
@@ -54,7 +54,7 @@ $openapiUrl = asset_url('docs/openapi.json');
     .swagger-ui .model-box-control,
     .swagger-ui .opblock .opblock-summary-method {
       background: var(--app-primary-dark) !important;
-      color: #fff !important;
+      color: var(--app-on-primary) !important;
     }
     .swagger-ui .scheme-container {
       border-bottom: 1px solid var(--app-border);
@@ -66,12 +66,12 @@ $openapiUrl = asset_url('docs/openapi.json');
       color: var(--app-muted);
     }
     .swagger-ui .opblock.opblock-get {
-      border-color: rgba(32, 115, 191, 0.32);
-      background: rgba(32, 115, 191, 0.06);
+      border-color: var(--app-primary-softer);
+      background: var(--app-primary-soft);
     }
     .swagger-ui .opblock.opblock-post {
-      border-color: rgba(97, 179, 236, 0.32);
-      background: rgba(97, 179, 236, 0.08);
+      border-color: var(--app-secondary-soft);
+      background: var(--app-secondary-soft);
     }
     .md-step-list {
       margin: 0;

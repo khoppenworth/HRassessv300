@@ -254,7 +254,7 @@ Visit http://127.0.0.1:8000/index.php, log in with the seeded credentials, and e
 * Admin login: `admin` / `Admin123`.
 * Supervisor login: `super` / same placeholder hash.
 * Staff login: `staff` / same placeholder hash.
-* Default branding: “My Performance” with EPSS logo at `assets/img/epss-logo.svg`.
+* Default branding: “My Performance” with a theme-derived EPSS logo served by `logo.php`.
 * Translations: English (`lang/en.json`) is loaded by default; add additional JSON files to `lang/` for other locales.
 
 ---

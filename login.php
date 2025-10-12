@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $logoPath = get_branding_logo_path($cfg);
 if ($logoPath === null) {
-    $logoRenderPath = asset_url('assets/img/epss-logo.svg');
+    $logoRenderPath = asset_url('logo.php');
 } elseif (preg_match('#^https?://#i', $logoPath)) {
     $logoRenderPath = $logoPath;
 } else {
@@ -90,7 +90,7 @@ $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
   <title><?= $siteName ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="app-base-url" content="<?= $baseUrl ?>">
-  <link rel="manifest" href="<?= asset_url('manifest.webmanifest') ?>">
+  <link rel="manifest" href="<?= asset_url('manifest.php') ?>">
   <link rel="stylesheet" href="<?= asset_url('assets/css/material.css') ?>">
   <link rel="stylesheet" href="<?= asset_url('assets/css/styles.css') ?>">
 </head>

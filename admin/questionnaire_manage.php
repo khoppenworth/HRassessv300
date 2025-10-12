@@ -660,7 +660,7 @@ if (isset($_POST['import'])) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
 <meta name="csrf-token" content="<?=htmlspecialchars(csrf_token(), ENT_QUOTES)?>">
-<link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+<link rel="manifest" href="<?=asset_url('manifest.php')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/questionnaire-builder.css')?>">

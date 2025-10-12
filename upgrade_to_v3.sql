@@ -86,7 +86,7 @@ INSERT INTO site_config (
   'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939',
   'All rights reserved.', 0, NULL, NULL,
   0, NULL, NULL, 'common',
-  'light', '#2073bf', 0, NULL, 587, NULL, NULL,
+  'light', NULL, 0, NULL, 587, NULL, NULL,
   'none', NULL, NULL, 20
 ) ON DUPLICATE KEY UPDATE
   site_name = COALESCE(site_config.site_name, VALUES(site_name)),

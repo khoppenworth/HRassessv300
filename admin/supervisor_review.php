@@ -25,7 +25,7 @@ $rows = $pdo->query("SELECT qr.*, u.username, q.title FROM questionnaire_respons
   <title><?=htmlspecialchars(t($t,'review_queue','Review Queue'), ENT_QUOTES, 'UTF-8')?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
-  <link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+  <link rel="manifest" href="<?=asset_url('manifest.php')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head>

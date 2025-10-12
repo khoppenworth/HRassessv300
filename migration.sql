@@ -123,7 +123,7 @@ INSERT IGNORE INTO site_config (
   NULL,
   'common',
   'light',
-  '#2073bf',
+  NULL,
   0,
   NULL,
   587,
@@ -136,7 +136,7 @@ INSERT IGNORE INTO site_config (
 );
 
 UPDATE site_config
-SET brand_color = '#2073bf'
+SET brand_color = NULL
 WHERE id = 1
   AND (brand_color IS NULL OR brand_color = '');
 

@@ -22,7 +22,7 @@
   if (!document.querySelector('link[rel="manifest"]')) {
     const manifest = document.createElement('link');
     manifest.rel = 'manifest';
-    manifest.href = normalizedBase + '/manifest.webmanifest';
+    manifest.href = normalizedBase + '/manifest.php';
     document.head.appendChild(manifest);
   }
 
@@ -39,7 +39,9 @@
     const valueEl = picker.querySelector('.md-color-value');
     const resetBtn = picker.querySelector('[data-brand-color-reset]');
     const resetField = picker.querySelector('[data-brand-color-reset-field]');
-    const defaultColor = (picker.dataset.defaultColor || '#2073BF').toUpperCase();
+    const rootStyles = window.getComputedStyle(document.documentElement);
+    const themePrimary = (rootStyles.getPropertyValue('--app-primary') || rootStyles.getPropertyValue('--brand-primary') || '').trim();
+    const defaultColor = (picker.dataset.defaultColor || themePrimary || '').toUpperCase();
 
     const formatColor = (value) => {
       if (typeof value !== 'string' || value === '') {

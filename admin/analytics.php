@@ -104,7 +104,7 @@ SQL;
   <title><?=htmlspecialchars(t($t,'analytics','Analytics'), ENT_QUOTES, 'UTF-8')?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
-  <link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+  <link rel="manifest" href="<?=asset_url('manifest.php')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head>
@@ -231,16 +231,31 @@ SQL;
       const workFunctionData = <?=$workFunctionJson?>;
       const statusData = <?=$statusChartJson?>;
       const rootStyles = getComputedStyle(document.documentElement);
-      const cssVar = (name, fallback) => {
+      const cssVar = (name, fallbackName) => {
         const value = rootStyles.getPropertyValue(name);
-        return value ? value.trim() : fallback;
+        if (value) {
+          const trimmed = value.trim();
+          if (trimmed) {
+            return trimmed;
+          }
+        }
+        if (fallbackName) {
+          const fallbackValue = rootStyles.getPropertyValue(fallbackName);
+          if (fallbackValue) {
+            const fallbackTrimmed = fallbackValue.trim();
+            if (fallbackTrimmed) {
+              return fallbackTrimmed;
+            }
+          }
+        }
+        return '';
       };
       const palette = {
-        primary: cssVar('--app-primary', '#2073bf'),
-        secondary: cssVar('--app-secondary', '#61b3ec'),
-        accent: cssVar('--app-accent', '#f6b511'),
-        muted: cssVar('--app-muted', '#2b4160'),
-        border: cssVar('--app-primary-dark', '#165997'),
+        primary: cssVar('--app-primary', '--brand-primary'),
+        secondary: cssVar('--app-secondary', '--brand-secondary'),
+        accent: cssVar('--app-accent', '--status-warning'),
+        muted: cssVar('--app-muted', '--brand-muted'),
+        border: cssVar('--app-primary-dark', '--brand-primary-dark'),
       };
 
       const avgCanvas = document.getElementById('avgScoreChart');
@@ -393,7 +408,7 @@ SQL;
               {
                 data: statusData.map((entry) => entry.value),
                 backgroundColor: colors,
-                borderColor: '#ffffff',
+                borderColor: cssVar('--app-surface', '--brand-bg'),
                 borderWidth: 2,
               },
             ],
