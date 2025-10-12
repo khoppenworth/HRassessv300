@@ -11,14 +11,20 @@ $cfg = get_site_config($pdo);
 
 $user = current_user();
 $questionnaireSql = "SELECT DISTINCT q.id, q.title FROM questionnaire q";
-if ($user['role'] === 'staff') {
-    $questionnaireSql .= " JOIN questionnaire_work_function qw ON qw.questionnaire_id = q.id WHERE qw.work_function = :wf";
-    $questionnaireSql .= " ORDER BY q.title";
-    $stmt = $pdo->prepare($questionnaireSql);
-    $stmt->execute(['wf' => $user['work_function']]);
-    $q = $stmt->fetchAll();
-} else {
-    $q = $pdo->query("SELECT id, title FROM questionnaire ORDER BY title")->fetchAll();
+try {
+    if ($user['role'] === 'staff') {
+        $questionnaireSql .= " JOIN questionnaire_work_function qw ON qw.questionnaire_id = q.id WHERE qw.work_function = :wf";
+        $questionnaireSql .= " ORDER BY q.title";
+        $stmt = $pdo->prepare($questionnaireSql);
+        $stmt->execute(['wf' => $user['work_function']]);
+        $q = $stmt->fetchAll();
+    } else {
+        $q = $pdo->query("SELECT id, title FROM questionnaire ORDER BY title")->fetchAll();
+    }
+} catch (PDOException $e) {
+    error_log('submit_assessment questionnaire lookup failed: ' . $e->getMessage());
+    $fallback = $pdo->query('SELECT id, title FROM questionnaire ORDER BY title');
+    $q = $fallback ? $fallback->fetchAll() : [];
 }
 $periods = $pdo->query("SELECT id, label FROM performance_period ORDER BY period_start DESC")->fetchAll();
 $qid = (int)($_GET['qid'] ?? ($q[0]['id'] ?? 0));
