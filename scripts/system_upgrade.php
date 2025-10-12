@@ -411,7 +411,7 @@ function applyUpgrade(string $sourceBase, string $appPath, array $preservePaths)
         if (shouldSkipPath($relative, $preservePaths)) {
             continue;
         }
-        if ($relative === '.git' || str_starts_with($relative, '.git' . DIRECTORY_SEPARATOR)) {
+        if ($relative === '.git' || strpos($relative, '.git' . DIRECTORY_SEPARATOR) === 0) {
             continue;
         }
 
@@ -446,7 +446,7 @@ function shouldSkipPath(string $relative, array $preservePaths): bool
         if ($normalizedPreserve === $normalized) {
             return true;
         }
-        if (str_starts_with($normalized, $normalizedPreserve . '/')) {
+        if (strpos($normalized, $normalizedPreserve . '/') === 0) {
             return true;
         }
     }
