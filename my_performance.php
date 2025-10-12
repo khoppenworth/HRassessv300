@@ -7,6 +7,7 @@ $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $user = current_user();
+$userWorkFunctionLabel = work_function_label($pdo, (string)($user['work_function'] ?? ''));
 
 function compute_section_breakdowns(PDO $pdo, array $responses, array $translations): array
 {
@@ -328,7 +329,7 @@ if ($flash === 'submitted') {
   <?php if ($flashMessage): ?><div class="md-alert success"><?=htmlspecialchars($flashMessage, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t,'performance_overview','Performance Overview')?></h2>
-    <p><?=t($t,'current_work_function','Current work function:')?> <?=htmlspecialchars(WORK_FUNCTION_LABELS[$user['work_function']] ?? $user['work_function'])?></p>
+    <p><?=t($t,'current_work_function','Current work function:')?> <?=htmlspecialchars($userWorkFunctionLabel !== '' ? $userWorkFunctionLabel : (string)($user['work_function'] ?? ''), ENT_QUOTES, 'UTF-8')?></p>
     <?php if ($latestEntry): ?>
       <p><?=t($t,'latest_submission','Latest submission:')?> <?=htmlspecialchars($latestEntry['period_label'])?> · <?=htmlspecialchars($latestEntry['title'])?> (<?= is_null($latestEntry['score']) ? '-' : (int)$latestEntry['score'] ?>%)</p>
     <?php else: ?>

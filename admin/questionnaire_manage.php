@@ -6,6 +6,8 @@ require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$workFunctionChoices = work_function_choices($pdo);
+$availableWorkFunctions = array_keys($workFunctionChoices);
 
 const LIKERT_DEFAULT_OPTIONS = [
     '1 - Strongly Disagree',
@@ -138,7 +140,7 @@ if ($action === 'fetch') {
             'created_at' => $row['created_at'],
             'sections' => $sections,
             'items' => $itemsByQuestionnaire[$qid] ?? [],
-            'work_functions' => $workFunctionsByQuestionnaire[$qid] ?? WORK_FUNCTIONS,
+            'work_functions' => $workFunctionsByQuestionnaire[$qid] ?? $availableWorkFunctions,
         ];
     }
 
@@ -415,18 +417,18 @@ if ($action === 'save' || $action === 'publish') {
                 $stmt->execute(array_values($itemsToDelete));
             }
 
-            $workFunctionsInput = $qData['work_functions'] ?? WORK_FUNCTIONS;
+            $workFunctionsInput = $qData['work_functions'] ?? $availableWorkFunctions;
             if (!is_array($workFunctionsInput)) {
-                $workFunctionsInput = WORK_FUNCTIONS;
+                $workFunctionsInput = $availableWorkFunctions;
             }
             $allowedFunctions = [];
             foreach ($workFunctionsInput as $wf) {
-                if (is_string($wf) && in_array($wf, WORK_FUNCTIONS, true)) {
+                if (is_string($wf) && isset($workFunctionChoices[$wf])) {
                     $allowedFunctions[] = $wf;
                 }
             }
             if (!$allowedFunctions) {
-                $allowedFunctions = WORK_FUNCTIONS;
+                $allowedFunctions = $availableWorkFunctions;
             }
             $deleteWorkFunctionStmt->execute([$qid]);
             foreach ($allowedFunctions as $wf) {
@@ -501,7 +503,7 @@ if (isset($_POST['import'])) {
                     ]);
                 $qid = (int)$pdo->lastInsertId();
                 $recentImportId = $qid;
-                foreach (WORK_FUNCTIONS as $wf) {
+                foreach ($availableWorkFunctions as $wf) {
                     $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)')
                         ->execute([$qid, $wf]);
                 }

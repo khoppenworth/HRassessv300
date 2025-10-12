@@ -6,6 +6,8 @@ require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$workFunctionOptions = work_function_choices($pdo);
+$defaultWorkFunction = array_key_first($workFunctionOptions) ?? 'general_service';
 
 $msg = $_SESSION['admin_users_flash'] ?? '';
 if ($msg !== '') {
@@ -38,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
         $role = $_POST['role'] ?? 'staff';
-        $workFunction = $_POST['work_function'] ?? 'general_service';
+        $workFunction = $_POST['work_function'] ?? $defaultWorkFunction;
         $accountStatus = $_POST['account_status'] ?? 'active';
         $nextAssessment = trim($_POST['next_assessment_date'] ?? '');
         if (!in_array($accountStatus, ['active','pending','disabled'], true)) {
@@ -61,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (!isset($roleMap[$role])) {
                 $msg = t($t, 'invalid_role', 'Invalid role selection.');
             } else {
-                if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
+                if (!isset($workFunctionOptions[$workFunction])) { $workFunction = $defaultWorkFunction; }
                 $hash = password_hash($password, PASSWORD_DEFAULT);
                 try {
                     $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function,account_status,next_assessment_date) VALUES (?,?,?,?,?,?,?,?)");
@@ -92,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         $newPassword = $_POST['new_password'] ?? '';
         $role = $_POST['role'] ?? 'staff';
-        $workFunction = $_POST['work_function'] ?? 'general_service';
+        $workFunction = $_POST['work_function'] ?? $defaultWorkFunction;
         $accountStatus = $_POST['account_status'] ?? 'active';
         $nextAssessment = trim($_POST['next_assessment_date'] ?? '');
         if (!in_array($accountStatus, ['active','pending','disabled'], true)) {
@@ -115,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (!isset($roleMap[$role])) {
                 $msg = t($t, 'invalid_role', 'Invalid role selection.');
             } else {
-                if (!in_array($workFunction, WORK_FUNCTIONS, true)) { $workFunction = 'general_service'; }
+                if (!isset($workFunctionOptions[$workFunction])) { $workFunction = $defaultWorkFunction; }
                 $fields = ['role = ?', 'work_function = ?', 'account_status = ?', 'next_assessment_date = ?'];
                 $params = [$role, $workFunction, $accountStatus, $nextAssessment, $id];
                 $profileReset = '';
@@ -218,8 +220,8 @@ $statusLabels = [
 <label class="md-field"><span><?=t($t,'email','Email')?></span><input name="email"></label>
 <label class="md-field"><span><?=t($t,'work_function','Work Function / Cadre')?></span>
   <select name="work_function">
-    <?php foreach (WORK_FUNCTIONS as $function): ?>
-      <option value="<?=$function?>"><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function)?></option>
+    <?php foreach ($workFunctionOptions as $function => $label): ?>
+      <option value="<?=$function?>"><?=htmlspecialchars($label ?? $function, ENT_QUOTES, 'UTF-8')?></option>
     <?php endforeach; ?>
   </select>
 </label>
@@ -262,7 +264,7 @@ $statusLabels = [
           }
           $initials = mb_strtoupper(mb_substr($initials, 0, 2, 'UTF-8'), 'UTF-8');
           $email = trim((string)($r['email'] ?? ''));
-          $workFunctionLabel = WORK_FUNCTION_LABELS[$r['work_function']] ?? $r['work_function'];
+          $workFunctionLabel = work_function_label($pdo, (string)($r['work_function'] ?? ''));
           $nextAssessment = $r['next_assessment_date'] ?? '';
           $nextAssessmentDisplay = '—';
           if ($nextAssessment !== '') {
@@ -350,8 +352,8 @@ $statusLabels = [
                 <label class="md-field md-field--compact">
                   <span><?=t($t,'work_function','Work Function / Cadre')?></span>
                   <select name="work_function">
-                    <?php foreach (WORK_FUNCTIONS as $function): ?>
-                      <option value="<?=$function?>" <?=$r['work_function']===$function?'selected':''?>><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function, ENT_QUOTES, 'UTF-8')?></option>
+                    <?php foreach ($workFunctionOptions as $function => $label): ?>
+                      <option value="<?=$function?>" <?=$r['work_function']===$function?'selected':''?>><?=htmlspecialchars($label ?? $function, ENT_QUOTES, 'UTF-8')?></option>
                     <?php endforeach; ?>
                   </select>
                 </label>

@@ -8,6 +8,7 @@ $cfg = get_site_config($pdo);
 $user = current_user();
 $message = '';
 $error = '';
+$workFunctionOptions = work_function_choices($pdo);
 $pendingStatus = ($user['account_status'] ?? 'active') === 'pending';
 $pendingNotice = $pendingStatus;
 if (!empty($_SESSION['pending_notice'])) {
@@ -95,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = t($t,'invalid_email','Provide a valid email address.');
     } elseif (!in_array($gender, ['female','male','other','prefer_not_say'], true)) {
         $error = t($t,'invalid_gender','Select a valid gender option.');
-    } elseif (!in_array($workFunction, WORK_FUNCTIONS, true)) {
+    } elseif (!isset($workFunctionOptions[$workFunction])) {
         $error = t($t,'invalid_work_function','Select a valid work function.');
     } elseif (strlen($phoneLocalDigits) < 6 || strlen($phoneLocalDigits) > 12) {
         $error = t($t,'invalid_phone','Enter a valid phone number including the country code.');
@@ -211,8 +212,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <select name="work_function" required>
           <?php $wval = $user['work_function'] ?? ''; ?>
           <option value="" disabled <?= $wval ? '' : 'selected' ?>><?=t($t,'select_option','Select')?></option>
-          <?php foreach (WORK_FUNCTIONS as $function): ?>
-            <option value="<?=$function?>" <?=$wval===$function?'selected':''?>><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function)?></option>
+          <?php foreach ($workFunctionOptions as $function => $label): ?>
+            <option value="<?=$function?>" <?=$wval===$function?'selected':''?>><?=htmlspecialchars($label ?? $function, ENT_QUOTES, 'UTF-8')?></option>
           <?php endforeach; ?>
         </select>
       </label>
