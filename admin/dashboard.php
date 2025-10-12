@@ -272,6 +272,52 @@ $backupDownloadUrl = !empty($upgradeState['last_backup_path']) ? asset_url($upgr
 
   <div class="md-dashboard-grid">
     <div class="md-card md-elev-2 md-dashboard-card">
+      <h2 class="md-card-title"><?=t($t,'system_upgrade','System Upgrade')?></h2>
+      <div class="md-upgrade-status">
+        <div><strong><?=t($t,'current_version','Current version')?>:</strong> <span class="md-status-badge success"><?=htmlspecialchars((string)$upgradeState['current_version'], ENT_QUOTES, 'UTF-8')?></span></div>
+        <div><strong><?=t($t,'available_version','Available version')?>:</strong>
+          <?php if ($availableVersion): ?>
+            <span class="md-status-badge warning"><?=htmlspecialchars($availableVersion, ENT_QUOTES, 'UTF-8')?></span>
+          <?php else: ?>
+            <span class="md-status-badge success"><?=t($t,'no_update_required','Up to date')?></span>
+          <?php endif; ?>
+        </div>
+        <div><strong><?=t($t,'backup_status','Backup status')?>:</strong>
+          <span class="md-status-badge <?=$backupReady ? 'success' : 'warning'?>"><?=$backupReady ? t($t,'backup_ready','Backup ready') : t($t,'backup_required','Backup required')?></span>
+        </div>
+        <?php if ($lastCheckDisplay): ?>
+          <div class="md-upgrade-meta"><?=t($t,'last_checked','Last checked:')?> <?=htmlspecialchars($lastCheckDisplay, ENT_QUOTES, 'UTF-8')?></div>
+        <?php endif; ?>
+        <?php if ($lastBackupDisplay): ?>
+          <div class="md-upgrade-meta">
+            <?=t($t,'last_backup','Last backup:')?> <?=htmlspecialchars($lastBackupDisplay, ENT_QUOTES, 'UTF-8')?>
+            <?php if ($backupDownloadUrl): ?>
+              · <a href="<?=htmlspecialchars($backupDownloadUrl, ENT_QUOTES, 'UTF-8')?>" class="md-appbar-link" download><?=t($t,'download_backup','Download backup')?></a>
+            <?php endif; ?>
+          </div>
+        <?php endif; ?>
+      </div>
+      <div class="md-upgrade-actions">
+        <form method="post">
+          <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+          <input type="hidden" name="action" value="check_upgrade">
+          <button type="submit" class="md-button md-outline md-elev-1"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
+        </form>
+        <form method="post">
+          <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+          <input type="hidden" name="action" value="download_backups">
+          <button type="submit" class="md-button md-elev-1"><?=t($t,'download_backups','Download backups')?></button>
+        </form>
+        <form method="post">
+          <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+          <input type="hidden" name="action" value="install_upgrade">
+          <button type="submit" class="md-button md-primary md-elev-2" <?=(!$availableVersion || !$backupReady) ? 'disabled' : ''?>><?=t($t,'install_upgrade','Install Upgrade')?></button>
+        </form>
+      </div>
+      <p class="md-upgrade-meta"><?=t($t,'upgrade_hint','Ensure a recent backup has been downloaded before applying upgrades.')?></p>
+    </div>
+
+    <div class="md-card md-elev-2 md-dashboard-card">
       <h2 class="md-card-title"><?=t($t,'system_snapshot','System Snapshot')?></h2>
       <ul class="md-stat-list">
         <li class="md-stat-item"><span class="md-stat-label"><?=t($t,'total_users','Total accounts')?></span><span class="md-stat-value"><?=$users?></span></li>
@@ -304,52 +350,6 @@ $backupDownloadUrl = !empty($upgradeState['last_backup_path']) ? asset_url($upgr
       </ul>
       <p class="md-upgrade-meta"><?=t($t,'insight_hint','Use these trends to target coaching and professional development activities.')?></p>
     </div>
-  </div>
-
-  <div class="md-card md-elev-2 md-dashboard-card">
-    <h2 class="md-card-title"><?=t($t,'system_upgrade','System Upgrade')?></h2>
-    <div class="md-upgrade-status">
-      <div><strong><?=t($t,'current_version','Current version')?>:</strong> <span class="md-status-badge success"><?=htmlspecialchars((string)$upgradeState['current_version'], ENT_QUOTES, 'UTF-8')?></span></div>
-      <div><strong><?=t($t,'available_version','Available version')?>:</strong>
-        <?php if ($availableVersion): ?>
-          <span class="md-status-badge warning"><?=htmlspecialchars($availableVersion, ENT_QUOTES, 'UTF-8')?></span>
-        <?php else: ?>
-          <span class="md-status-badge success"><?=t($t,'no_update_required','Up to date')?></span>
-        <?php endif; ?>
-      </div>
-      <div><strong><?=t($t,'backup_status','Backup status')?>:</strong>
-        <span class="md-status-badge <?=$backupReady ? 'success' : 'warning'?>"><?=$backupReady ? t($t,'backup_ready','Backup ready') : t($t,'backup_required','Backup required')?></span>
-      </div>
-      <?php if ($lastCheckDisplay): ?>
-        <div class="md-upgrade-meta"><?=t($t,'last_checked','Last checked:')?> <?=htmlspecialchars($lastCheckDisplay, ENT_QUOTES, 'UTF-8')?></div>
-      <?php endif; ?>
-      <?php if ($lastBackupDisplay): ?>
-        <div class="md-upgrade-meta">
-          <?=t($t,'last_backup','Last backup:')?> <?=htmlspecialchars($lastBackupDisplay, ENT_QUOTES, 'UTF-8')?>
-          <?php if ($backupDownloadUrl): ?>
-            · <a href="<?=htmlspecialchars($backupDownloadUrl, ENT_QUOTES, 'UTF-8')?>" class="md-appbar-link" download><?=t($t,'download_backup','Download backup')?></a>
-          <?php endif; ?>
-        </div>
-      <?php endif; ?>
-    </div>
-    <div class="md-upgrade-actions">
-      <form method="post">
-        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-        <input type="hidden" name="action" value="check_upgrade">
-        <button type="submit" class="md-button md-outline md-elev-1"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
-      </form>
-      <form method="post">
-        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-        <input type="hidden" name="action" value="download_backups">
-        <button type="submit" class="md-button md-elev-1"><?=t($t,'download_backups','Download backups')?></button>
-      </form>
-      <form method="post">
-        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-        <input type="hidden" name="action" value="install_upgrade">
-        <button type="submit" class="md-button md-primary md-elev-2" <?=(!$availableVersion || !$backupReady) ? 'disabled' : ''?>><?=t($t,'install_upgrade','Install Upgrade')?></button>
-      </form>
-    </div>
-    <p class="md-upgrade-meta"><?=t($t,'upgrade_hint','Ensure a recent backup has been downloaded before applying upgrades.')?></p>
   </div>
 </section>
 <?php include __DIR__.'/../templates/footer.php'; ?>
