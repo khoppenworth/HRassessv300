@@ -417,7 +417,7 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
   <?php if ($qid && empty($availablePeriods)): ?>
     <p><?=t($t,'all_periods_used','You have already submitted for every period available for this questionnaire.')?></p>
   <?php elseif ($qid): ?>
-  <form method="post" action="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>">
+  <form method="post" action="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" id="assessment-form" class="md-assessment-form">
     <input type="hidden" name="csrf" value="<?=csrf_token()?>">
     <input type="hidden" name="qid" value="<?=$qid?>">
     <input type="hidden" name="performance_period_id" value="<?=$periodId?>">
@@ -448,7 +448,7 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
       <?=$renderQuestionField($it, $t, $currentAnswers ?? [])?>
     <?php endforeach; ?>
     <div class="md-form-actions md-form-actions--stack">
-      <button class="md-button md-outline" name="action" value="save_draft" type="submit"><?=t($t,'save_draft','Save Draft')?></button>
+      <button class="md-button md-outline md-floating-save-draft" name="action" value="save_draft" type="submit" formnovalidate><?=t($t,'save_draft','Save Draft')?></button>
       <button class="md-button md-primary md-elev-2" name="action" value="submit_final" type="submit"><?=t($t,'submit','Submit')?></button>
     </div>
   </form>

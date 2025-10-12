@@ -107,6 +107,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
+$roleLabels = [
+    'staff' => t($t, 'role_staff', 'staff'),
+    'supervisor' => t($t, 'role_supervisor', 'supervisor'),
+    'admin' => t($t, 'role_admin', 'admin'),
+];
+$statusLabels = [
+    'active' => t($t,'status_active','Active'),
+    'pending' => t($t,'status_pending','Pending approval'),
+    'disabled' => t($t,'status_disabled','Disabled'),
+];
 ?>
 <!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head><meta charset="utf-8"><title><?=htmlspecialchars(t($t,'manage_users','Manage Users'), ENT_QUOTES, 'UTF-8')?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -145,64 +155,133 @@ $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
 </form></div>
 
 <div class="md-card md-elev-2"><h2 class="md-card-title"><?=t($t,'manage_users','Manage Users')?></h2>
-<div class="md-table-responsive">
-<table class="md-table">
-  <thead><tr><th><?=t($t,'id','ID')?></th><th><?=t($t,'username','Username')?></th><th><?=t($t,'role','Role')?></th><th><?=t($t,'full_name','Full Name')?></th><th><?=t($t,'email','Email')?></th><th><?=t($t,'work_function','Work Function / Cadre')?></th><th><?=t($t,'account_status','Account Status')?></th><th><?=t($t,'next_assessment','Next Assessment')?></th><th><?=t($t,'reset','Reset')?></th><th><?=t($t,'delete','Delete')?></th></tr></thead>
-  <tbody>
-  <?php foreach ($rows as $r): ?>
-  <tr>
-    <td><?=$r['id']?></td>
-    <td><?=htmlspecialchars($r['username'])?></td>
-    <td><?=$r['role']?></td>
-    <td><?=htmlspecialchars($r['full_name'])?></td>
-    <td><?=htmlspecialchars($r['email'])?></td>
-    <td><?=htmlspecialchars(WORK_FUNCTION_LABELS[$r['work_function']] ?? $r['work_function'])?></td>
-    <?php
-      $statusKey = $r['account_status'] ?? 'active';
-      $statusLabels = [
-        'active' => t($t,'status_active','Active'),
-        'pending' => t($t,'status_pending','Pending approval'),
-        'disabled' => t($t,'status_disabled','Disabled')
-      ];
-    ?>
-    <td><?=htmlspecialchars($statusLabels[$statusKey] ?? $statusKey)?></td>
-    <td><?=htmlspecialchars($r['next_assessment_date'] ?? '-')?></td>
-    <td>
-      <form method="post" class="md-inline-form" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>">
-        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-        <input type="hidden" name="id" value="<?=$r['id']?>">
-        <input name="new_password" type="password" placeholder="<?=htmlspecialchars(t($t,'new_password_reset','New Password'), ENT_QUOTES, 'UTF-8')?>" required>
-          <select name="role">
-            <option value="staff" <?=$r['role']=='staff'?'selected':''?>><?=t($t,'role_staff','staff')?></option>
-            <option value="supervisor" <?=$r['role']=='supervisor'?'selected':''?>><?=t($t,'role_supervisor','supervisor')?></option>
-            <option value="admin" <?=$r['role']=='admin'?'selected':''?>><?=t($t,'role_admin','admin')?></option>
-          </select>
-        <select name="account_status">
-          <option value="active" <?=$r['account_status']==='active'?'selected':''?>><?=t($t,'status_active','Active')?></option>
-          <option value="pending" <?=$r['account_status']==='pending'?'selected':''?>><?=t($t,'status_pending','Pending approval')?></option>
-          <option value="disabled" <?=$r['account_status']==='disabled'?'selected':''?>><?=t($t,'status_disabled','Disabled')?></option>
-        </select>
-        <select name="work_function">
-          <?php foreach (WORK_FUNCTIONS as $function): ?>
-            <option value="<?=$function?>" <?=$r['work_function']===$function?'selected':''?>><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function)?></option>
-          <?php endforeach; ?>
-        </select>
-        <input type="date" name="next_assessment_date" value="<?=htmlspecialchars($r['next_assessment_date'] ?? '')?>">
-        <button name="reset" class="md-button md-elev-1"><?=t($t,'apply','Apply')?></button>
-      </form>
-    </td>
-    <td>
-      <form method="post" class="md-inline-form" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" data-verify-user="<?=htmlspecialchars($r['username'])?>" data-verify-prompt="<?=htmlspecialchars(t($t,'confirm_delete_prompt','Type the username to confirm deletion.'), ENT_QUOTES, 'UTF-8')?>" data-verify-mismatch="<?=htmlspecialchars(t($t,'delete_verification_failed','The entered username did not match. No changes were made.'), ENT_QUOTES, 'UTF-8')?>">
-        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-        <input type="hidden" name="id" value="<?=$r['id']?>">
-        <button name="delete" class="md-button md-danger md-elev-1" type="submit"><?=t($t,'delete','Delete')?></button>
-      </form>
-    </td>
-  </tr>
-  <?php endforeach; ?>
-  </tbody>
-</table>
-</div>
+  <?php if (!$rows): ?>
+    <p class="md-empty-state"><?=t($t,'no_users_found','No user accounts were found. Create a new account to get started.')?></p>
+  <?php else: ?>
+    <div class="md-user-grid">
+      <?php foreach ($rows as $r): ?>
+        <?php
+          $statusKey = $r['account_status'] ?? 'active';
+          $statusLabel = $statusLabels[$statusKey] ?? $statusKey;
+          $statusSlug = preg_replace('/[^a-z0-9_-]/i', '', (string)$statusKey);
+          if ($statusSlug === '') {
+              $statusSlug = 'unknown';
+          }
+          $statusClass = 'status-' . $statusSlug;
+          $fullName = trim((string)($r['full_name'] ?? ''));
+          $displayName = $fullName !== '' ? $fullName : $r['username'];
+          $nameParts = preg_split('/\s+/u', trim($displayName));
+          $initials = '';
+          if ($nameParts && $nameParts[0] !== '') {
+              $initials .= mb_substr($nameParts[0], 0, 1, 'UTF-8');
+          }
+          if ($nameParts && count($nameParts) > 1) {
+              $initials .= mb_substr($nameParts[count($nameParts) - 1], 0, 1, 'UTF-8');
+          }
+          if ($initials === '') {
+              $initials = mb_substr((string)$r['username'], 0, 2, 'UTF-8');
+          }
+          $initials = mb_strtoupper(mb_substr($initials, 0, 2, 'UTF-8'), 'UTF-8');
+          $email = trim((string)($r['email'] ?? ''));
+          $workFunctionLabel = WORK_FUNCTION_LABELS[$r['work_function']] ?? $r['work_function'];
+          $nextAssessment = $r['next_assessment_date'] ?? '';
+          $nextAssessmentDisplay = '—';
+          if ($nextAssessment !== '') {
+              $ts = strtotime($nextAssessment);
+              $nextAssessmentDisplay = $ts ? date('M j, Y', $ts) : $nextAssessment;
+          }
+          $createdAt = $r['created_at'] ?? '';
+          $createdDisplay = '—';
+          if ($createdAt !== '') {
+              $ts = strtotime((string)$createdAt);
+              $createdDisplay = $ts ? date('M j, Y', $ts) : $createdAt;
+          }
+          $roleKey = $r['role'] ?? 'staff';
+          $roleLabel = $roleLabels[$roleKey] ?? $roleKey;
+        ?>
+        <article class="md-user-card">
+          <header class="md-user-card__header">
+            <div class="md-user-avatar" aria-hidden="true"><?=htmlspecialchars($initials, ENT_QUOTES, 'UTF-8')?></div>
+            <div class="md-user-card__heading">
+              <h3><?=htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8')?></h3>
+              <p>@<?=htmlspecialchars($r['username'], ENT_QUOTES, 'UTF-8')?></p>
+            </div>
+            <span class="md-user-chip <?=$statusClass?>"><?=htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8')?></span>
+          </header>
+          <dl class="md-user-meta">
+            <div>
+              <dt><?=t($t,'role','Role')?></dt>
+              <dd><?=htmlspecialchars($roleLabel, ENT_QUOTES, 'UTF-8')?></dd>
+            </div>
+            <div>
+              <dt><?=t($t,'work_function','Work Function / Cadre')?></dt>
+              <dd><?=htmlspecialchars($workFunctionLabel ?? '', ENT_QUOTES, 'UTF-8')?></dd>
+            </div>
+            <div>
+              <dt><?=t($t,'email','Email')?></dt>
+              <dd><?= $email !== '' ? htmlspecialchars($email, ENT_QUOTES, 'UTF-8') : '—' ?></dd>
+            </div>
+            <div>
+              <dt><?=t($t,'next_assessment','Next Assessment')?></dt>
+              <dd><?=htmlspecialchars($nextAssessmentDisplay, ENT_QUOTES, 'UTF-8')?></dd>
+            </div>
+            <div>
+              <dt><?=t($t,'created','Created')?></dt>
+              <dd><?=htmlspecialchars($createdDisplay, ENT_QUOTES, 'UTF-8')?></dd>
+            </div>
+          </dl>
+          <div class="md-user-card__footer">
+            <form method="post" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" class="md-user-update-form">
+              <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+              <input type="hidden" name="id" value="<?=$r['id']?>">
+              <div class="md-user-form-grid">
+                <label class="md-field md-field--compact">
+                  <span><?=t($t,'new_password_reset','New Password')?></span>
+                  <input name="new_password" type="password" required autocomplete="new-password">
+                </label>
+                <label class="md-field md-field--compact">
+                  <span><?=t($t,'role','Role')?></span>
+                  <select name="role">
+                    <option value="staff" <?=$roleKey==='staff'?'selected':''?>><?=t($t,'role_staff','staff')?></option>
+                    <option value="supervisor" <?=$roleKey==='supervisor'?'selected':''?>><?=t($t,'role_supervisor','supervisor')?></option>
+                    <option value="admin" <?=$roleKey==='admin'?'selected':''?>><?=t($t,'role_admin','admin')?></option>
+                  </select>
+                </label>
+                <label class="md-field md-field--compact">
+                  <span><?=t($t,'account_status','Account Status')?></span>
+                  <select name="account_status">
+                    <option value="active" <?=$statusKey==='active'?'selected':''?>><?=t($t,'status_active','Active')?></option>
+                    <option value="pending" <?=$statusKey==='pending'?'selected':''?>><?=t($t,'status_pending','Pending approval')?></option>
+                    <option value="disabled" <?=$statusKey==='disabled'?'selected':''?>><?=t($t,'status_disabled','Disabled')?></option>
+                  </select>
+                </label>
+                <label class="md-field md-field--compact">
+                  <span><?=t($t,'work_function','Work Function / Cadre')?></span>
+                  <select name="work_function">
+                    <?php foreach (WORK_FUNCTIONS as $function): ?>
+                      <option value="<?=$function?>" <?=$r['work_function']===$function?'selected':''?>><?=htmlspecialchars(WORK_FUNCTION_LABELS[$function] ?? $function, ENT_QUOTES, 'UTF-8')?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </label>
+                <label class="md-field md-field--compact">
+                  <span><?=t($t,'next_assessment','Next Assessment Date')?></span>
+                  <input type="date" name="next_assessment_date" value="<?=htmlspecialchars($nextAssessment, ENT_QUOTES, 'UTF-8')?>">
+                </label>
+              </div>
+              <div class="md-user-form-actions">
+                <button name="reset" class="md-button md-elev-1"><?=t($t,'apply','Apply')?></button>
+              </div>
+            </form>
+            <form method="post" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" class="md-user-delete-form" data-verify-user="<?=htmlspecialchars($r['username'], ENT_QUOTES, 'UTF-8')?>" data-verify-prompt="<?=htmlspecialchars(t($t,'confirm_delete_prompt','Type the username to confirm deletion.'), ENT_QUOTES, 'UTF-8')?>" data-verify-mismatch="<?=htmlspecialchars(t($t,'delete_verification_failed','The entered username did not match. No changes were made.'), ENT_QUOTES, 'UTF-8')?>">
+              <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+              <input type="hidden" name="id" value="<?=$r['id']?>">
+              <button name="delete" class="md-button md-danger md-elev-1" type="submit"><?=t($t,'delete','Delete')?></button>
+            </form>
+          </div>
+        </article>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
 </div>
 </section>
 <?php include __DIR__.'/../templates/footer.php'; ?>

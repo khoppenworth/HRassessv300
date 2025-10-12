@@ -133,7 +133,7 @@ CREATE TABLE questionnaire_response (
   user_id INT NOT NULL,
   questionnaire_id INT NOT NULL,
   performance_period_id INT NOT NULL,
-  status ENUM('submitted','approved','rejected') NOT NULL DEFAULT 'submitted',
+  status ENUM('draft','submitted','approved','rejected') NOT NULL DEFAULT 'submitted',
   score INT NULL, -- percentage 0..100
   reviewed_by INT NULL,
   reviewed_at DATETIME NULL,

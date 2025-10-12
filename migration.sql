@@ -149,6 +149,9 @@ ALTER TABLE questionnaire_response
   ADD CONSTRAINT fk_qr_period FOREIGN KEY (performance_period_id) REFERENCES performance_period(id) ON DELETE RESTRICT,
   ADD UNIQUE KEY uniq_user_questionnaire_period (user_id, questionnaire_id, performance_period_id);
 
+ALTER TABLE questionnaire_response
+  MODIFY COLUMN status ENUM('draft','submitted','approved','rejected') NOT NULL DEFAULT 'submitted';
+
 UPDATE questionnaire_response SET performance_period_id = 1 WHERE performance_period_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS course_catalogue (

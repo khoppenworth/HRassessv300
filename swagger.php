@@ -127,7 +127,13 @@ $openapiUrl = asset_url('docs/openapi.json');
       deepLinking: true,
       docExpansion: 'list',
       defaultModelRendering: 'model',
-      defaultModelsExpandDepth: 1
+      defaultModelsExpandDepth: 1,
+      withCredentials: true,
+      persistAuthorization: true,
+      requestInterceptor: (request) => {
+        request.credentials = 'include';
+        return request;
+      }
     });
   });
 </script>

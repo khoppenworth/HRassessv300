@@ -36,7 +36,7 @@ php scripts/system_upgrade.php --action=list-backups
 | `--ref` | Branch, tag, or commit to deploy (defaults to `main`). |
 | `--latest-release` | Resolve the latest GitHub release tag and deploy it. Requires `--repo`. |
 | `--backup-dir` | Directory for storing backups (defaults to `<app>/backups`). |
-| `--preserve` | Comma-separated paths to keep untouched during upgrades (defaults to `config.php` and `backups`). |
+| `--preserve` | Comma-separated paths to keep untouched during upgrades (defaults to `config.php`, `backups`, `assets/backups`, `assets/uploads`, and `storage`). |
 | `--backup-id` | Timestamp of the backup to restore (shown in `list-backups`). |
 | `--restore-db` | Restore the database when downgrading. |
 
