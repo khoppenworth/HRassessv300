@@ -62,6 +62,7 @@ $brandStyle = site_brand_style($cfg);
         <span class="md-drawer-label"><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
         <a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'review_queue', 'Review Queue')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'pending_accounts', 'Pending Approvals')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a>
       </div>
     <?php endif; ?>
     <?php if ($role === 'admin'): ?>
