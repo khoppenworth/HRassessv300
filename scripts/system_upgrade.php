@@ -270,7 +270,7 @@ USAGE;
 }
 
 /**
- * @return array{host: string, database: string, user: string, password: string}
+ * @return array{host: string, database: string, user: string, password: string, port: int|null}
  */
 function getDatabaseConfig(): array
 {
@@ -278,12 +278,21 @@ function getDatabaseConfig(): array
     $database = getenv('DB_NAME') ?: 'epss_v300';
     $user = getenv('DB_USER') ?: 'epss_user';
     $password = getenv('DB_PASS') ?: 'StrongPassword123!';
+    $portRaw = getenv('DB_PORT');
+    $port = null;
+    if ($portRaw !== false && $portRaw !== '') {
+        $candidate = (int)$portRaw;
+        if ($candidate > 0 && $candidate <= 65535) {
+            $port = $candidate;
+        }
+    }
 
     return [
         'host' => $host,
         'database' => $database,
         'user' => $user,
         'password' => $password,
+        'port' => $port,
     ];
 }
 
@@ -490,18 +499,23 @@ function backupApplicationDirectory(string $appPath, string $backupDir, string $
 }
 
 /**
- * @param array{host: string, database: string, user: string, password: string} $dbConfig
+ * @param array{host: string, database: string, user: string, password: string, port: int|null} $dbConfig
  * @param string $backupDir
  * @param string $timestamp
  */
 function backupDatabase(array $dbConfig, string $backupDir, string $timestamp): string
 {
     $file = $backupDir . DIRECTORY_SEPARATOR . 'db-' . $timestamp . '.sql';
+    $portFragment = '';
+    if ($dbConfig['port'] !== null) {
+        $portFragment = ' --port=' . escapeshellarg((string)$dbConfig['port']);
+    }
     $cmd = sprintf(
-        'mysqldump --user=%s --password=%s --host=%s %s > %s',
+        'mysqldump --user=%s --password=%s --host=%s%s %s > %s',
         escapeshellarg($dbConfig['user']),
         escapeshellarg($dbConfig['password']),
         escapeshellarg($dbConfig['host']),
+        $portFragment,
         escapeshellarg($dbConfig['database']),
         escapeshellarg($file)
     );
@@ -511,7 +525,7 @@ function backupDatabase(array $dbConfig, string $backupDir, string $timestamp): 
 }
 
 /**
- * @param array{host: string, database: string, user: string, password: string} $dbConfig
+ * @param array{host: string, database: string, user: string, password: string, port: int|null} $dbConfig
  * @param string $backupFile
  */
 function restoreDatabaseFromBackup(array $dbConfig, string $backupFile): void
@@ -520,11 +534,16 @@ function restoreDatabaseFromBackup(array $dbConfig, string $backupFile): void
         throw new RuntimeException('Database backup not found: ' . $backupFile);
     }
 
+    $portFragment = '';
+    if ($dbConfig['port'] !== null) {
+        $portFragment = ' --port=' . escapeshellarg((string)$dbConfig['port']);
+    }
     $cmd = sprintf(
-        'mysql --user=%s --password=%s --host=%s %s < %s',
+        'mysql --user=%s --password=%s --host=%s%s %s < %s',
         escapeshellarg($dbConfig['user']),
         escapeshellarg($dbConfig['password']),
         escapeshellarg($dbConfig['host']),
+        $portFragment,
         escapeshellarg($dbConfig['database']),
         escapeshellarg($backupFile)
     );
