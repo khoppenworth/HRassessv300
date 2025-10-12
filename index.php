@@ -106,7 +106,7 @@ $contact = htmlspecialchars($cfg['contact'] ?? '');
           <input type="password" name="password" required>
         </label>
         <?php if (!empty($err)): ?><div class="md-alert"><?=htmlspecialchars($err, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
-        <div class="d-flex justify-content-center">
+        <div class="md-form-actions md-form-actions--center md-login-actions">
           <button class="md-button md-primary md-elev-2"><?=t($t,'sign_in','Sign In')?></button>
         </div>
       </form>

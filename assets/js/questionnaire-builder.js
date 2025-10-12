@@ -552,27 +552,47 @@ const Builder = (() => {
       tabs.innerHTML = '';
     }
     list.innerHTML = '';
+    const tabEntries = [];
     state.questionnaires.forEach((questionnaire, qIndex) => {
       const card = buildQuestionnaireCard(questionnaire, qIndex);
       list.appendChild(card);
       if (tabs) {
         const key = keyFor(questionnaire);
+        const label = questionnaire.title && questionnaire.title.trim() !== ''
+          ? questionnaire.title
+          : `Questionnaire ${qIndex + 1}`;
+        tabEntries.push({
+          key,
+          label,
+          qIndex,
+          isActive: key === state.activeKey,
+        });
+      }
+    });
+    if (tabs && tabEntries.length) {
+      const collator = (typeof Intl !== 'undefined' && typeof Intl.Collator === 'function')
+        ? new Intl.Collator(undefined, { sensitivity: 'base', usage: 'sort' })
+        : null;
+      tabEntries.sort((a, b) => {
+        if (collator) {
+          return collator.compare(a.label, b.label);
+        }
+        return a.label.localeCompare(b.label);
+      });
+      tabEntries.forEach((entry) => {
         const tab = document.createElement('button');
         tab.type = 'button';
         tab.className = 'qb-tab';
         tab.setAttribute('role', 'tab');
-        tab.setAttribute('data-q-key', key);
-        tab.dataset.qIndex = String(qIndex);
-        const label = questionnaire.title && questionnaire.title.trim() !== ''
-          ? questionnaire.title
-          : `Questionnaire ${qIndex + 1}`;
-        tab.textContent = label;
-        const isActive = key === state.activeKey;
+        tab.setAttribute('data-q-key', entry.key);
+        tab.dataset.qIndex = String(entry.qIndex);
+        tab.textContent = entry.label;
+        const isActive = entry.isActive;
         tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
         tab.setAttribute('tabindex', isActive ? '0' : '-1');
         tabs.appendChild(tab);
-      }
-    });
+      });
+    }
     initSortable();
     updateDirtyState();
   }
