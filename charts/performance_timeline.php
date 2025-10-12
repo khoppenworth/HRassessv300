@@ -8,6 +8,19 @@ $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $user = current_user();
+$brandPalette = site_brand_palette($cfg);
+$chartPalette = site_chart_palette($cfg);
+$chartDefaults = [
+    'background' => tint_color($brandPalette['primary'], 0.92),
+    'text' => shade_color($brandPalette['primary'], 0.6),
+];
+$chartColor = static function (array $palette, string $key, string $fallback) {
+    try {
+        return color_components($palette[$key] ?? $fallback);
+    } catch (\Throwable $exception) {
+        return color_components($fallback);
+    }
+};
 $targetUserId = (int) ($user['id'] ?? 0);
 
 if ($user['role'] === 'admin' && isset($_GET['user'])) {
@@ -21,9 +34,11 @@ if ($targetUserId <= 0) {
     http_response_code(400);
     header('Content-Type: image/png');
     $img = imagecreatetruecolor(640, 200);
-    $bg = imagecolorallocate($img, 255, 255, 255);
+    [$bgR, $bgG, $bgB] = $chartColor($chartPalette, 'margin', $chartDefaults['background']);
+    $bg = imagecolorallocate($img, $bgR, $bgG, $bgB);
     imagefilledrectangle($img, 0, 0, 640, 200, $bg);
-    $text = imagecolorallocate($img, 40, 40, 40);
+    [$textR, $textG, $textB] = $chartColor($chartPalette, 'labels', $chartDefaults['text']);
+    $text = imagecolorallocate($img, $textR, $textG, $textB);
     $message = t($t, 'no_user_selected', 'No user selected');
     imagestring($img, 4, 160, 90, $message, $text);
     imagepng($img);
@@ -42,9 +57,11 @@ $rows = $stmt->fetchAll();
 if (!$rows) {
     header('Content-Type: image/png');
     $img = imagecreatetruecolor(640, 220);
-    $bg = imagecolorallocate($img, 244, 247, 251);
+    [$bgR, $bgG, $bgB] = $chartColor($chartPalette, 'margin', $chartDefaults['background']);
+    $bg = imagecolorallocate($img, $bgR, $bgG, $bgB);
     imagefilledrectangle($img, 0, 0, 640, 220, $bg);
-    $textColor = imagecolorallocate($img, 33, 61, 98);
+    [$textR, $textG, $textB] = $chartColor($chartPalette, 'labels', $chartDefaults['text']);
+    $textColor = imagecolorallocate($img, $textR, $textG, $textB);
     $message = t($t, 'no_trend_data', 'Submit assessments to generate your performance trend.');
     $wrapped = [];
     $words = preg_split('/\s+/', $message) ?: [];
@@ -89,12 +106,15 @@ foreach ($rows as $row) {
 
 try {
     $graph = new \MiniJpGraph\Graph(820, 340);
+    $graph->applyTheme($chartPalette);
 } catch (\RuntimeException $e) {
     header('Content-Type: image/png');
     $img = imagecreatetruecolor(640, 220);
-    $bg = imagecolorallocate($img, 255, 255, 255);
+    [$bgR, $bgG, $bgB] = $chartColor($chartPalette, 'margin', $chartDefaults['background']);
+    $bg = imagecolorallocate($img, $bgR, $bgG, $bgB);
     imagefilledrectangle($img, 0, 0, 640, 220, $bg);
-    $textColor = imagecolorallocate($img, 60, 60, 60);
+    [$textR, $textG, $textB] = $chartColor($chartPalette, 'labels', $chartDefaults['text']);
+    $textColor = imagecolorallocate($img, $textR, $textG, $textB);
     imagestring($img, 4, 40, 100, 'Charts unavailable: ' . $e->getMessage(), $textColor);
     imagepng($img);
     imagedestroy($img);
@@ -102,14 +122,13 @@ try {
 }
 $graph->SetScale('textlin');
 $graph->SetMargin(80, 40, 70, 90);
-$graph->SetMarginColor('#ffffff');
 $graph->SetTitle(t($t, 'performance_timeline_title', 'Performance timeline'));
 $graph->xaxis->SetTickLabels($labels);
 $graph->xaxis->SetTitle(t($t, 'performance_period', 'Performance Period'));
 $graph->yaxis->SetTitle(t($t, 'score_percentage', 'Score (%)'));
 
 $plot = new \MiniJpGraph\LinePlot($dataPoints);
-$plot->SetColor(site_brand_color($cfg));
+$plot->SetColor($chartPalette['line']);
 $plot->SetWeight(3);
 $graph->Add($plot);
 

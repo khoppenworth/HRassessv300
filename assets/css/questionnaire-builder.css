@@ -17,10 +17,10 @@
 }
 
 .qb-tab {
-  border: 1px solid var(--app-border, rgba(32, 115, 191, 0.24));
+  border: 1px solid var(--app-border);
   border-radius: 999px;
-  background: var(--app-primary-soft, rgba(32, 115, 191, 0.12));
-  color: var(--app-primary-dark, #165997);
+  background: var(--app-primary-soft);
+  color: var(--app-primary-dark));
   padding: 0.4rem 0.85rem;
   cursor: pointer;
   font-weight: 600;
@@ -29,12 +29,12 @@
 
 .qb-tab[aria-selected="true"] {
   background: var(--app-primary);
-  color: var(--md-on-primary, #f3f8ff);
-  box-shadow: var(--app-shadow-soft, 0 10px 24px rgba(32, 115, 191, 0.2));
+  color: var(--md-on-primary);
+  box-shadow: var(--app-shadow-soft);
 }
 
 .qb-tab:focus-visible {
-  outline: 2px solid var(--app-secondary, #61b3ec);
+  outline: 2px solid var(--app-secondary);
   outline-offset: 2px;
 }
 
@@ -49,11 +49,11 @@
 }
 
 .qb-message[data-state="error"] {
-  color: #b00020;
+  color: var(--app-danger);
 }
 
 .qb-message[data-state="success"] {
-  color: #0f7a0f;
+  color: var(--status-success-text);
 }
 
 .qb-list {
@@ -64,11 +64,11 @@
 }
 
 .qb-questionnaire {
-  background: var(--app-surface, #ffffff);
+  background: var(--app-surface);
   border-radius: 12px;
-  border: 1px solid var(--app-border, rgba(32, 115, 191, 0.12));
+  border: 1px solid var(--app-border);
   padding: 1.1rem;
-  box-shadow: var(--app-shadow-soft, 0 10px 24px rgba(32, 115, 191, 0.1));
+  box-shadow: var(--app-shadow-soft);
 }
 
 .qb-questionnaire-header,
@@ -99,7 +99,7 @@
 }
 
 .qb-section {
-  border-left: 4px solid var(--app-primary, #4f80ff);
+  border-left: 4px solid var(--app-primary);
   padding-left: 0.75rem;
   margin-top: 1rem;
   display: flex;
@@ -140,8 +140,8 @@
   font: inherit;
   padding: 0.5rem;
   border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  background: #fff;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
   box-sizing: border-box;
 }
 
@@ -156,8 +156,8 @@
 
 .qb-item {
   align-items: center;
-  background: var(--app-primary-soft, rgba(32, 115, 191, 0.08));
-  border: 1px solid var(--app-border, rgba(32, 115, 191, 0.18));
+  background: var(--app-primary-soft);
+  border: 1px solid var(--app-border);
   border-radius: 10px;
   padding: 0.5rem;
   flex-wrap: wrap;
@@ -202,14 +202,14 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--app-primary-soft, rgba(32, 115, 191, 0.12));
-  border: 1px solid var(--app-border, rgba(32, 115, 191, 0.22));
+  background: var(--app-primary-soft);
+  border: 1px solid var(--app-border);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
 }
 
 .qb-option-readonly {
-  background: var(--app-primary-softer, rgba(32, 115, 191, 0.18));
+  background: var(--app-primary-softer);
   cursor: default;
 }
 
@@ -221,7 +221,7 @@
 .qb-likert-note {
   margin: 0 0 0.35rem;
   font-size: 0.85rem;
-  color: var(--app-primary, #2a4fbf);
+  color: var(--app-primary);
 }
 
 .qb-option .qb-input {
@@ -238,7 +238,7 @@
   font-size: 1.2rem;
   line-height: 1;
   padding: 0.35rem 0.5rem;
-  color: rgba(43, 65, 96, 0.4);
+  color: var(--app-on-surface-muted);
 }
 
 .qb-card-handle::before,
@@ -249,13 +249,13 @@
 }
 
 .qb-danger {
-  background: var(--app-danger-soft, rgba(198, 40, 40, 0.15));
-  color: var(--app-danger, #b00020);
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
 }
 
 .qb-action {
-  background: var(--app-primary-soft, rgba(32, 115, 191, 0.12));
-  color: var(--app-primary, #2a4fbf);
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
 }
 
 .qb-import-form {

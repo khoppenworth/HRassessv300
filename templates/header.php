@@ -8,7 +8,7 @@ $user = current_user();
 $role = $user['role'] ?? ($_SESSION['user']['role'] ?? null);
 $logoPath = get_branding_logo_path($cfg);
 if ($logoPath === null) {
-    $logoUrl = asset_url('assets/img/epss-logo.svg');
+    $logoUrl = asset_url('logo.php');
 } elseif (preg_match('#^https?://#i', $logoPath)) {
     $logoUrl = $logoPath;
 } else {

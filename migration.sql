@@ -126,7 +126,7 @@ INSERT IGNORE INTO site_config (
   NULL,
   'common',
   'light',
-  '#2073bf',
+  NULL,
   0,
   NULL,
   587,
@@ -140,6 +140,7 @@ INSERT IGNORE INTO site_config (
 );
 
 UPDATE site_config
+SET brand_color = NULL
 SET enabled_locales = '["en","fr","am"]'
 WHERE id = 1 AND (enabled_locales IS NULL OR enabled_locales = '');
 

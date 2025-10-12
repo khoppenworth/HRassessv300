@@ -98,7 +98,21 @@ if (!function_exists('str_starts_with')) {
     }
 }
 
-const DEFAULT_BRAND_COLOR = '#2073bf';
+function site_default_brand_color(array $cfg): string
+{
+    $env = getenv('DEFAULT_BRAND_COLOR');
+    $normalized = normalize_hex_color($env !== false ? (string)$env : '');
+    if ($normalized !== null) {
+        return $normalized;
+    }
+
+    $seedSource = trim((string)($cfg['site_name'] ?? ''));
+    if ($seedSource === '') {
+        $seedSource = 'default-brand-seed';
+    }
+
+    return derive_brand_color_from_seed($seedSource);
+}
 
 function default_work_function_definitions(): array
 {
@@ -380,7 +394,7 @@ function get_site_config(PDO $pdo): array {
         'microsoft_oauth_client_secret' => null,
         'microsoft_oauth_tenant' => 'common',
         'color_theme' => 'light',
-        'brand_color' => '#2073bf',
+        'brand_color' => null,
         'smtp_enabled' => 0,
         'smtp_host' => null,
         'smtp_port' => 587,
@@ -633,29 +647,27 @@ function site_body_classes(array $cfg): string
 
 function site_brand_color(array $cfg): string
 {
-    $raw = strtolower(trim((string)($cfg['brand_color'] ?? '')));
-    if ($raw !== '' && preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $raw)) {
-        if (strlen($raw) === 4) {
-            $raw = '#' . $raw[1] . $raw[1] . $raw[2] . $raw[2] . $raw[3] . $raw[3];
-        }
-        return $raw;
+    $candidate = normalize_hex_color((string)($cfg['brand_color'] ?? ''));
+    if ($candidate !== null) {
+        return $candidate;
     }
-    return DEFAULT_BRAND_COLOR;
+
+    return site_default_brand_color($cfg);
 }
 
 function site_brand_palette(array $cfg): array
 {
     $base = site_brand_color($cfg);
     $rgb = hex_to_rgb($base);
-    $primaryDark = mix_colors($base, '#000000', 0.32);
-    $primaryDarker = mix_colors($base, '#000000', 0.5);
-    $primaryLight = mix_colors($base, '#ffffff', 0.32);
-    $secondary = mix_colors($base, '#ffffff', 0.45);
-    $muted = mix_colors($base, '#000000', 0.6);
-    $mutedLight = mix_colors($base, '#ffffff', 0.55);
-    $bgStart = mix_colors($primaryLight, '#ffffff', 0.35);
-    $bgMid = mix_colors($secondary, '#ffffff', 0.2);
-    $bgEnd = mix_colors($base, '#ffffff', 0.55);
+    $primaryDark = shade_color($base, 0.32);
+    $primaryDarker = shade_color($base, 0.5);
+    $primaryLight = tint_color($base, 0.32);
+    $secondary = tint_color($base, 0.45);
+    $muted = shade_color($base, 0.6);
+    $mutedLight = tint_color($base, 0.55);
+    $bgStart = tint_color($primaryLight, 0.35);
+    $bgMid = tint_color($secondary, 0.2);
+    $bgEnd = tint_color($base, 0.55);
 
     return [
         'primary' => $base,
@@ -674,28 +686,335 @@ function site_brand_palette(array $cfg): array
 
 function site_brand_style(array $cfg): string
 {
-    $palette = site_brand_palette($cfg);
-    $rgb = $palette['rgb'];
-    $border = sprintf('rgba(%d, %d, %d, 0.12)', $rgb[0], $rgb[1], $rgb[2]);
-    $shadow = sprintf('0 18px 44px rgba(%d, %d, %d, 0.18)', $rgb[0], $rgb[1], $rgb[2]);
-    $values = [
-        '--brand-primary: ' . $palette['primary'],
-        '--brand-primary-dark: ' . $palette['primaryDark'],
-        '--brand-primary-darker: ' . $palette['primaryDarker'],
-        '--brand-primary-light: ' . $palette['primaryLight'],
-        '--brand-secondary: ' . $palette['secondary'],
-        '--brand-muted: ' . $palette['muted'],
-        '--brand-muted-light: ' . $palette['mutedLight'],
-        '--brand-border: ' . $border,
-        '--brand-shadow: ' . $shadow,
-        '--brand-bg: linear-gradient(140deg, ' . $palette['bgStart'] . ' 0%, ' . $palette['bgMid'] . ' 45%, ' . $palette['bgEnd'] . ' 100%)',
+    $tokens = site_theme_tokens($cfg);
+    if ($tokens === []) {
+        return '';
+    }
+
+    $selectors = [
+        'root' => ':root',
+        'light' => 'body.theme-light',
+        'dark' => 'body.theme-dark',
     ];
-    return implode('; ', $values);
+
+    $blocks = [];
+    foreach ($selectors as $key => $selector) {
+        if (!isset($tokens[$key]) || $tokens[$key] === []) {
+            continue;
+        }
+        $pairs = [];
+        foreach ($tokens[$key] as $var => $value) {
+            $pairs[] = $var . ': ' . $value;
+        }
+        if ($pairs !== []) {
+            $blocks[] = $selector . ' { ' . implode('; ', $pairs) . ' }';
+        }
+    }
+
+    return implode(' ', $blocks);
 }
 
 function site_body_style(array $cfg): string
 {
     return site_brand_style($cfg);
+}
+
+function site_theme_tokens(array $cfg): array
+{
+    $palette = site_brand_palette($cfg);
+    $primary = $palette['primary'];
+    $primaryDark = $palette['primaryDark'];
+    $primaryDarker = $palette['primaryDarker'];
+    $primaryLight = $palette['primaryLight'];
+    $secondary = $palette['secondary'];
+    $muted = $palette['muted'];
+    $mutedLight = $palette['mutedLight'];
+
+    $accent = adjust_hsl($primary, 35.0, 1.05, 1.12);
+    $warning = adjust_hsl($primary, 70.0, 1.15, 1.15);
+    $danger = adjust_hsl($primary, -40.0, 1.18, 0.9);
+    $success = adjust_hsl($primary, 120.0, 0.95, 0.78);
+    $info = adjust_hsl($primary, -20.0, 1.08, 1.02);
+
+    $lightSurface = tint_color($primary, 0.9);
+    $lightSurfaceAlt = tint_color($primary, 0.95);
+    $lightSurfaceMuted = tint_color($primary, 0.85);
+    $lightSurfaceHighlight = tint_color($primary, 0.82);
+    $lightText = adjust_hsl($primary, 0.0, 1.05, 0.38);
+    $lightTextSecondary = adjust_hsl($primary, 0.0, 1.0, 0.46);
+    $lightTextMuted = adjust_hsl($primary, 0.0, 0.88, 0.58);
+    $inverseText = adjust_hsl($primary, 0.0, 0.25, 0.92);
+
+    $onPrimary = contrast_color($primary);
+    $onPrimarySoft = rgba_string($onPrimary, 0.22);
+    $onPrimarySubtle = rgba_string($onPrimary, 0.16);
+    $onSurface = contrast_color($lightSurfaceAlt);
+    $onSurfaceMuted = rgba_string(shade_color($onSurface, 0.18), 1.0);
+    $onSurfaceStrong = shade_color($onSurface, 0.08);
+
+    $lightBorder = rgba_string($primary, 0.16);
+    $lightBorderStrong = rgba_string($primaryDark, 0.24);
+    $lightDivider = rgba_string($primaryDarker, 0.12);
+
+    $shadowSoft = '0 18px 44px ' . rgba_string($primaryDarker, 0.22);
+    $shadowStrong = '0 22px 54px ' . rgba_string($primaryDarker, 0.3);
+    $appBarShadow = '0 14px 34px ' . rgba_string($primaryDarker, 0.32);
+    $chipShadow = '0 8px 20px ' . rgba_string($primaryDark, 0.18);
+
+    $floatingShadow = '0 18px 44px ' . rgba_string($primaryDarker, 0.28);
+    $floatingShadowStrong = '0 22px 54px ' . rgba_string($primaryDarker, 0.32);
+
+    $primarySoft = rgba_string($primary, 0.14);
+    $primarySofter = rgba_string($primary, 0.2);
+    $secondarySoft = rgba_string($secondary, 0.18);
+
+    $successSoft = rgba_string($success, 0.2);
+    $warningSoft = rgba_string($warning, 0.22);
+    $dangerSoft = rgba_string($danger, 0.24);
+    $infoSoft = rgba_string($info, 0.2);
+
+    $successSurface = tint_color($success, 0.85);
+    $warningSurface = tint_color($warning, 0.86);
+    $dangerSurface = tint_color($danger, 0.88);
+    $infoSurface = tint_color($info, 0.86);
+
+    $successBorder = rgba_string($success, 0.28);
+    $warningBorder = rgba_string($warning, 0.28);
+    $dangerBorder = rgba_string($danger, 0.28);
+    $infoBorder = rgba_string($info, 0.26);
+
+    $successText = contrast_color($success);
+    $warningText = contrast_color($warning);
+    $dangerText = contrast_color($danger);
+    $infoText = contrast_color($info);
+
+    $successGradient = sprintf('linear-gradient(160deg, %s 0%%, %s 55%%, %s 100%%)', shade_color($success, 0.55), shade_color($success, 0.45), shade_color($success, 0.7));
+
+    $bgGradient = sprintf('linear-gradient(140deg, %s 0%%, %s 45%%, %s 100%%)', $palette['bgStart'], $palette['bgMid'], $palette['bgEnd']);
+
+    $darkBackground = shade_color($primary, 0.88);
+    $darkSurface = shade_color($primary, 0.82);
+    $darkSurfaceAlt = shade_color($primary, 0.76);
+    $darkSurfaceMuted = shade_color($primary, 0.72);
+    $darkText = adjust_hsl($primary, 0.0, 0.32, 0.9);
+    $darkTextSecondary = adjust_hsl($primary, 0.0, 0.25, 0.8);
+    $darkTextMuted = adjust_hsl($primary, 0.0, 0.22, 0.72);
+    $darkBorder = rgba_string($darkText, 0.24);
+    $darkBorderStrong = rgba_string($darkText, 0.32);
+    $darkDivider = rgba_string($darkText, 0.18);
+    $darkShadow = '0 18px 46px ' . rgba_string(shade_color($primary, 0.74), 0.7);
+    $darkShadowStrong = '0 22px 60px ' . rgba_string(shade_color($primary, 0.7), 0.78);
+    $darkPrimarySoft = rgba_string($primaryLight, 0.22);
+    $darkPrimarySofter = rgba_string($primaryLight, 0.32);
+    $darkSecondary = tint_color($secondary, 0.32);
+    $darkSecondarySoft = rgba_string($darkSecondary, 0.28);
+    $darkAccent = tint_color($accent, 0.28);
+    $darkAccentSoft = rgba_string($darkAccent, 0.32);
+    $darkDanger = tint_color($danger, 0.28);
+    $darkDangerSoft = rgba_string($darkDanger, 0.38);
+    $darkWarning = tint_color($warning, 0.3);
+    $darkWarningSoft = rgba_string($darkWarning, 0.34);
+    $darkInfo = tint_color($info, 0.32);
+    $darkInfoSoft = rgba_string($darkInfo, 0.32);
+    $darkInputBg = rgba_string($darkSurfaceAlt, 0.92);
+    $darkOnPrimary = contrast_color($primaryLight);
+    $darkOnPrimarySoft = rgba_string($darkOnPrimary, 0.22);
+    $darkOnPrimarySubtle = rgba_string($darkOnPrimary, 0.16);
+    $darkOnSurfaceMuted = rgba_string(shade_color($darkText, 0.35), 1.0);
+    $darkBgGradient = sprintf('radial-gradient(circle at top, %s 0%%, %s 45%%, %s 100%%)', shade_color($primary, 0.78), shade_color($primary, 0.82), shade_color($primary, 0.92));
+
+    $root = [
+        '--brand-primary' => $primary,
+        '--brand-primary-dark' => $primaryDark,
+        '--brand-primary-darker' => $primaryDarker,
+        '--brand-primary-light' => $primaryLight,
+        '--brand-secondary' => $secondary,
+        '--brand-muted' => $muted,
+        '--brand-muted-light' => $mutedLight,
+        '--brand-shadow' => $shadowSoft,
+        '--brand-border' => $lightBorder,
+        '--brand-bg' => $bgGradient,
+        '--appbar-shadow' => $appBarShadow,
+        '--chip-shadow' => $chipShadow,
+        '--floating-shadow' => $floatingShadow,
+        '--floating-shadow-strong' => $floatingShadowStrong,
+        '--status-success' => $success,
+        '--status-success-soft' => $successSoft,
+        '--status-success-text' => $successText,
+        '--status-success-border' => $successBorder,
+        '--status-success-surface' => $successSurface,
+        '--status-success-gradient' => $successGradient,
+        '--status-warning' => $warning,
+        '--status-warning-soft' => $warningSoft,
+        '--status-warning-text' => $warningText,
+        '--status-warning-border' => $warningBorder,
+        '--status-warning-surface' => $warningSurface,
+        '--status-danger' => $danger,
+        '--status-danger-soft' => $dangerSoft,
+        '--status-danger-text' => $dangerText,
+        '--status-danger-border' => $dangerBorder,
+        '--status-danger-surface' => $dangerSurface,
+        '--status-info' => $info,
+        '--status-info-soft' => $infoSoft,
+        '--status-info-text' => $infoText,
+        '--status-info-border' => $infoBorder,
+        '--status-info-surface' => $infoSurface,
+        '--app-hero-gradient' => $bgGradient,
+        '--app-success-gradient' => $successGradient,
+    ];
+
+    $light = [
+        '--app-primary' => $primary,
+        '--app-primary-dark' => $primaryDark,
+        '--app-primary-darker' => $primaryDarker,
+        '--app-primary-light' => $primaryLight,
+        '--app-secondary' => $secondary,
+        '--app-secondary-soft' => $secondarySoft,
+        '--app-accent' => $accent,
+        '--app-accent-soft' => rgba_string($accent, 0.24),
+        '--app-muted' => $muted,
+        '--app-muted-light' => $mutedLight,
+        '--app-border' => $lightBorder,
+        '--app-border-strong' => $lightBorderStrong,
+        '--app-divider' => $lightDivider,
+        '--app-surface' => $lightSurface,
+        '--app-surface-alt' => $lightSurfaceAlt,
+        '--app-surface-muted' => $lightSurfaceMuted,
+        '--app-surface-highlight' => $lightSurfaceHighlight,
+        '--app-bg' => $bgGradient,
+        '--app-shadow-soft' => $shadowSoft,
+        '--app-shadow-strong' => $shadowStrong,
+        '--app-primary-soft' => $primarySoft,
+        '--app-primary-softer' => $primarySofter,
+        '--app-danger' => $danger,
+        '--app-danger-soft' => $dangerSoft,
+        '--app-warning' => $warning,
+        '--app-warning-soft' => $warningSoft,
+        '--app-info' => $info,
+        '--app-info-soft' => $infoSoft,
+        '--app-input-bg' => rgba_string($lightSurfaceAlt, 0.96),
+        '--app-on-primary' => $onPrimary,
+        '--app-on-primary-soft' => $onPrimarySoft,
+        '--app-on-primary-subtle' => $onPrimarySubtle,
+        '--app-on-surface' => $onSurface,
+        '--app-on-surface-muted' => $onSurfaceMuted,
+        '--app-on-surface-strong' => $onSurfaceStrong,
+        '--app-text-primary' => $lightText,
+        '--app-text-secondary' => $lightTextSecondary,
+        '--app-text-muted' => $lightTextMuted,
+        '--app-text-inverse' => $inverseText,
+        '--app-table-stripe' => rgba_string($primary, 0.06),
+        '--app-table-border' => $lightDivider,
+        '--app-chart-grid' => rgba_string($primary, 0.14),
+        '--app-chart-axis' => shade_color($primary, 0.45),
+        '--app-chart-label' => $lightTextSecondary,
+        '--app-chart-surface' => $lightSurface,
+        '--app-chip-bg' => rgba_string($primary, 0.08),
+        '--app-chip-border' => $lightBorder,
+        'color' => $lightText,
+    ];
+
+    $dark = [
+        '--app-primary' => $primaryLight,
+        '--app-primary-dark' => $primary,
+        '--app-primary-darker' => $primaryDark,
+        '--app-primary-light' => $primaryLight,
+        '--app-secondary' => $darkSecondary,
+        '--app-secondary-soft' => $darkSecondarySoft,
+        '--app-accent' => $darkAccent,
+        '--app-accent-soft' => $darkAccentSoft,
+        '--app-muted' => $darkTextSecondary,
+        '--app-muted-light' => $darkTextMuted,
+        '--app-border' => $darkBorder,
+        '--app-border-strong' => $darkBorderStrong,
+        '--app-divider' => $darkDivider,
+        '--app-surface' => $darkSurface,
+        '--app-surface-alt' => $darkSurfaceAlt,
+        '--app-surface-muted' => $darkSurfaceMuted,
+        '--app-surface-highlight' => tint_color($darkSurfaceAlt, 0.1),
+        '--app-bg' => $darkBgGradient,
+        '--app-shadow-soft' => $darkShadow,
+        '--app-shadow-strong' => $darkShadowStrong,
+        '--app-primary-soft' => $darkPrimarySoft,
+        '--app-primary-softer' => $darkPrimarySofter,
+        '--app-danger' => $darkDanger,
+        '--app-danger-soft' => $darkDangerSoft,
+        '--app-warning' => $darkWarning,
+        '--app-warning-soft' => $darkWarningSoft,
+        '--app-info' => $darkInfo,
+        '--app-info-soft' => $darkInfoSoft,
+        '--app-input-bg' => $darkInputBg,
+        '--app-on-primary' => $darkOnPrimary,
+        '--app-on-primary-soft' => $darkOnPrimarySoft,
+        '--app-on-primary-subtle' => $darkOnPrimarySubtle,
+        '--app-on-surface' => $darkText,
+        '--app-on-surface-muted' => $darkOnSurfaceMuted,
+        '--app-on-surface-strong' => tint_color($darkText, 0.08),
+        '--app-text-primary' => $darkText,
+        '--app-text-secondary' => $darkTextSecondary,
+        '--app-text-muted' => $darkTextMuted,
+        '--app-text-inverse' => $inverseText,
+        '--app-table-stripe' => rgba_string($darkText, 0.08),
+        '--app-table-border' => $darkDivider,
+        '--app-chart-grid' => rgba_string($primaryLight, 0.18),
+        '--app-chart-axis' => tint_color($darkText, 0.1),
+        '--app-chart-label' => $darkText,
+        '--app-chart-surface' => $darkSurface,
+        '--app-chip-bg' => rgba_string($primaryLight, 0.12),
+        '--app-chip-border' => $darkBorder,
+        'color' => $darkText,
+        'background-color' => $darkBackground,
+    ];
+
+    return [
+        'root' => $root,
+        'light' => $light,
+        'dark' => $dark,
+    ];
+}
+
+function site_chart_palette(array $cfg): array
+{
+    $tokens = site_theme_tokens($cfg);
+    $theme = site_color_theme($cfg);
+    $themeVars = $tokens[$theme === 'dark' ? 'dark' : 'light'] ?? [];
+    $rootVars = $tokens['root'] ?? [];
+
+    $brand = site_brand_palette($cfg);
+
+    $value = static function (array $vars, string $key, string $fallback) use ($brand) {
+        $candidate = $vars[$key] ?? '';
+        if (trim($candidate) !== '') {
+            return $candidate;
+        }
+        switch ($fallback) {
+            case 'surface':
+                return tint_color($brand['primary'], 0.92);
+            case 'surfaceAlt':
+                return tint_color($brand['primary'], 0.96);
+            case 'grid':
+                return tint_color($brand['primary'], 0.85);
+            case 'labels':
+                return shade_color($brand['primary'], 0.55);
+            case 'axis':
+                return $brand['muted'];
+            case 'title':
+                return shade_color($brand['primary'], 0.6);
+            case 'line':
+            default:
+                return $brand['primary'];
+        }
+    };
+
+    return [
+        'margin' => $value($themeVars, '--app-surface', 'surface'),
+        'plot' => $value($themeVars, '--app-surface-alt', 'surfaceAlt'),
+        'grid' => $value($themeVars, '--app-divider', 'grid'),
+        'labels' => $value($themeVars, '--app-text-secondary', 'labels'),
+        'axis' => $value($themeVars, '--app-muted', 'axis'),
+        'title' => $value($themeVars, '--app-text-primary', 'title'),
+        'line' => $value($themeVars, '--app-primary', 'line'),
+    ];
 }
 
 function hex_to_rgb(string $hex): array
@@ -708,6 +1027,35 @@ function hex_to_rgb(string $hex): array
     return [($int >> 16) & 0xff, ($int >> 8) & 0xff, $int & 0xff];
 }
 
+function normalize_hex_color(string $color): ?string
+{
+    $trimmed = strtolower(trim($color));
+    if ($trimmed === '') {
+        return null;
+    }
+    if (!preg_match('/^#?([0-9a-f]{3}|[0-9a-f]{6})$/', $trimmed, $matches)) {
+        return null;
+    }
+    $value = ltrim($matches[0], '#');
+    if (strlen($value) === 3) {
+        $value = $value[0] . $value[0] . $value[1] . $value[1] . $value[2] . $value[2];
+    }
+    return '#' . $value;
+}
+
+function derive_brand_color_from_seed(string $seed): string
+{
+    $normalized = strtolower(trim($seed));
+    if ($normalized === '') {
+        $normalized = 'brand-seed';
+    }
+    $hash = hash('sha256', $normalized);
+    $hue = hexdec(substr($hash, 0, 6)) % 360;
+    $saturation = 0.55 + (hexdec(substr($hash, 6, 6)) / 0xffffff) * 0.35;
+    $lightness = 0.45 + (hexdec(substr($hash, 12, 6)) / 0xffffff) * 0.2;
+    return hsl_to_hex($hue, clamp_float($saturation, 0.0, 1.0), clamp_float($lightness, 0.0, 1.0));
+}
+
 function mix_colors(string $hex, string $target, float $ratio): string
 {
     $ratio = max(0.0, min(1.0, $ratio));
@@ -717,5 +1065,162 @@ function mix_colors(string $hex, string $target, float $ratio): string
         return (int)round($a * (1 - $ratio) + $b * $ratio);
     };
     return sprintf('#%02x%02x%02x', $mix($r1, $r2), $mix($g1, $g2), $mix($b1, $b2));
+}
+
+function tint_color(string $hex, float $ratio): string
+{
+    [$h, $s, $l] = hex_to_hsl($hex);
+    $ratio = clamp_float($ratio, 0.0, 1.0);
+    $newLightness = clamp_float($l + (1.0 - $l) * $ratio, 0.0, 1.0);
+    $newSaturation = clamp_float($s * (1.0 - 0.35 * $ratio), 0.0, 1.0);
+    return hsl_to_hex($h, $newSaturation, $newLightness);
+}
+
+function shade_color(string $hex, float $ratio): string
+{
+    [$h, $s, $l] = hex_to_hsl($hex);
+    $ratio = clamp_float($ratio, 0.0, 1.0);
+    $newLightness = clamp_float($l * (1.0 - 0.85 * $ratio), 0.0, 1.0);
+    $newSaturation = clamp_float($s + (1.0 - $s) * 0.2 * $ratio, 0.0, 1.0);
+    return hsl_to_hex($h, $newSaturation, $newLightness);
+}
+
+function color_components(string $color): array
+{
+    $trimmed = trim($color);
+    $hex = normalize_hex_color($trimmed);
+    if ($hex !== null) {
+        return hex_to_rgb($hex);
+    }
+    if (preg_match('/^rgba?\(([^\)]+)\)$/i', $trimmed, $matches)) {
+        $parts = array_map('trim', explode(',', $matches[1]));
+        $r = (int)round((float)($parts[0] ?? 0));
+        $g = (int)round((float)($parts[1] ?? 0));
+        $b = (int)round((float)($parts[2] ?? 0));
+        return [max(0, min(255, $r)), max(0, min(255, $g)), max(0, min(255, $b))];
+    }
+    throw new InvalidArgumentException('Unsupported color format: ' . $color);
+}
+
+function rgba_string(string $hex, float $alpha): string
+{
+    [$r, $g, $b] = hex_to_rgb($hex);
+    $alpha = max(0.0, min(1.0, $alpha));
+    return sprintf('rgba(%d, %d, %d, %.3f)', $r, $g, $b, $alpha);
+}
+
+function clamp_float(float $value, float $min, float $max): float
+{
+    if ($value < $min) {
+        return $min;
+    }
+    if ($value > $max) {
+        return $max;
+    }
+    return $value;
+}
+
+function hex_to_hsl(string $hex): array
+{
+    [$r, $g, $b] = hex_to_rgb($hex);
+    $r /= 255;
+    $g /= 255;
+    $b /= 255;
+    $max = max($r, $g, $b);
+    $min = min($r, $g, $b);
+    $l = ($max + $min) / 2;
+    if ($max === $min) {
+        return [0.0, 0.0, $l];
+    }
+    $d = $max - $min;
+    $s = $l > 0.5 ? $d / (2 - $max - $min) : $d / ($max + $min);
+    switch ($max) {
+        case $r:
+            $h = (($g - $b) / $d) + ($g < $b ? 6 : 0);
+            break;
+        case $g:
+            $h = (($b - $r) / $d) + 2;
+            break;
+        default:
+            $h = (($r - $g) / $d) + 4;
+            break;
+    }
+    $h *= 60;
+    return [$h, $s, $l];
+}
+
+function hsl_to_hex(float $h, float $s, float $l): string
+{
+    $h = fmod(($h % 360) + 360, 360) / 360;
+    $s = clamp_float($s, 0.0, 1.0);
+    $l = clamp_float($l, 0.0, 1.0);
+
+    if ($s === 0.0) {
+        $v = (int)round($l * 255);
+        return sprintf('#%02x%02x%02x', $v, $v, $v);
+    }
+
+    $q = $l < 0.5 ? $l * (1 + $s) : $l + $s - $l * $s;
+    $p = 2 * $l - $q;
+    $convert = static function (float $t) use ($p, $q): float {
+        if ($t < 0) {
+            $t += 1;
+        }
+        if ($t > 1) {
+            $t -= 1;
+        }
+        if ($t < 1 / 6) {
+            return $p + ($q - $p) * 6 * $t;
+        }
+        if ($t < 1 / 2) {
+            return $q;
+        }
+        if ($t < 2 / 3) {
+            return $p + ($q - $p) * (2 / 3 - $t) * 6;
+        }
+        return $p;
+    };
+
+    $r = $convert($h + 1 / 3);
+    $g = $convert($h);
+    $b = $convert($h - 1 / 3);
+
+    return sprintf('#%02x%02x%02x', (int)round($r * 255), (int)round($g * 255), (int)round($b * 255));
+}
+
+function adjust_hsl(string $hex, float $hShift, float $sMul, float $lMul): string
+{
+    [$h, $s, $l] = hex_to_hsl($hex);
+    $h = $h + $hShift;
+    $s = clamp_float($s * $sMul, 0.0, 1.0);
+    $l = clamp_float($l * $lMul, 0.0, 1.0);
+    return hsl_to_hex($h, $s, $l);
+}
+
+function relative_luminance(array $rgb): float
+{
+    $transform = static function (float $value): float {
+        $value /= 255;
+        if ($value <= 0.03928) {
+            return $value / 12.92;
+        }
+        return pow(($value + 0.055) / 1.055, 2.4);
+    };
+
+    $r = $transform($rgb[0]);
+    $g = $transform($rgb[1]);
+    $b = $transform($rgb[2]);
+
+    return 0.2126 * $r + 0.7152 * $g + 0.0722 * $b;
+}
+
+function contrast_color(string $hex): string
+{
+    $rgb = hex_to_rgb($hex);
+    $luminance = relative_luminance($rgb);
+    if ($luminance > 0.5) {
+        return shade_color($hex, 0.85);
+    }
+    return tint_color($hex, 0.85);
 }
 ?>

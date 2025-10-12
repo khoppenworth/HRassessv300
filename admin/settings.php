@@ -53,17 +53,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $brand_color_reset = $_POST['brand_color_reset'] ?? '0';
-    $brand_color_input = strtolower(trim($_POST['brand_color'] ?? ''));
+    $brand_color_input = normalize_hex_color((string)($_POST['brand_color'] ?? ''));
     $brand_color = '';
     if ($brand_color_reset === '1') {
         $brand_color = '';
-    } elseif ($brand_color_input !== '') {
-        if (preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $brand_color_input)) {
-            if (strlen($brand_color_input) === 4) {
-                $brand_color_input = '#' . $brand_color_input[1] . $brand_color_input[1] . $brand_color_input[2] . $brand_color_input[2] . $brand_color_input[3] . $brand_color_input[3];
-            }
-            $brand_color = strtolower($brand_color_input);
-        }
+    } elseif ($brand_color_input !== null) {
+        $brand_color = $brand_color_input;
     }
 
     $enabledLocalesInput = $_POST['enabled_locales'] ?? [];
@@ -124,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <title><?=htmlspecialchars(t($t,'settings','Settings'), ENT_QUOTES, 'UTF-8')?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
-  <link rel="manifest" href="<?=asset_url('manifest.webmanifest')?>">
+  <link rel="manifest" href="<?=asset_url('manifest.php')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 </head>
@@ -154,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </label>
       <label class="md-field md-field-inline">
         <span><?=t($t,'brand_color','Brand Color')?></span>
-        <div class="md-color-picker" data-brand-color-picker data-default-color="<?=htmlspecialchars(DEFAULT_BRAND_COLOR, ENT_QUOTES, 'UTF-8')?>">
+        <div class="md-color-picker" data-brand-color-picker data-default-color="<?=htmlspecialchars(site_default_brand_color($cfg), ENT_QUOTES, 'UTF-8')?>">
           <input type="color" name="brand_color" value="<?=htmlspecialchars(site_brand_color($cfg), ENT_QUOTES, 'UTF-8')?>" aria-label="<?=t($t,'brand_color_picker','Choose a brand color')?>">
           <span class="md-color-value"><?=htmlspecialchars(strtoupper(site_brand_color($cfg)), ENT_QUOTES, 'UTF-8')?></span>
           <button type="button" class="md-button md-outline md-compact" data-brand-color-reset><?=t($t,'brand_color_reset','Use default brand color')?></button>

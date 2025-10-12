@@ -11,7 +11,7 @@ final class Axis
 {
     private Graph $graph;
     private string $type;
-    private string $color = '#23426a';
+    private ?string $color = null;
     private array $tickLabels = [];
     private string $title = '';
 
@@ -28,7 +28,7 @@ final class Axis
 
     public function getColor(): string
     {
-        return $this->color;
+        return $this->color ?? $this->graph->getAxisColor();
     }
 
     public function SetTickLabels(array $labels): void
@@ -55,7 +55,7 @@ final class Axis
 final class LinePlot
 {
     private array $data;
-    private string $color = '#2073bf';
+    private ?string $color = null;
     private int $weight = 3;
 
     public function __construct(array $data)
@@ -73,7 +73,7 @@ final class LinePlot
         $this->color = $color;
     }
 
-    public function getColor(): string
+    public function getColor(): ?string
     {
         return $this->color;
     }
@@ -94,14 +94,18 @@ final class Graph
     private int $width;
     private int $height;
     private array $margins = [70, 30, 50, 80]; // left, right, top, bottom
-    private string $marginColor = '#ffffff';
-    private string $plotBackground = '#f4f7fb';
+    private ?string $marginColor = null;
+    private ?string $plotBackground = null;
     private string $scale = 'textlin';
     private array $plots = [];
     public Axis $xaxis;
     public Axis $yaxis;
     private string $title = '';
-    private string $titleColor = '#102a44';
+    private ?string $titleColor = null;
+    private ?string $gridColor = null;
+    private ?string $labelColor = null;
+    private ?string $axisColor = null;
+    private array $palette = [];
 
     public function __construct(int $width = 760, int $height = 320)
     {
@@ -155,7 +159,7 @@ final class Graph
         imagesavealpha($img, true);
         imagealphablending($img, true);
 
-        $marginColor = $this->allocateColor($img, $this->marginColor);
+        $marginColor = $this->allocateColor($img, $this->paletteColor('margin', $this->marginColor));
         imagefilledrectangle($img, 0, 0, $this->width, $this->height, $marginColor);
 
         [$left, $right, $top, $bottom] = $this->margins;
@@ -172,12 +176,12 @@ final class Graph
             $plotBottom = $this->height - max(10, $bottom);
         }
 
-        $plotBg = $this->allocateColor($img, $this->plotBackground);
+        $plotBg = $this->allocateColor($img, $this->paletteColor('plot', $this->plotBackground));
         imagefilledrectangle($img, $plotLeft, $plotTop, $plotRight, $plotBottom, $plotBg);
 
         $axisColor = $this->allocateColor($img, $this->xaxis->getColor());
-        $gridColor = $this->allocateColor($img, '#d5e2f4');
-        $labelColor = $this->allocateColor($img, '#223b5f');
+        $gridColor = $this->allocateColor($img, $this->paletteColor('grid', $this->gridColor));
+        $labelColor = $this->allocateColor($img, $this->paletteColor('labels', $this->labelColor));
 
         // Draw grid and Y axis labels.
         $minValue = 0.0;
@@ -228,7 +232,8 @@ final class Graph
         if ($this->title !== '') {
             $titleWidth = imagefontwidth(4) * strlen($this->title);
             $titleX = (int) (($this->width - $titleWidth) / 2);
-            imagestring($img, 4, max(0, $titleX), max(6, $plotTop - 32), $this->title, $this->allocateColor($img, $this->titleColor));
+            $titleColor = $this->allocateColor($img, $this->paletteColor('title', $this->titleColor));
+            imagestring($img, 4, max(0, $titleX), max(6, $plotTop - 32), $this->title, $titleColor);
         }
 
         $yTitle = $this->yaxis->getTitle();
@@ -292,7 +297,8 @@ final class Graph
         // Draw data plots.
         foreach ($this->plots as $plot) {
             $data = $plot->getData();
-            $color = $this->allocateColor($img, $plot->getColor());
+            $plotColor = $plot->getColor() ?? $this->getAxisColor();
+            $color = $this->allocateColor($img, $plotColor);
             imagesetthickness($img, $plot->getWeight());
             $prevX = null;
             $prevY = null;
@@ -330,28 +336,86 @@ final class Graph
         imagedestroy($img);
     }
 
+    public function applyTheme(array $palette): void
+    {
+        foreach ($palette as $key => $value) {
+            if (is_string($value) && trim($value) !== '') {
+                $this->palette[$key] = $value;
+            }
+        }
+        if (isset($palette['margin'])) {
+            $this->marginColor = $palette['margin'];
+        }
+        if (isset($palette['plot'])) {
+            $this->plotBackground = $palette['plot'];
+        }
+        if (isset($palette['grid'])) {
+            $this->gridColor = $palette['grid'];
+        }
+        if (isset($palette['labels'])) {
+            $this->labelColor = $palette['labels'];
+        }
+        if (isset($palette['axis'])) {
+            $this->axisColor = $palette['axis'];
+            $this->xaxis->SetColor($palette['axis']);
+            $this->yaxis->SetColor($palette['axis']);
+        }
+        if (isset($palette['title'])) {
+            $this->titleColor = $palette['title'];
+        }
+    }
+
+    public function getAxisColor(): string
+    {
+        if ($this->axisColor !== null && trim($this->axisColor) !== '') {
+            return $this->axisColor;
+        }
+        return $this->paletteColor('axis', $this->marginColor);
+    }
+
+    private function paletteColor(string $key, ?string $override = null): string
+    {
+        $candidate = $override;
+        if ($candidate === null || trim($candidate) === '') {
+            $candidate = $this->palette[$key] ?? null;
+        }
+        if (($candidate === null || trim($candidate) === '') && $key !== 'margin') {
+            $candidate = $this->palette['margin'] ?? null;
+        }
+        if ($candidate === null || trim($candidate) === '') {
+            throw new RuntimeException(sprintf('Missing chart palette value for "%s"', $key));
+        }
+        return $candidate;
+    }
+
     private function allocateColor($img, string $color)
     {
-        $rgb = $this->parseColor($color);
-        return imagecolorallocate($img, $rgb[0], $rgb[1], $rgb[2]);
+        [$r, $g, $b] = $this->parseColor($color);
+        return imagecolorallocate($img, $r, $g, $b);
     }
 
     private function parseColor(string $color): array
     {
-        $color = trim($color);
-        if (preg_match('/^#?([0-9a-f]{6})$/i', $color, $matches)) {
-            $hex = $matches[1];
+        $trimmed = trim($color);
+        if ($trimmed === '') {
+            throw new RuntimeException('Color value cannot be empty.');
+        }
+        if (preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $trimmed, $matches)) {
+            $hex = ltrim($matches[0], '#');
+            if (strlen($hex) === 3) {
+                $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+            }
             $int = hexdec($hex);
-            return [($int >> 16) & 255, ($int >> 8) & 255, $int & 255];
+            return [($int >> 16) & 0xff, ($int >> 8) & 0xff, $int & 0xff];
         }
-        if (preg_match('/rgba?\(([^)]+)\)/i', $color, $matches)) {
+        if (preg_match('/^rgba?\(([^\)]+)\)$/i', $trimmed, $matches)) {
             $parts = array_map('trim', explode(',', $matches[1]));
-            $r = (int) ($parts[0] ?? 0);
-            $g = (int) ($parts[1] ?? 0);
-            $b = (int) ($parts[2] ?? 0);
-            return [$r, $g, $b];
+            $r = (int)round((float)($parts[0] ?? 0));
+            $g = (int)round((float)($parts[1] ?? 0));
+            $b = (int)round((float)($parts[2] ?? 0));
+            return [max(0, min(255, $r)), max(0, min(255, $g)), max(0, min(255, $b))];
         }
-        return [32, 115, 191];
+        throw new RuntimeException('Unsupported color format: ' . $color);
     }
 
     private function formatNumber(float $value): string
