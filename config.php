@@ -1,6 +1,59 @@
 <?php
 declare(strict_types=1);
 
+if (!function_exists('load_env_file')) {
+    function load_env_file(string $path): void
+    {
+        static $loadedPaths = [];
+
+        if (isset($loadedPaths[$path])) {
+            return;
+        }
+
+        $loadedPaths[$path] = true;
+
+        $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            return;
+        }
+
+        foreach ($lines as $rawLine) {
+            $line = trim($rawLine);
+            if ($line === '' || $line[0] === '#' || $line[0] === ';') {
+                continue;
+            }
+
+            $delimiterPos = strpos($line, '=');
+            if ($delimiterPos === false) {
+                continue;
+            }
+
+            $key = trim(substr($line, 0, $delimiterPos));
+            if ($key === '') {
+                continue;
+            }
+
+            $value = trim(substr($line, $delimiterPos + 1));
+            if ($value !== '') {
+                $firstChar = $value[0];
+                $lastChar = $value[strlen($value) - 1];
+                if (($firstChar === '"' && $lastChar === '"') || ($firstChar === "'" && $lastChar === "'")) {
+                    $value = substr($value, 1, -1);
+                }
+            }
+
+            if (getenv($key) === false) {
+                putenv($key . '=' . $value);
+                if (!isset($_ENV) || !is_array($_ENV)) {
+                    $_ENV = [];
+                }
+                $_ENV[$key] = $value;
+                $_SERVER[$key] = $value;
+            }
+        }
+    }
+}
+
 if (!defined('APP_BOOTSTRAPPED')) {
     define('APP_BOOTSTRAPPED', true);
 
@@ -76,59 +129,6 @@ if (!defined('APP_BOOTSTRAPPED')) {
         echo '<h1>Service unavailable</h1><p>' . $friendly . '</p>';
         echo '</body></html>';
         exit;
-    }
-}
-
-if (!function_exists('load_env_file')) {
-    function load_env_file(string $path): void
-    {
-        static $loadedPaths = [];
-
-        if (isset($loadedPaths[$path])) {
-            return;
-        }
-
-        $loadedPaths[$path] = true;
-
-        $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        if ($lines === false) {
-            return;
-        }
-
-        foreach ($lines as $rawLine) {
-            $line = trim($rawLine);
-            if ($line === '' || $line[0] === '#' || $line[0] === ';') {
-                continue;
-            }
-
-            $delimiterPos = strpos($line, '=');
-            if ($delimiterPos === false) {
-                continue;
-            }
-
-            $key = trim(substr($line, 0, $delimiterPos));
-            if ($key === '') {
-                continue;
-            }
-
-            $value = trim(substr($line, $delimiterPos + 1));
-            if ($value !== '') {
-                $firstChar = $value[0];
-                $lastChar = $value[strlen($value) - 1];
-                if (($firstChar === '"' && $lastChar === '"') || ($firstChar === "'" && $lastChar === "'")) {
-                    $value = substr($value, 1, -1);
-                }
-            }
-
-            if (getenv($key) === false) {
-                putenv($key . '=' . $value);
-                if (!isset($_ENV) || !is_array($_ENV)) {
-                    $_ENV = [];
-                }
-                $_ENV[$key] = $value;
-                $_SERVER[$key] = $value;
-            }
-        }
     }
 }
 
