@@ -149,3 +149,93 @@ SET @sql_qwf_fk := IF(
 PREPARE stmt FROM @sql_qwf_fk;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- Ensure questionnaire_assignment exists for supervisor targeting.
+CREATE TABLE IF NOT EXISTS questionnaire_assignment (
+  staff_id INT NOT NULL,
+  questionnaire_id INT NOT NULL,
+  assigned_by INT NULL,
+  assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (staff_id, questionnaire_id),
+  KEY idx_assignment_questionnaire (questionnaire_id),
+  KEY idx_assignment_assigned_by (assigned_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE questionnaire_assignment
+  ADD COLUMN IF NOT EXISTS assigned_by INT NULL AFTER questionnaire_id,
+  ADD COLUMN IF NOT EXISTS assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER assigned_by;
+
+SET @has_assignment_staff_fk := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_assignment'
+    AND CONSTRAINT_NAME = 'fk_assignment_staff'
+);
+SET @sql_assignment_staff_fk := IF(
+  @has_assignment_staff_fk = 0,
+  'ALTER TABLE questionnaire_assignment ADD CONSTRAINT fk_assignment_staff FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE CASCADE;',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_assignment_staff_fk;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_assignment_questionnaire_fk := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_assignment'
+    AND CONSTRAINT_NAME = 'fk_assignment_questionnaire'
+);
+SET @sql_assignment_questionnaire_fk := IF(
+  @has_assignment_questionnaire_fk = 0,
+  'ALTER TABLE questionnaire_assignment ADD CONSTRAINT fk_assignment_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE;',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_assignment_questionnaire_fk;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_assignment_supervisor_fk := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_assignment'
+    AND CONSTRAINT_NAME = 'fk_assignment_supervisor'
+);
+SET @sql_assignment_supervisor_fk := IF(
+  @has_assignment_supervisor_fk = 0,
+  'ALTER TABLE questionnaire_assignment ADD CONSTRAINT fk_assignment_supervisor FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL;',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_assignment_supervisor_fk;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_assignment_questionnaire_idx := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_assignment'
+    AND INDEX_NAME = 'idx_assignment_questionnaire'
+);
+SET @sql_assignment_questionnaire_idx := IF(
+  @has_assignment_questionnaire_idx = 0,
+  'CREATE INDEX idx_assignment_questionnaire ON questionnaire_assignment (questionnaire_id);',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_assignment_questionnaire_idx;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_assignment_assigned_by_idx := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_assignment'
+    AND INDEX_NAME = 'idx_assignment_assigned_by'
+);
+SET @sql_assignment_assigned_by_idx := IF(
+  @has_assignment_assigned_by_idx = 0,
+  'CREATE INDEX idx_assignment_assigned_by ON questionnaire_assignment (assigned_by);',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_assignment_assigned_by_idx;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

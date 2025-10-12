@@ -68,6 +68,7 @@ if (!defined('APP_BOOTSTRAPPED')) {
         ensure_users_schema($pdo);
         ensure_questionnaire_item_schema($pdo);
         ensure_questionnaire_work_function_schema($pdo);
+        ensure_questionnaire_assignment_schema($pdo);
     } catch (PDOException $e) {
         $friendly = 'Unable to connect to the application database. Please try again later or contact support.';
         error_log('DB connection failed: ' . $e->getMessage());
@@ -512,6 +513,66 @@ function ensure_questionnaire_work_function_schema(PDO $pdo): void
         }
     } catch (PDOException $e) {
         error_log('ensure_questionnaire_work_function_schema: ' . $e->getMessage());
+    }
+}
+
+function ensure_questionnaire_assignment_schema(PDO $pdo): void
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS questionnaire_assignment (
+            staff_id INT NOT NULL,
+            questionnaire_id INT NOT NULL,
+            assigned_by INT NULL,
+            assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (staff_id, questionnaire_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $columnsStmt = $pdo->query('SHOW COLUMNS FROM questionnaire_assignment');
+        $columns = [];
+        if ($columnsStmt) {
+            while ($column = $columnsStmt->fetch(PDO::FETCH_ASSOC)) {
+                $columns[$column['Field']] = $column;
+            }
+        }
+
+        if (!isset($columns['assigned_by'])) {
+            $pdo->exec('ALTER TABLE questionnaire_assignment ADD COLUMN assigned_by INT NULL AFTER questionnaire_id');
+        }
+        if (!isset($columns['assigned_at'])) {
+            $pdo->exec("ALTER TABLE questionnaire_assignment ADD COLUMN assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER assigned_by");
+        }
+
+        $indexesStmt = $pdo->query("SHOW INDEX FROM questionnaire_assignment WHERE Key_name = 'idx_assignment_questionnaire'");
+        $hasQuestionnaireIdx = $indexesStmt && $indexesStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$hasQuestionnaireIdx) {
+            $pdo->exec('CREATE INDEX idx_assignment_questionnaire ON questionnaire_assignment (questionnaire_id)');
+        }
+
+        $assignedByIdxStmt = $pdo->query("SHOW INDEX FROM questionnaire_assignment WHERE Key_name = 'idx_assignment_assigned_by'");
+        $hasAssignedByIdx = $assignedByIdxStmt && $assignedByIdxStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$hasAssignedByIdx) {
+            $pdo->exec('CREATE INDEX idx_assignment_assigned_by ON questionnaire_assignment (assigned_by)');
+        }
+
+        $foreignKeysStmt = $pdo->query("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'questionnaire_assignment'");
+        $foreignKeys = [];
+        if ($foreignKeysStmt) {
+            foreach ($foreignKeysStmt->fetchAll(PDO::FETCH_COLUMN) as $constraint) {
+                $foreignKeys[$constraint] = true;
+            }
+        }
+
+        if (!isset($foreignKeys['fk_assignment_staff'])) {
+            $pdo->exec('ALTER TABLE questionnaire_assignment ADD CONSTRAINT fk_assignment_staff FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE CASCADE');
+        }
+        if (!isset($foreignKeys['fk_assignment_questionnaire'])) {
+            $pdo->exec('ALTER TABLE questionnaire_assignment ADD CONSTRAINT fk_assignment_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE');
+        }
+        if (!isset($foreignKeys['fk_assignment_supervisor'])) {
+            $pdo->exec('ALTER TABLE questionnaire_assignment ADD CONSTRAINT fk_assignment_supervisor FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL');
+        }
+    } catch (PDOException $e) {
+        error_log('ensure_questionnaire_assignment_schema: ' . $e->getMessage());
     }
 }
 

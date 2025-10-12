@@ -183,6 +183,19 @@ CREATE TABLE questionnaire_work_function (
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE questionnaire_assignment (
+  staff_id INT NOT NULL,
+  questionnaire_id INT NOT NULL,
+  assigned_by INT NULL,
+  assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (staff_id, questionnaire_id),
+  KEY idx_assignment_questionnaire (questionnaire_id),
+  KEY idx_assignment_assigned_by (assigned_by),
+  CONSTRAINT fk_assignment_staff FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assignment_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assignment_supervisor FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 INSERT INTO site_config (
   id,
   site_name,

@@ -10,13 +10,20 @@ $flashNotice = '';
 $cfg = get_site_config($pdo);
 
 $user = current_user();
-$questionnaireSql = "SELECT DISTINCT q.id, q.title FROM questionnaire q";
 try {
     if ($user['role'] === 'staff') {
-        $questionnaireSql .= " JOIN questionnaire_work_function qw ON qw.questionnaire_id = q.id WHERE qw.work_function = :wf";
-        $questionnaireSql .= " ORDER BY q.title";
-        $stmt = $pdo->prepare($questionnaireSql);
-        $stmt->execute(['wf' => $user['work_function']]);
+        $stmt = $pdo->prepare(
+            "(SELECT DISTINCT q.id, q.title FROM questionnaire q " .
+            "JOIN questionnaire_work_function qw ON qw.questionnaire_id = q.id WHERE qw.work_function = :wf) " .
+            "UNION " .
+            "(SELECT DISTINCT q.id, q.title FROM questionnaire q " .
+            "JOIN questionnaire_assignment qa ON qa.questionnaire_id = q.id WHERE qa.staff_id = :sid) " .
+            "ORDER BY title"
+        );
+        $stmt->execute([
+            'wf' => $user['work_function'],
+            'sid' => $user['id'],
+        ]);
         $q = $stmt->fetchAll();
     } else {
         $q = $pdo->query("SELECT id, title FROM questionnaire ORDER BY title")->fetchAll();

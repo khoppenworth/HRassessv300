@@ -226,6 +226,12 @@ $expectedSchemas = [
         'questionnaire_id' => ['type' => 'int', 'null' => 'NO'],
         'work_function' => ['type' => 'enum', 'null' => 'NO'],
     ],
+    'questionnaire_assignment' => [
+        'staff_id' => ['type' => 'int', 'null' => 'NO'],
+        'questionnaire_id' => ['type' => 'int', 'null' => 'NO'],
+        'assigned_by' => ['type' => 'int', 'null' => 'YES'],
+        'assigned_at' => ['type' => 'datetime', 'null' => 'NO'],
+    ],
 ];
 
 $issues = [];
