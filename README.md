@@ -29,6 +29,125 @@ Performance assessment portal built with PHP and MySQL.
    ```
 7. Visit [http://localhost:8080](http://localhost:8080) and sign in with the seeded administrator credentials.
 
+## LAMP deployment guide
+
+The application runs on a traditional Linux + Apache + MySQL/MariaDB + PHP stack. The steps below assume Ubuntu 22.04 with
+`sudo` privileges—adapt the package manager and service commands as needed for your distribution.
+
+### 1. Install system packages
+
+```sh
+sudo apt update
+sudo apt install apache2 mysql-server php php-cli php-mysql php-xml php-curl php-zip php-gd php-intl php-mbstring unzip git
+sudo a2enmod rewrite
+sudo systemctl restart apache2
+```
+
+Ensure the PHP CLI and Apache modules use the same PHP version. Enable any additional extensions required by your local
+policy (e.g., `php-ldap` for LDAP integrations).
+
+### 2. Deploy the application code
+
+```sh
+sudo mkdir -p /var/www/hrassess
+sudo chown "$USER":"$USER" /var/www/hrassess
+git clone https://github.com/your-org/HRassessv300.git /var/www/hrassess
+cp /var/www/hrassess/.env.example /var/www/hrassess/.env
+```
+
+Populate the `.env` file with the production database connection, base URL, and SMTP settings. When deploying behind a
+reverse proxy or subdirectory, adjust `BASE_URL` accordingly. Ensure writable directories exist for uploads:
+
+```sh
+mkdir -p /var/www/hrassess/assets/uploads/branding
+chmod 775 /var/www/hrassess/assets/uploads /var/www/hrassess/assets/uploads/branding
+```
+
+If Apache runs under a different user (e.g., `www-data`), adjust ownership:
+
+```sh
+sudo chown -R www-data:www-data /var/www/hrassess/assets/uploads
+```
+
+### 3. Configure the virtual host
+
+Create `/etc/apache2/sites-available/hrassess.conf`:
+
+```apache
+<VirtualHost *:80>
+    ServerName hrassess.example.com
+    DocumentRoot /var/www/hrassess
+
+    <Directory /var/www/hrassess>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/hrassess_error.log
+    CustomLog ${APACHE_LOG_DIR}/hrassess_access.log combined
+</VirtualHost>
+```
+
+Enable the site and reload Apache:
+
+```sh
+sudo a2ensite hrassess.conf
+sudo systemctl reload apache2
+```
+
+For HTTPS deployments, enable `certbot` or your preferred TLS tooling and update the virtual host accordingly.
+
+### 4. Provision the database
+
+Secure the MySQL installation and create a database/user:
+
+```sh
+sudo mysql_secure_installation
+mysql -u root -p
+```
+
+Within the MySQL shell:
+
+```sql
+CREATE DATABASE hrassess CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'hrassess'@'localhost' IDENTIFIED BY 'strong-password';
+GRANT ALL PRIVILEGES ON hrassess.* TO 'hrassess'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+Import the schema and (optionally) sample content from the application directory:
+
+```sh
+mysql -u hrassess -p hrassess < /var/www/hrassess/init.sql
+# Optional migrations if upgrading from an older release
+mysql -u hrassess -p hrassess < /var/www/hrassess/migration.sql
+# Optional demo data for onboarding/training environments
+mysql -u hrassess -p hrassess < /var/www/hrassess/dummy_data.sql
+```
+
+Seed an administrator account so you can sign in:
+
+```sh
+cd /var/www/hrassess
+php scripts/seed_admin.php
+```
+
+Store the generated password securely. Additional users can be invited through the web interface once the admin account is
+active.
+
+### 5. Final verification
+
+1. Restart Apache and MySQL to ensure configuration changes are loaded:
+   ```sh
+   sudo systemctl restart apache2 mysql
+   ```
+2. Browse to `http://hrassess.example.com` (or your virtual host) and sign in with the seeded administrator credentials.
+3. Use **Administration → Settings** to configure SMTP, branding, and SSO providers.
+4. Run `bin/check-upload-env.php` and verify no errors are reported.
+
+Keep system packages and the application up to date. The included `scripts/system_upgrade.php` command automates code updates
+and backups for future releases.
+
 ## Configuration
 
 Environment variables are read directly via `getenv`. Set them in your shell or a `.env` file (loaded by your web server):
