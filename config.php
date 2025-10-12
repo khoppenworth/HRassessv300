@@ -41,8 +41,21 @@ if (!defined('APP_BOOTSTRAPPED')) {
     $dbName = getenv('DB_NAME') ?: 'epss_v300';
     $dbUser = getenv('DB_USER') ?: 'epss_user';
     $dbPass = getenv('DB_PASS') ?: 'StrongPassword123!';
+    $dbPortRaw = getenv('DB_PORT');
+    $dbPort = null;
+    if ($dbPortRaw !== false && $dbPortRaw !== '') {
+        $portCandidate = (int)$dbPortRaw;
+        if ($portCandidate > 0 && $portCandidate <= 65535) {
+            $dbPort = $portCandidate;
+        }
+    }
 
-    $dsn = sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $dbHost, $dbName);
+    $dsn = sprintf(
+        'mysql:host=%s;%sdbname=%s;charset=utf8mb4',
+        $dbHost,
+        $dbPort !== null ? 'port=' . $dbPort . ';' : '',
+        $dbName
+    );
     $options = [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

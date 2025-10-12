@@ -33,7 +33,7 @@ Performance assessment portal built with PHP and MySQL.
 
 Environment variables are read directly via `getenv`. Set them in your shell or a `.env` file (loaded by your web server):
 
-- `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
 - `BASE_URL` (defaults to `/`)
 - `APP_DEBUG` (`1` to show errors in development, otherwise disable display of errors)
 

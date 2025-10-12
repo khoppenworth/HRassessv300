@@ -105,7 +105,7 @@ Additional SQL utilities:
    sudo chmod 750 /var/www/epss-self-assessment/assets/uploads
    ```
 
-3. **Configure database credentials** in `config.php` if they differ from the defaults:
+3. **Configure database credentials** in `config.php` or via environment variables if they differ from the defaults:
    ```php
    define('DB_HOST', '127.0.0.1');
    define('DB_NAME', 'epss_v300');
@@ -114,7 +114,9 @@ Additional SQL utilities:
    define('BASE_URL', '/');
    ```
 
-   The application now tolerates a missing `site_config` table on first boot and will create it with default branding values.
+   The application now tolerates a missing `site_config` table on first boot and will create it with default branding values. If
+   your database listens on a non-standard port, set the `DB_PORT` environment variable (or define the constant) so the
+   application, upgrade script, and CLI utilities can connect successfully.
 
 4. **Optional assets**: If you use AdminLTE dashboards, unzip the AdminLTE package into `assets/adminlte/`.
 
