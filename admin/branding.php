@@ -47,7 +47,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($finfo) {
                     finfo_close($finfo);
                 }
-                $allowedMimes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/svg'];
+                if ($mime !== null && $mime !== false) {
+                    $mime = strtolower(trim((string)$mime));
+                    $semicolonPos = strpos($mime, ';');
+                    if ($semicolonPos !== false) {
+                        $mime = substr($mime, 0, $semicolonPos);
+                    }
+                }
+                $allowedMimes = [
+                    'image/png',
+                    'image/x-png',
+                    'image/jpeg',
+                    'image/pjpeg',
+                    'image/jpg',
+                    'image/svg+xml',
+                    'image/svg',
+                    'image/webp',
+                    'image/gif',
+                ];
                 $allowedExtensions = ['png', 'jpg', 'jpeg', 'svg', 'svgz'];
                 $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
                 if ($mime === null || $mime === false || $mime === 'application/octet-stream') {
@@ -60,8 +77,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         };
                     }
                 }
+                if ($mime !== null) {
+                    $mime = strtolower($mime);
+                }
                 if (in_array($mime, $allowedMimes, true) && in_array($extension, $allowedExtensions, true)) {
-                    if (is_uploaded_file($logoFile['tmp_name']) && move_uploaded_file($logoFile['tmp_name'], $dest)) {
+                    $tmpFile = $logoFile['tmp_name'];
+                    $moved = false;
+                    if (is_uploaded_file($tmpFile)) {
+                        $moved = move_uploaded_file($tmpFile, $dest);
+                    } elseif (is_string($tmpFile) && $tmpFile !== '' && file_exists($tmpFile)) {
+                        $tmpDir = realpath(dirname($tmpFile));
+                        $systemTmp = realpath(sys_get_temp_dir());
+                        if ($tmpDir !== false && $systemTmp !== false && str_starts_with($tmpDir, $systemTmp)) {
+                            $moved = @rename($tmpFile, $dest);
+                            if (!$moved) {
+                                $moved = @copy($tmpFile, $dest);
+                                if ($moved) {
+                                    @unlink($tmpFile);
+                                }
+                            }
+                        }
+                    }
+                    if ($moved) {
                         @chmod($dest, 0644);
                         $logo_path = 'assets/uploads/' . $fn;
                     } else {
