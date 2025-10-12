@@ -4,30 +4,35 @@ Performance assessment portal built with PHP and MySQL.
 
 ## Quick start
 
-1. Copy `.env.example` to `.env` and adjust values as needed.
-2. Create the database schema:
+1. Verify PHP extension requirements via Composer:
+   ```sh
+   composer check-platform-reqs
+   ```
+   The application requires PHP 8.1+ with the `curl`, `gd`, `json`, `mbstring`, `pdo_mysql`, `simplexml`, and `zip` extensions enabled.
+2. Copy `.env.example` to `.env` and adjust values as needed.
+3. Create the database schema:
    ```sh
    mysql -u root -p < init.sql
    ```
-3. (Optional) Load demo content:
+4. (Optional) Load demo content:
    ```sh
    mysql -u root -p < dummy_data.sql
    ```
-4. Seed a default administrator account:
+5. Seed a default administrator account:
    ```sh
    make seed-admin
    ```
    The command prints the generated password to the console.
-5. (Optional) Rebuild the database from scratch, loading migrations, demo data, and an admin user:
+6. (Optional) Rebuild the database from scratch, loading migrations, demo data, and an admin user:
    ```sh
    make rebuild
    ```
    Pass `ARGS="--no-dummy"` or `ARGS="--no-admin"` to the make target (or run `php scripts/rebuild_app.php` directly) if you want to exclude demo rows or the admin seeding step.
-6. Launch the development web server:
+7. Launch the development web server:
    ```sh
    make run
    ```
-7. Visit [http://localhost:8080](http://localhost:8080) and sign in with the seeded administrator credentials.
+8. Visit [http://localhost:8080](http://localhost:8080) and sign in with the seeded administrator credentials.
 
 ## LAMP deployment guide
 
@@ -123,6 +128,12 @@ mysql -u hrassess -p hrassess < /var/www/hrassess/init.sql
 mysql -u hrassess -p hrassess < /var/www/hrassess/migration.sql
 # Optional demo data for onboarding/training environments
 mysql -u hrassess -p hrassess < /var/www/hrassess/dummy_data.sql
+```
+
+If you are upgrading from an installation that predates v3.0.0, apply the consolidated upgrade script to provision the new `user_role` table, questionnaire work-function mapping, and SMTP configuration columns:
+
+```sh
+mysql -u hrassess -p hrassess < /var/www/hrassess/upgrade_to_v3.sql
 ```
 
 Seed an administrator account so you can sign in:

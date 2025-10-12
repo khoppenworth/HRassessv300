@@ -1,0 +1,20 @@
+{
+    "name": "hrassess/hrassessv300",
+    "description": "Performance assessment portal for HRassess v3.0.0",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.1",
+        "ext-curl": "*",
+        "ext-gd": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-simplexml": "*",
+        "ext-zip": "*"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
