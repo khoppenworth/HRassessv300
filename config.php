@@ -14,6 +14,10 @@ if (!defined('APP_BOOTSTRAPPED')) {
 
     define('APP_DEBUG', $appDebug);
 
+    if (!defined('JSON_THROW_ON_ERROR')) {
+        define('JSON_THROW_ON_ERROR', 0);
+    }
+
     define('BASE_PATH', __DIR__);
 
     $baseUrlEnv = getenv('BASE_URL') ?: '/';
@@ -66,6 +70,17 @@ if (!defined('APP_BOOTSTRAPPED')) {
         echo '<h1>Service unavailable</h1><p>' . $friendly . '</p>';
         echo '</body></html>';
         exit;
+    }
+}
+
+if (!function_exists('str_starts_with')) {
+    function str_starts_with(string $haystack, string $needle): bool
+    {
+        if ($needle === '') {
+            return true;
+        }
+
+        return strncmp($haystack, $needle, strlen($needle)) === 0;
     }
 }
 
@@ -312,7 +327,41 @@ function get_site_config(PDO $pdo): array {
         return $defaults;
     }
 
-    return array_merge($defaults, $cfg ?: []);
+    $merged = array_merge($defaults, $cfg ?: []);
+    $merged['logo_path'] = normalize_branding_logo_path($merged['logo_path'] ?? null);
+
+    return $merged;
+}
+
+function normalize_branding_logo_path(?string $value): ?string
+{
+    $value = trim((string)($value ?? ''));
+    if ($value === '') {
+        return null;
+    }
+
+    if (preg_match('#^https?://#i', $value) === 1) {
+        return $value;
+    }
+
+    return '/' . ltrim($value, '/');
+}
+
+function get_branding_logo_path(?array $cfg = null): ?string
+{
+    if ($cfg === null) {
+        global $pdo;
+        $cfg = get_site_config($pdo);
+    }
+
+    return normalize_branding_logo_path($cfg['logo_path'] ?? null);
+}
+
+function persist_branding_logo_path(PDO $pdo, ?string $path): void
+{
+    $normalized = normalize_branding_logo_path($path);
+    $stmt = $pdo->prepare('UPDATE site_config SET logo_path = ? WHERE id = 1');
+    $stmt->execute([$normalized]);
 }
 
 function ensure_users_schema(PDO $pdo): void
