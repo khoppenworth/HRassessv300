@@ -111,147 +111,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fullPath = $backupDir . '/' . $filename;
 
             try {
-                $zip = new ZipArchive();
-                if ($zip->open($fullPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-                    throw new RuntimeException('Unable to create backup archive.');
-                }
-
-                $summaryLines = [
-                    'System backup created on ' . date('c'),
-                    'Users: ' . $fetchCount($pdo, 'SELECT COUNT(*) c FROM users'),
-                    'Assessments: ' . $fetchCount($pdo, 'SELECT COUNT(*) c FROM questionnaire_response'),
-                    'Draft responses: ' . $fetchCount($pdo, "SELECT COUNT(*) c FROM questionnaire_response WHERE status='draft'"),
-                ];
-                $zip->addFromString('summary.txt', implode("\n", $summaryLines) . "\n");
-
-                $addJson = static function (ZipArchive $archive, string $name, array $data): void {
-                    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                    if ($json === false) {
-                        throw new RuntimeException('Failed to encode backup data for ' . $name);
-                    }
-                    $archive->addFromString($name, $json . "\n");
-                };
-
-                $configStmt = $pdo->query('SELECT * FROM site_config ORDER BY id');
-                $configRows = $configStmt ? $configStmt->fetchAll(PDO::FETCH_ASSOC) : [];
-                $addJson($zip, 'data/site_config.json', $configRows);
-
-                $usersStmt = $pdo->query('SELECT id, username, role, full_name, email, work_function, account_status, next_assessment_date, first_login_at, created_at FROM users ORDER BY id');
-                $users = [];
-                foreach ($usersStmt ? $usersStmt->fetchAll(PDO::FETCH_ASSOC) : [] as $row) {
-                    unset($row['password']);
-                    $users[] = $row;
-                }
-                $addJson($zip, 'data/users.json', $users);
-
-                $questionnairesStmt = $pdo->query('SELECT id, title, description, created_at FROM questionnaire ORDER BY id');
-                $addJson($zip, 'data/questionnaires.json', $questionnairesStmt ? $questionnairesStmt->fetchAll(PDO::FETCH_ASSOC) : []);
-
-                $itemsStmt = $pdo->query('SELECT id, questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple FROM questionnaire_item ORDER BY questionnaire_id, order_index');
-                $addJson($zip, 'data/questionnaire_items.json', $itemsStmt ? $itemsStmt->fetchAll(PDO::FETCH_ASSOC) : []);
-
-                $responsesStmt = $pdo->query('SELECT id, user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at FROM questionnaire_response ORDER BY id');
-                $addJson($zip, 'data/questionnaire_responses.json', $responsesStmt ? $responsesStmt->fetchAll(PDO::FETCH_ASSOC) : []);
-
-                $responseItemsStmt = $pdo->query('SELECT response_id, linkId, answer FROM questionnaire_response_item ORDER BY response_id, id');
-                $addJson($zip, 'data/questionnaire_response_items.json', $responseItemsStmt ? $responseItemsStmt->fetchAll(PDO::FETCH_ASSOC) : []);
-
-                try {
-                    $tablesStmt = $pdo->query('SHOW TABLES');
-                    $tables = $tablesStmt ? $tablesStmt->fetchAll(PDO::FETCH_COLUMN) : [];
-                    if ($tables) {
-                        $dumpLines = [];
-                        $dumpLines[] = '-- Database backup generated ' . date('c');
-                        foreach ($tables as $tableName) {
-                            $table = (string)$tableName;
-                            if ($table === '') {
-                                continue;
-                            }
-                            $safeTable = str_replace('`', '``', $table);
-                            $dumpLines[] = '';
-                            $dumpLines[] = 'DROP TABLE IF EXISTS `' . $safeTable . '`;';
-                            $createStmt = $pdo->query('SHOW CREATE TABLE `' . $safeTable . '`');
-                            $createRow = $createStmt ? $createStmt->fetch(PDO::FETCH_ASSOC) : null;
-                            if ($createRow) {
-                                $createSql = $createRow['Create Table'] ?? ($createRow['Create View'] ?? null);
-                                if ($createSql) {
-                                    $dumpLines[] = $createSql . ';';
-                                }
-                            }
-                            $dataStmt = $pdo->query('SELECT * FROM `' . $safeTable . '`');
-                            if ($dataStmt) {
-                                while ($row = $dataStmt->fetch(PDO::FETCH_ASSOC)) {
-                                    $columns = array_map(static function ($column) {
-                                        return '`' . str_replace('`', '``', (string)$column) . '`';
-                                    }, array_keys($row));
-                                    $values = array_map(static function ($value) use ($pdo) {
-                                        if ($value === null) {
-                                            return 'NULL';
-                                        }
-                                        return $pdo->quote((string)$value);
-                                    }, array_values($row));
-                                    $dumpLines[] = sprintf(
-                                        'INSERT INTO `%s` (%s) VALUES (%s);',
-                                        $safeTable,
-                                        implode(', ', $columns),
-                                        implode(', ', $values)
-                                    );
-                                }
-                            }
-                        }
-                        $zip->addFromString('database/backup.sql', implode("\n", $dumpLines) . "\n");
-                    }
-                } catch (Throwable $dumpError) {
-                    error_log('Database backup export failed: ' . $dumpError->getMessage());
-                }
-
-                $uploadsDir = base_path('assets/uploads');
-                if (is_dir($uploadsDir)) {
-                    $iterator = new RecursiveIteratorIterator(
-                        new RecursiveDirectoryIterator($uploadsDir, FilesystemIterator::SKIP_DOTS)
-                    );
-                    foreach ($iterator as $fileInfo) {
-                        if ($fileInfo->isFile()) {
-                            $relative = substr($fileInfo->getPathname(), strlen($uploadsDir) + 1);
-                            $relative = str_replace('\\', '/', $relative);
-                            $zip->addFile($fileInfo->getPathname(), 'uploads/' . $relative);
-                        }
-                    }
-                }
-
-                try {
-                    $appRoot = base_path('');
-                    $zip->addEmptyDir('application');
-                    $iterator = new RecursiveIteratorIterator(
-                        new RecursiveDirectoryIterator($appRoot, FilesystemIterator::SKIP_DOTS)
-                    );
-                    foreach ($iterator as $fileInfo) {
-                        if (!$fileInfo->isFile()) {
-                            continue;
-                        }
-                        $pathName = $fileInfo->getPathname();
-                        if (strpos($pathName, $backupDir) === 0) {
-                            continue;
-                        }
-                        $relative = substr($pathName, strlen($appRoot) + 1);
-                        if ($relative === false) {
-                            continue;
-                        }
-                        $relative = str_replace('\\', '/', $relative);
-                        if (strpos($relative, '.git/') === 0) {
-                            continue;
-                        }
-                        $zip->addFile($pathName, 'application/' . $relative);
-                    }
-                } catch (Throwable $archiveError) {
-                    error_log('Application archive export failed: ' . $archiveError->getMessage());
-                }
-
-                $zip->close();
+                create_system_backup_archive($pdo, $cfg, $fullPath, [
+                    'app_root' => base_path(''),
+                    'uploads_dir' => base_path('assets/uploads'),
+                    'skip_dirs' => [$backupDir],
+                ]);
             } catch (Throwable $backupError) {
-                if (isset($zip) && $zip instanceof ZipArchive) {
-                    $zip->close();
-                }
                 if (is_file($fullPath)) {
                     @unlink($fullPath);
                 }
@@ -270,6 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['admin_dashboard_flash_type'] = 'success';
 
             session_write_close();
+            clearstatcache(true, $fullPath);
             header('Content-Type: application/zip');
             header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
             header('Content-Length: ' . (string)filesize($fullPath));

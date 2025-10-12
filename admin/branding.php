@@ -6,6 +6,7 @@ require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$previousLogo = (string)($cfg['logo_path'] ?? '');
 $msg = '';
 $logoError = null;
 
@@ -69,12 +70,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
                 if ($mime === null || $mime === false || $mime === 'application/octet-stream') {
                     if (in_array($extension, $allowedExtensions, true)) {
-                        $mime = match ($extension) {
-                            'png' => 'image/png',
-                            'jpg', 'jpeg' => 'image/jpeg',
-                            'svg', 'svgz' => 'image/svg+xml',
-                            default => $mime,
-                        };
+                        switch ($extension) {
+                            case 'png':
+                                $mime = 'image/png';
+                                break;
+                            case 'jpg':
+                            case 'jpeg':
+                                $mime = 'image/jpeg';
+                                break;
+                            case 'svg':
+                            case 'svgz':
+                                $mime = 'image/svg+xml';
+                                break;
+                            default:
+                                // Leave the detected mime type as-is.
+                                break;
+                        }
                     }
                 }
                 if ($mime !== null) {
@@ -88,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } elseif (is_string($tmpFile) && $tmpFile !== '' && file_exists($tmpFile)) {
                         $tmpDir = realpath(dirname($tmpFile));
                         $systemTmp = realpath(sys_get_temp_dir());
-                        if ($tmpDir !== false && $systemTmp !== false && str_starts_with($tmpDir, $systemTmp)) {
+                        if ($tmpDir !== false && $systemTmp !== false && strpos($tmpDir, $systemTmp) === 0) {
                             $moved = @rename($tmpFile, $dest);
                             if (!$moved) {
                                 $moved = @copy($tmpFile, $dest);
@@ -100,6 +111,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     if ($moved) {
                         @chmod($dest, 0644);
+                        if ($previousLogo !== '' && !preg_match('#^https?://#i', $previousLogo)) {
+                            $oldPath = site_logo_file_path(['logo_path' => $previousLogo]);
+                            if ($oldPath !== null && is_file($oldPath)) {
+                                @unlink($oldPath);
+                            }
+                        }
                         $logo_path = 'assets/uploads/' . $fn;
                     } else {
                         $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
@@ -183,12 +200,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="md-field">
         <span><?=t($t,'logo','Logo')?></span>
         <input type="file" name="logo" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
-        <?php if (!empty($cfg['logo_path'])): ?>
-          <?php $logoSrc = $cfg['logo_path'];
-          if (!preg_match('#^https?://#i', (string)$logoSrc)) {
-              $logoSrc = asset_url(ltrim((string)$logoSrc, '/'));
-          }
-          ?>
+        <?php if (site_logo_is_custom($cfg)): ?>
+          <?php $logoSrc = site_logo_url($cfg); ?>
           <div class="md-thumb"><img src="<?=htmlspecialchars($logoSrc, ENT_QUOTES, 'UTF-8')?>" alt="Logo" height="40"></div>
         <?php endif; ?>
       </div>
