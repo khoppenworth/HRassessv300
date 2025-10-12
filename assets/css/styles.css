@@ -294,7 +294,7 @@ body.md-bg {
   position: absolute;
   inset: 0 0 auto;
   height: 4px;
-  background: linear-gradient(90deg, var(--app-secondary), var(--app-accent));
+  background: linear-gradient(90deg, var(--app-primary), var(--app-secondary));
 }
 
 .md-card > * {
@@ -701,6 +701,12 @@ body.theme-dark .md-field.md-field--compact select {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--app-muted);
+}
+
+.md-field--required > span::after {
+  content: ' *';
+  color: var(--app-danger);
+  font-weight: 700;
 }
 
 .md-field input:focus,

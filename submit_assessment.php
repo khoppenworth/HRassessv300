@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Fetch items with weights
-            $itemsStmt = $pdo->prepare('SELECT id, linkId, type, allow_multiple, COALESCE(weight_percent,0) AS weight_percent FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC');
+            $itemsStmt = $pdo->prepare('SELECT id, linkId, type, allow_multiple, COALESCE(weight_percent,0) AS weight_percent, is_required FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC');
             $itemsStmt->execute([$qid]);
             $items = $itemsStmt->fetchAll();
 
@@ -83,12 +83,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $score_sum = 0.0;
             $weight_sum = 0.0;
 
+            $missingRequired = [];
             foreach ($items as $it) {
                 $name = 'item_' . $it['linkId'];
                 $weight = (float)$it['weight_percent'];
                 $achieved = 0.0;
+                $a = json_encode([]);
+                $isRequired = !empty($it['is_required']);
+                $questionTitle = trim((string)($it['text'] ?? ''));
+                if ($questionTitle === '') {
+                    $questionTitle = (string)($it['linkId'] ?? '');
+                }
+                $hasResponse = false;
 
                 if ($it['type'] === 'boolean') {
+                    $hasResponse = array_key_exists($name, $_POST);
                     $ans = $_POST[$name] ?? '';
                     $val = ($ans === '1' || $ans === 'true' || $ans === 'on') ? 'true' : 'false';
                     $achieved = ($val === 'true') ? $weight : 0.0;
@@ -116,18 +125,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     if ($scoreValue !== null) {
                         $achieved = $weight > 0 ? ($weight * $scoreValue / 5.0) : 0.0;
-                    } else {
-                        $achieved = 0.0;
                     }
                     if ($selected !== '') {
+                        $hasResponse = true;
                         $answerEntry = [];
                         if ($scoreValue !== null) {
                             $answerEntry['valueInteger'] = $scoreValue;
                         }
                         $answerEntry['valueString'] = $selected;
                         $a = json_encode([$answerEntry]);
-                    } else {
-                        $a = json_encode([]);
                     }
                 } elseif ($it['type'] === 'choice') {
                     $allowMultiple = !empty($it['allow_multiple']);
@@ -145,14 +151,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             return in_array($val, $validOptions, true);
                         }));
                     }
+                    if ($values) {
+                        $hasResponse = true;
+                    }
                     $achieved = $values ? $weight : 0.0;
                     $a = json_encode(array_map(static fn($val) => ['valueString' => $val], $values));
                 } else {
                     $ans = $_POST[$name] ?? '';
                     $txt = trim((string)$ans);
-                    $achieved = ($txt !== '') ? $weight : 0.0;
+                    if ($txt !== '') {
+                        $hasResponse = true;
+                    }
+                    $achieved = $txt !== '' ? $weight : 0.0;
                     $a = json_encode([['valueString' => $txt]]);
                 }
+
+                if ($isRequired && !$isDraftSave && !$hasResponse) {
+                    $missingRequired[] = $questionTitle;
+                }
+
                 $ins = $pdo->prepare('INSERT INTO questionnaire_response_item (response_id, linkId, answer) VALUES (?,?,?)');
                 $ins->execute([$responseId, $it['linkId'], $a]);
 
@@ -161,24 +178,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $weight_sum += $weight;
                 }
             }
-            if ($isDraftSave) {
-                $pdo->prepare('UPDATE questionnaire_response SET score=NULL WHERE id=?')->execute([$responseId]);
+            if (!$isDraftSave && $missingRequired) {
+                $pdo->rollBack();
+                $err = t($t, 'required_questions_missing', 'Please complete all required questions before submitting.');
+                if (count($missingRequired) <= 5) {
+                    $err .= ' ' . t($t, 'missing_questions_list', 'Missing:') . ' ' . implode(', ', array_map(static function ($label) use ($t) {
+                        return $label !== '' ? $label : t($t, 'question', 'Question');
+                    }, $missingRequired));
+                }
             } else {
-                $pct = $weight_sum > 0 ? (int)round(($score_sum / $weight_sum) * 100) : null;
-                $pdo->prepare('UPDATE questionnaire_response SET score=? WHERE id=?')->execute([$pct, $responseId]);
+                if ($isDraftSave) {
+                    $pdo->prepare('UPDATE questionnaire_response SET score=NULL WHERE id=?')->execute([$responseId]);
+                } else {
+                    $pct = $weight_sum > 0 ? (int)round(($score_sum / $weight_sum) * 100) : null;
+                    $pdo->prepare('UPDATE questionnaire_response SET score=? WHERE id=?')->execute([$pct, $responseId]);
+                }
+                $pdo->commit();
+                if ($isDraftSave) {
+                    $query = http_build_query([
+                        'qid' => $qid,
+                        'performance_period_id' => $periodId,
+                        'saved' => 'draft',
+                    ]);
+                    header('Location: ' . url_for('submit_assessment.php?' . $query));
+                } else {
+                    header('Location: ' . url_for('my_performance.php?msg=submitted'));
+                }
+                exit;
             }
-            $pdo->commit();
-            if ($isDraftSave) {
-                $query = http_build_query([
-                    'qid' => $qid,
-                    'performance_period_id' => $periodId,
-                    'saved' => 'draft',
-                ]);
-                header('Location: ' . url_for('submit_assessment.php?' . $query));
-            } else {
-                header('Location: ' . url_for('my_performance.php?msg=submitted'));
-            }
-            exit;
         } catch (Exception $e) {
             $pdo->rollBack();
             error_log('submit_assessment failed: ' . $e->getMessage());
@@ -281,9 +308,13 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
         }
     }
     $firstValue = $checkedValues[0] ?? '';
+    $required = !empty($it['is_required']);
+    $fieldClass = 'md-field' . ($required ? ' md-field--required' : '');
+    $requiredAttr = $required ? ' required' : '';
+    $ariaRequired = $required ? ' aria-required="true"' : '';
     ob_start();
     ?>
-    <label class="md-field">
+    <label class="<?=htmlspecialchars($fieldClass, ENT_QUOTES, 'UTF-8')?>">
       <span><?=htmlspecialchars($it['text'] ?? '', ENT_QUOTES, 'UTF-8')?></span>
       <?php if (($it['type'] ?? '') === 'boolean'): ?>
         <?php $isChecked = false;
@@ -298,9 +329,9 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
             }
         }
         ?>
-        <input type="checkbox" name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="true" <?=$isChecked ? 'checked' : ''?>>
+        <input type="checkbox" name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="true" <?=$isChecked ? 'checked' : ''?><?=$requiredAttr?>>
       <?php elseif (($it['type'] ?? '') === 'textarea'): ?>
-        <textarea name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" rows="3"><?php
+        <textarea name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" rows="3"<?=$requiredAttr?>><?php
             $textValue = '';
             if ($answerEntries) {
                 $entry = $answerEntries[0] ?? [];
@@ -311,7 +342,7 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
             echo htmlspecialchars($textValue, ENT_QUOTES, 'UTF-8');
         ?></textarea>
       <?php elseif (($it['type'] ?? '') === 'likert' && !empty($options)): ?>
-        <div class="likert-scale" role="radiogroup" aria-label="<?=htmlspecialchars($it['text'] ?? '', ENT_QUOTES, 'UTF-8')?>">
+        <div class="likert-scale" role="radiogroup" aria-label="<?=htmlspecialchars($it['text'] ?? '', ENT_QUOTES, 'UTF-8')?>"<?=$ariaRequired?>>
           <?php foreach ($options as $idx => $opt):
             $value = $opt['value'] ?? (string)($idx + 1);
             $label = $opt['value'] ?? ('Option ' . ($idx + 1));
@@ -319,14 +350,14 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
             $selected = is_string($firstValue) ? $firstValue : ((string)$firstValue);
           ?>
           <label class="likert-scale__option" for="<?=htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8')?>">
-            <input type="radio" id="<?=htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8')?>" name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars($value, ENT_QUOTES, 'UTF-8')?>" <?=($selected !== '' && (string)$value === $selected) ? 'checked' : ''?>>
+            <input type="radio" id="<?=htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8')?>" name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars($value, ENT_QUOTES, 'UTF-8')?>" <?=($selected !== '' && (string)$value === $selected) ? 'checked' : ''?><?=($required && $idx === 0) ? ' required' : ''?>>
             <span><?=htmlspecialchars($label, ENT_QUOTES, 'UTF-8')?></span>
           </label>
           <?php endforeach; ?>
         </div>
       <?php elseif (($it['type'] ?? '') === 'choice' && !empty($options)): ?>
         <?php if ($allowMultiple): ?>
-        <select name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>[]" multiple size="<?=max(3, min(6, count($options)))?>">
+        <select name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>[]" multiple size="<?=max(3, min(6, count($options)))?>"<?=$requiredAttr?>>
           <?php foreach ($options as $opt): ?>
             <?php $optValue = (string)($opt['value'] ?? '');
             $isSelected = in_array($optValue, array_map('strval', $checkedValues), true);
@@ -336,7 +367,7 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
         </select>
           <small class="md-hint"><?=htmlspecialchars(t($t,'multiple_choice_hint','Select all that apply'), ENT_QUOTES, 'UTF-8')?></small>
       <?php else: ?>
-        <select name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>">
+        <select name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>"<?=$requiredAttr?>>
             <option value=""><?=htmlspecialchars(t($t,'select_single_option','Select an option'), ENT_QUOTES, 'UTF-8')?></option>
           <?php foreach ($options as $opt): ?>
             <?php $optValue = (string)($opt['value'] ?? '');
@@ -360,7 +391,7 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
             }
         }
         ?>
-        <input name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars($textValue, ENT_QUOTES, 'UTF-8')?>">
+        <input name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars($textValue, ENT_QUOTES, 'UTF-8')?>"<?=$requiredAttr?>>
       <?php endif; ?>
       <?php if (isset($it['weight_percent']) && $it['weight_percent'] !== null): ?>
         <small class="md-hint">Weight: <?= (int)$it['weight_percent']?>%</small>

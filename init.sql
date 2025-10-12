@@ -116,6 +116,7 @@ CREATE TABLE questionnaire_item (
   order_index INT NOT NULL DEFAULT 0,
   weight_percent INT NOT NULL DEFAULT 0,
   allow_multiple TINYINT(1) NOT NULL DEFAULT 0,
+  is_required TINYINT(1) NOT NULL DEFAULT 0,
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE,
   FOREIGN KEY (section_id) REFERENCES questionnaire_section(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
