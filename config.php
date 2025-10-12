@@ -323,12 +323,20 @@ function ensure_users_schema(PDO $pdo): void
         error_log('ensure_users_schema: ' . $e->getMessage());
         return;
     }
+    $roleColumn = null;
     if ($columns) {
         while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
             if (isset($col['Field'])) {
                 $existing[$col['Field']] = true;
             }
+            if (($col['Field'] ?? '') === 'role') {
+                $roleColumn = $col;
+            }
         }
+    }
+
+    if ($roleColumn && isset($roleColumn['Type']) && stripos((string)$roleColumn['Type'], 'enum(') !== false) {
+        $pdo->exec("ALTER TABLE users MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'staff'");
     }
 
     $changes = [
