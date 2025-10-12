@@ -14,6 +14,10 @@ if (!defined('APP_BOOTSTRAPPED')) {
 
     define('APP_DEBUG', $appDebug);
 
+    if (!defined('JSON_THROW_ON_ERROR')) {
+        define('JSON_THROW_ON_ERROR', 0);
+    }
+
     define('BASE_PATH', __DIR__);
 
     $baseUrlEnv = getenv('BASE_URL') ?: '/';
@@ -66,6 +70,17 @@ if (!defined('APP_BOOTSTRAPPED')) {
         echo '<h1>Service unavailable</h1><p>' . $friendly . '</p>';
         echo '</body></html>';
         exit;
+    }
+}
+
+if (!function_exists('str_starts_with')) {
+    function str_starts_with(string $haystack, string $needle): bool
+    {
+        if ($needle === '') {
+            return true;
+        }
+
+        return strncmp($haystack, $needle, strlen($needle)) === 0;
     }
 }
 
