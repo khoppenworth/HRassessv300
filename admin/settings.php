@@ -6,6 +6,9 @@ require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+if (!is_array($cfg)) {
+    $cfg = [];
+}
 
 $themes = [
     'light' => t($t, 'theme_light', 'Light'),
