@@ -6,6 +6,7 @@ const Builder = (() => {
     saving: false,
     csrfToken: '',
     activeKey: null,
+    pendingActiveKey: null,
   };
 
   const selectors = {
@@ -130,6 +131,7 @@ const Builder = (() => {
 
     if (role === 'q-title') {
       state.questionnaires[qIndex].title = target.value;
+      updateTabLabel(qIndex);
     } else if (role === 'q-description') {
       state.questionnaires[qIndex].description = target.value;
     } else if (role === 'section-title' || role === 'section-description') {
@@ -303,6 +305,7 @@ const Builder = (() => {
     };
     state.questionnaires.unshift(questionnaire);
     state.activeKey = keyFor(questionnaire);
+    state.pendingActiveKey = state.activeKey;
     markDirty();
     render();
   }
@@ -418,6 +421,7 @@ const Builder = (() => {
         const match = state.questionnaires.find((q) => Number(q.id) === requested);
         if (match) {
           state.activeKey = keyFor(match);
+          state.pendingActiveKey = state.activeKey;
         }
         delete window.QB_INITIAL_ACTIVE_ID;
       }
@@ -525,6 +529,31 @@ const Builder = (() => {
     return `client:${entity.clientId}`;
   }
 
+  function escapeSelector(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    if (window.CSS && typeof window.CSS.escape === 'function') {
+      return window.CSS.escape(value);
+    }
+    return value.replace(/"/g, '\"');
+  }
+
+  function updateTabLabel(qIndex) {
+    const tabs = document.querySelector(selectors.tabs);
+    if (!tabs) return;
+    const questionnaire = state.questionnaires[qIndex];
+    if (!questionnaire) return;
+    const key = keyFor(questionnaire);
+    const selector = `[data-q-key="${escapeSelector(key)}"]`;
+    const tab = tabs.querySelector(selector);
+    if (!tab) return;
+    const label = questionnaire.title && questionnaire.title.trim() !== ''
+      ? questionnaire.title
+      : `Questionnaire ${qIndex + 1}`;
+    tab.textContent = label;
+  }
+
   function ensureActiveKey() {
     if (!state.questionnaires.length) {
       state.activeKey = null;
@@ -545,6 +574,31 @@ const Builder = (() => {
     }
     state.activeKey = key;
     render();
+  }
+
+  function focusActiveQuestionnaire() {
+    if (!state.pendingActiveKey) {
+      return;
+    }
+    const activeKey = state.pendingActiveKey;
+    state.pendingActiveKey = null;
+    const tabs = document.querySelector(selectors.tabs);
+    if (tabs) {
+      const tabSelector = `[data-q-key="${escapeSelector(activeKey)}"]`;
+      const activeTab = tabs.querySelector(tabSelector);
+      if (activeTab && typeof activeTab.scrollIntoView === 'function') {
+        activeTab.scrollIntoView({ block: 'nearest', inline: 'center' });
+      }
+    }
+    const list = document.querySelector(selectors.list);
+    if (!list) {
+      return;
+    }
+    const cardSelector = `.qb-questionnaire[data-key="${escapeSelector(activeKey)}"]`;
+    const activeCard = list.querySelector(cardSelector);
+    if (activeCard && typeof activeCard.scrollIntoView === 'function') {
+      activeCard.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
   }
 
   function render() {
@@ -599,6 +653,7 @@ const Builder = (() => {
     }
     initSortable();
     updateDirtyState();
+    focusActiveQuestionnaire();
   }
 
   function buildQuestionnaireCard(questionnaire, qIndex) {
