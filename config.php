@@ -30,11 +30,6 @@ if (!defined('APP_BOOTSTRAPPED')) {
     require_once __DIR__ . '/lib/mailer.php';
     require_once __DIR__ . '/lib/notifications.php';
 
-    $locale = ensure_locale();
-    if (!isset($_SESSION['lang']) || $_SESSION['lang'] !== $locale) {
-        $_SESSION['lang'] = $locale;
-    }
-
     apply_security_headers($appDebug);
 
     $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
@@ -83,6 +78,41 @@ if (!defined('APP_BOOTSTRAPPED')) {
         echo '<h1>Service unavailable</h1><p>' . $friendly . '</p>';
         echo '</body></html>';
         exit;
+    }
+
+    $configuredLocales = [];
+    try {
+        $stmt = $pdo->query('SELECT enabled_locales FROM site_config WHERE id = 1');
+        if ($stmt) {
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row !== false && array_key_exists('enabled_locales', $row)) {
+                $raw = $row['enabled_locales'];
+                if (is_array($raw)) {
+                    $configuredLocales = $raw;
+                } elseif (is_string($raw) && $raw !== '') {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $configuredLocales = $decoded;
+                    } else {
+                        $parts = array_map('trim', explode(',', $raw));
+                        $configuredLocales = array_values(array_filter($parts, static fn($part) => $part !== ''));
+                    }
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('prime_enabled_locales: ' . $e->getMessage());
+    }
+
+    if ($configuredLocales === [] || $configuredLocales === null) {
+        $configuredLocales = SUPPORTED_LOCALES;
+    }
+
+    remember_available_locales($configuredLocales);
+
+    $locale = ensure_locale();
+    if (!isset($_SESSION['lang']) || $_SESSION['lang'] !== $locale) {
+        $_SESSION['lang'] = $locale;
     }
 }
 
