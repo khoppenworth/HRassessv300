@@ -1151,7 +1151,11 @@ function hex_to_hsl(string $hex): array
 
 function hsl_to_hex(float $h, float $s, float $l): string
 {
-    $h = fmod(($h % 360) + 360, 360) / 360;
+    $normalizedHue = fmod($h, 360.0);
+    if ($normalizedHue < 0.0) {
+        $normalizedHue += 360.0;
+    }
+    $h = $normalizedHue / 360.0;
     $s = clamp_float($s, 0.0, 1.0);
     $l = clamp_float($l, 0.0, 1.0);
 
