@@ -1,16 +1,16 @@
 <?php
 require_once __DIR__ . '/config.php';
 
-$cfg = get_site_config($pdo);
-$brand = site_brand_palette($cfg);
-$primary = $brand['primary'];
-$gradientEnd = tint_color($primary, 0.42);
-$accent = tint_color($primary, 0.68);
-$outline = shade_color($primary, 0.4);
-$textColor = contrast_color($primary);
-$glow = rgba_string($accent, 0.35);
+$buildLogo = static function (array $cfg): string {
+    $brand = site_brand_palette($cfg);
+    $primary = $brand['primary'];
+    $gradientEnd = tint_color($primary, 0.42);
+    $accent = tint_color($primary, 0.68);
+    $outline = shade_color($primary, 0.4);
+    $textColor = contrast_color($primary);
+    $glow = rgba_string($accent, 0.35);
 
-$svg = <<<SVG
+    return <<<SVG
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="Site logo">
   <defs>
     <linearGradient id="brandGradient" x1="0" y1="0" x2="1" y2="1">
@@ -26,6 +26,25 @@ $svg = <<<SVG
   <text x="100" y="118" text-anchor="middle" font-family="'Montserrat','Poppins','Segoe UI',sans-serif" font-size="56" font-weight="600" fill="{$textColor}">EPSS</text>
 </svg>
 SVG;
+};
+
+try {
+    $cfg = get_site_config($pdo);
+    $svg = $buildLogo($cfg);
+} catch (Throwable $e) {
+    error_log('logo generation failed: ' . $e->getMessage());
+    try {
+        $svg = $buildLogo(site_config_defaults());
+    } catch (Throwable $inner) {
+        error_log('logo fallback generation failed: ' . $inner->getMessage());
+        $svg = <<<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="Site logo">
+  <rect x="0" y="0" width="200" height="200" fill="#2073bf" />
+  <text x="100" y="115" text-anchor="middle" font-family="sans-serif" font-size="56" font-weight="600" fill="#ffffff">EPSS</text>
+</svg>
+SVG;
+    }
+}
 
 header('Content-Type: image/svg+xml; charset=utf-8');
 header('Cache-Control: public, max-age=600');

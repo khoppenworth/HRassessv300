@@ -1,117 +1,153 @@
 <?php
-require_once __DIR__ . '/../config.php';
-auth_required(['admin']);
-refresh_current_user($pdo);
-require_profile_completion($pdo);
-$locale = ensure_locale();
-$t = load_lang($locale);
-$cfg = get_site_config($pdo);
-if (!is_array($cfg)) {
-    $cfg = [];
-}
+$fatalError = null;
+$fatalDebugDetails = null;
 
-$themes = [
-    'light' => t($t, 'theme_light', 'Light'),
-    'dark' => t($t, 'theme_dark', 'Dark'),
-];
-
-$msg = '';
-$errors = [];
-$enabledLocales = site_enabled_locales($cfg);
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_check();
-
-    $google_oauth_enabled = isset($_POST['google_oauth_enabled']) ? 1 : 0;
-    $google_oauth_client_id = trim($_POST['google_oauth_client_id'] ?? '');
-    $google_oauth_client_secret = trim($_POST['google_oauth_client_secret'] ?? '');
-    $microsoft_oauth_enabled = isset($_POST['microsoft_oauth_enabled']) ? 1 : 0;
-    $microsoft_oauth_client_id = trim($_POST['microsoft_oauth_client_id'] ?? '');
-    $microsoft_oauth_client_secret = trim($_POST['microsoft_oauth_client_secret'] ?? '');
-    $microsoft_oauth_tenant = trim($_POST['microsoft_oauth_tenant'] ?? '');
-    if ($microsoft_oauth_tenant === '') {
-        $microsoft_oauth_tenant = 'common';
+try {
+    require_once __DIR__ . '/../config.php';
+    auth_required(['admin']);
+    refresh_current_user($pdo);
+    require_profile_completion($pdo);
+    $locale = ensure_locale();
+    $t = load_lang($locale);
+    $cfg = get_site_config($pdo);
+    if (!is_array($cfg)) {
+        $cfg = [];
     }
 
-    $smtp_enabled = isset($_POST['smtp_enabled']) ? 1 : 0;
-    $smtp_host = trim($_POST['smtp_host'] ?? '');
-    $smtp_port = (int)($_POST['smtp_port'] ?? 0);
-    $smtp_username = trim($_POST['smtp_username'] ?? '');
-    $smtp_password_input = trim($_POST['smtp_password'] ?? '');
-    $smtp_password = $smtp_password_input !== '' ? $smtp_password_input : (string)($cfg['smtp_password'] ?? '');
-    $smtp_encryption = strtolower(trim($_POST['smtp_encryption'] ?? 'none'));
-    if (!in_array($smtp_encryption, ['none','tls','ssl'], true)) {
-        $smtp_encryption = 'none';
-    }
-    $smtp_from_email = trim($_POST['smtp_from_email'] ?? '');
-    $smtp_from_name = trim($_POST['smtp_from_name'] ?? '');
-    $smtp_timeout = (int)($_POST['smtp_timeout'] ?? 20);
-    if ($smtp_timeout <= 0) {
-        $smtp_timeout = 20;
-    }
-
-    $color_theme = strtolower(trim($_POST['color_theme'] ?? 'light'));
-    if (!array_key_exists($color_theme, $themes)) {
-        $color_theme = 'light';
-    }
-
-    $brand_color_reset = $_POST['brand_color_reset'] ?? '0';
-    $brand_color_input = normalize_hex_color((string)($_POST['brand_color'] ?? ''));
-    $brand_color = '';
-    if ($brand_color_reset === '1') {
-        $brand_color = '';
-    } elseif ($brand_color_input !== null) {
-        $brand_color = $brand_color_input;
-    }
-
-    $enabledLocalesInput = $_POST['enabled_locales'] ?? [];
-    if (!is_array($enabledLocalesInput)) {
-        $enabledLocalesInput = [];
-    }
-    $selectedLocales = sanitize_locale_selection($enabledLocalesInput);
-    if (!array_intersect($selectedLocales, ['en', 'fr'])) {
-        $errors[] = t($t, 'language_required_notice', 'At least English or French must remain enabled.');
-    }
-
-    $fields = [
-        'google_oauth_enabled' => $google_oauth_enabled,
-        'google_oauth_client_id' => $google_oauth_client_id,
-        'google_oauth_client_secret' => $google_oauth_client_secret,
-        'microsoft_oauth_enabled' => $microsoft_oauth_enabled,
-        'microsoft_oauth_client_id' => $microsoft_oauth_client_id,
-        'microsoft_oauth_client_secret' => $microsoft_oauth_client_secret,
-        'microsoft_oauth_tenant' => $microsoft_oauth_tenant,
-        'color_theme' => $color_theme,
-        'brand_color' => $brand_color !== '' ? $brand_color : null,
-        'smtp_enabled' => $smtp_enabled,
-        'smtp_host' => $smtp_host !== '' ? $smtp_host : null,
-        'smtp_port' => $smtp_port > 0 ? $smtp_port : 587,
-        'smtp_username' => $smtp_username !== '' ? $smtp_username : null,
-        'smtp_password' => $smtp_password !== '' ? $smtp_password : null,
-        'smtp_encryption' => $smtp_encryption,
-        'smtp_from_email' => $smtp_from_email !== '' ? $smtp_from_email : null,
-        'smtp_from_name' => $smtp_from_name !== '' ? $smtp_from_name : null,
-        'smtp_timeout' => $smtp_timeout,
+    $themes = [
+        'light' => t($t, 'theme_light', 'Light'),
+        'dark' => t($t, 'theme_dark', 'Dark'),
     ];
 
-    if ($errors === []) {
-        $enabledLocales = enforce_locale_requirements($selectedLocales);
-        $fields['enabled_locales'] = encode_enabled_locales($enabledLocales);
+    $msg = '';
+    $errors = [];
+    $enabledLocales = site_enabled_locales($cfg);
 
-        $assignments = [];
-        $values = [];
-        foreach ($fields as $column => $value) {
-            $assignments[] = "$column=?";
-            $values[] = ($value !== '') ? $value : null;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_check();
+
+        $google_oauth_enabled = isset($_POST['google_oauth_enabled']) ? 1 : 0;
+        $google_oauth_client_id = trim($_POST['google_oauth_client_id'] ?? '');
+        $google_oauth_client_secret = trim($_POST['google_oauth_client_secret'] ?? '');
+        $microsoft_oauth_enabled = isset($_POST['microsoft_oauth_enabled']) ? 1 : 0;
+        $microsoft_oauth_client_id = trim($_POST['microsoft_oauth_client_id'] ?? '');
+        $microsoft_oauth_client_secret = trim($_POST['microsoft_oauth_client_secret'] ?? '');
+        $microsoft_oauth_tenant = trim($_POST['microsoft_oauth_tenant'] ?? '');
+        if ($microsoft_oauth_tenant === '') {
+            $microsoft_oauth_tenant = 'common';
         }
 
-        $stm = $pdo->prepare('UPDATE site_config SET ' . implode(', ', $assignments) . ' WHERE id=1');
-        $stm->execute($values);
-        $msg = t($t, 'settings_updated', 'Settings updated successfully.');
-        $cfg = get_site_config($pdo);
+        $smtp_enabled = isset($_POST['smtp_enabled']) ? 1 : 0;
+        $smtp_host = trim($_POST['smtp_host'] ?? '');
+        $smtp_port = (int)($_POST['smtp_port'] ?? 0);
+        $smtp_username = trim($_POST['smtp_username'] ?? '');
+        $smtp_password_input = trim($_POST['smtp_password'] ?? '');
+        $smtp_password = $smtp_password_input !== '' ? $smtp_password_input : (string)($cfg['smtp_password'] ?? '');
+        $smtp_encryption = strtolower(trim($_POST['smtp_encryption'] ?? 'none'));
+        if (!in_array($smtp_encryption, ['none','tls','ssl'], true)) {
+            $smtp_encryption = 'none';
+        }
+        $smtp_from_email = trim($_POST['smtp_from_email'] ?? '');
+        $smtp_from_name = trim($_POST['smtp_from_name'] ?? '');
+        $smtp_timeout = (int)($_POST['smtp_timeout'] ?? 20);
+        if ($smtp_timeout <= 0) {
+            $smtp_timeout = 20;
+        }
+
+        $color_theme = strtolower(trim($_POST['color_theme'] ?? 'light'));
+        if (!array_key_exists($color_theme, $themes)) {
+            $color_theme = 'light';
+        }
+
+        $brand_color_reset = $_POST['brand_color_reset'] ?? '0';
+        $brand_color_input = normalize_hex_color((string)($_POST['brand_color'] ?? ''));
+        $brand_color = '';
+        if ($brand_color_reset === '1') {
+            $brand_color = '';
+        } elseif ($brand_color_input !== null) {
+            $brand_color = $brand_color_input;
+        }
+
+        $enabledLocalesInput = $_POST['enabled_locales'] ?? [];
+        if (!is_array($enabledLocalesInput)) {
+            $enabledLocalesInput = [];
+        }
+        $selectedLocales = sanitize_locale_selection($enabledLocalesInput);
+        if (!array_intersect($selectedLocales, ['en', 'fr'])) {
+            $errors[] = t($t, 'language_required_notice', 'At least English or French must remain enabled.');
+        }
+
+        $fields = [
+            'google_oauth_enabled' => $google_oauth_enabled,
+            'google_oauth_client_id' => $google_oauth_client_id,
+            'google_oauth_client_secret' => $google_oauth_client_secret,
+            'microsoft_oauth_enabled' => $microsoft_oauth_enabled,
+            'microsoft_oauth_client_id' => $microsoft_oauth_client_id,
+            'microsoft_oauth_client_secret' => $microsoft_oauth_client_secret,
+            'microsoft_oauth_tenant' => $microsoft_oauth_tenant,
+            'color_theme' => $color_theme,
+            'brand_color' => $brand_color !== '' ? $brand_color : null,
+            'smtp_enabled' => $smtp_enabled,
+            'smtp_host' => $smtp_host !== '' ? $smtp_host : null,
+            'smtp_port' => $smtp_port > 0 ? $smtp_port : 587,
+            'smtp_username' => $smtp_username !== '' ? $smtp_username : null,
+            'smtp_password' => $smtp_password !== '' ? $smtp_password : null,
+            'smtp_encryption' => $smtp_encryption,
+            'smtp_from_email' => $smtp_from_email !== '' ? $smtp_from_email : null,
+            'smtp_from_name' => $smtp_from_name !== '' ? $smtp_from_name : null,
+            'smtp_timeout' => $smtp_timeout,
+        ];
+
+        if ($errors === []) {
+            $enabledLocales = enforce_locale_requirements($selectedLocales);
+            $fields['enabled_locales'] = encode_enabled_locales($enabledLocales);
+
+            $assignments = [];
+            $values = [];
+            foreach ($fields as $column => $value) {
+                $assignments[] = "$column=?";
+                $values[] = ($value !== '') ? $value : null;
+            }
+
+            $stm = $pdo->prepare('UPDATE site_config SET ' . implode(', ', $assignments) . ' WHERE id=1');
+            $stm->execute($values);
+            $msg = t($t, 'settings_updated', 'Settings updated successfully.');
+            $cfg = get_site_config($pdo);
+            $enabledLocales = site_enabled_locales($cfg);
+        } else {
+            $enabledLocales = $selectedLocales;
+        }
+    }
+} catch (Throwable $e) {
+    error_log('admin/settings bootstrap failed: ' . $e->getMessage());
+
+    if (!isset($locale)) {
+        $locale = 'en';
+    }
+    if (!isset($t) || !is_array($t)) {
+        $t = load_lang($locale);
+    }
+    if (!isset($cfg) || !is_array($cfg)) {
+        $cfg = site_config_defaults();
+    }
+    if (!isset($themes) || !is_array($themes)) {
+        $themes = [
+            'light' => t($t, 'theme_light', 'Light'),
+            'dark' => t($t, 'theme_dark', 'Dark'),
+        ];
+    }
+    if (!isset($enabledLocales) || !is_array($enabledLocales)) {
         $enabledLocales = site_enabled_locales($cfg);
-    } else {
-        $enabledLocales = $selectedLocales;
+    }
+    if (!isset($errors) || !is_array($errors)) {
+        $errors = [];
+    }
+    $msg = $msg ?? '';
+
+    $fatalError = APP_DEBUG ? $e->getMessage() : t($t, 'unexpected_error_notice', 'An unexpected error occurred while loading the settings.');
+    $errors[] = $fatalError;
+    if (APP_DEBUG) {
+        $fatalDebugDetails = $e->getTraceAsString();
     }
 }
 ?>
@@ -137,6 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php foreach ($errors as $error): ?>
           <p><?=htmlspecialchars($error, ENT_QUOTES, 'UTF-8')?></p>
         <?php endforeach; ?>
+        <?php if ($fatalDebugDetails): ?>
+          <pre class="md-debug-trace"><?=htmlspecialchars($fatalDebugDetails, ENT_QUOTES, 'UTF-8')?></pre>
+        <?php endif; ?>
       </div>
     <?php endif; ?>
     <form method="post" action="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>">
