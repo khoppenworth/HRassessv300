@@ -368,9 +368,9 @@ function site_enabled_locales(array $cfg): array
     return enforce_locale_requirements(decode_enabled_locales($raw));
 }
 
-/** get_site_config(): fetch branding and contact settings (singleton row id=1) */
-function get_site_config(PDO $pdo): array {
-    $defaults = [
+function site_config_defaults(): array
+{
+    return [
         'id' => 1,
         'site_name' => 'My Performance',
         'landing_text' => null,
@@ -406,12 +406,18 @@ function get_site_config(PDO $pdo): array {
         'smtp_timeout' => 20,
         'enabled_locales' => ['en', 'fr', 'am'],
     ];
+}
+
+/** get_site_config(): fetch branding and contact settings (singleton row id=1) */
+function get_site_config(PDO $pdo): array
+{
+    $defaults = site_config_defaults();
 
     try {
         ensure_site_config_schema($pdo);
         $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, enabled_locales) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20, '[\"en\",\"fr\",\"am\"]')");
         $cfg = $pdo->query('SELECT * FROM site_config WHERE id=1')->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
         error_log('get_site_config failed: ' . $e->getMessage());
         remember_available_locales($defaults['enabled_locales']);
         return $defaults;
