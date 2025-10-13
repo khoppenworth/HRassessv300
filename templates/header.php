@@ -21,7 +21,7 @@ $defaultLocale = $availableLocales[0] ?? 'en';
 $brandStyle = site_brand_style($cfg);
 ?>
 <?php if ($brandStyle !== ''): ?>
-<style id="md-brand-style">:root { <?=htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8')?>; }</style>
+<style id="md-brand-style"><?=htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8')?></style>
 <?php endif; ?>
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
   window.APP_DEFAULT_LOCALE = <?=json_encode($defaultLocale, JSON_THROW_ON_ERROR)?>;
