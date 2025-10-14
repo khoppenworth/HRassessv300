@@ -407,7 +407,7 @@ body.md-bg {
 .md-title {
   margin: 0;
   font-size: 24px;
-  color: var(--status-success-text);
+  color: var(--app-heading, var(--app-primary, #1f2a44));
 }
 
 .md-subtitle {

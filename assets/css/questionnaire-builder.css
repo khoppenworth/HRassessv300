@@ -20,7 +20,7 @@
   border: 1px solid var(--app-border);
   border-radius: 999px;
   background: var(--app-primary-soft);
-  color: var(--app-primary-dark));
+  color: var(--app-primary-dark, var(--app-primary));
   padding: 0.4rem 0.85rem;
   cursor: pointer;
   font-weight: 600;

@@ -57,16 +57,89 @@ $runSqlScript = static function (PDO $pdo, string $path): void {
     }
 };
 
+$resolveUpgradeRepo = static function (array $cfg): string {
+    $configured = trim((string)($cfg['upgrade_repo'] ?? ''));
+    if ($configured !== '') {
+        return trim($configured, " \/");
+    }
+    $composerPath = base_path('composer.json');
+    if (is_file($composerPath)) {
+        $composerRaw = file_get_contents($composerPath);
+        if ($composerRaw !== false) {
+            $decoded = json_decode($composerRaw, true);
+            if (is_array($decoded) && !empty($decoded['name']) && is_string($decoded['name'])) {
+                return trim(str_replace('\\', '/', $decoded['name']));
+            }
+        }
+    }
+    return 'hrassess/hrassessv300';
+};
+
+$fetchLatestRelease = static function (string $repo, ?string $token = null): ?array {
+    $slug = trim($repo);
+    if ($slug === '') {
+        return null;
+    }
+    $slug = preg_replace('#^https?://github\\.com/#i', '', $slug);
+    $slug = trim((string)$slug, '/');
+    if ($slug === '') {
+        return null;
+    }
+    $url = 'https://api.github.com/repos/' . $slug . '/releases/latest';
+    $handle = curl_init($url);
+    if ($handle === false) {
+        throw new RuntimeException('Unable to initialise GitHub release request.');
+    }
+    $headers = [
+        'User-Agent: HRassessUpgrade/1.0',
+        'Accept: application/vnd.github+json',
+    ];
+    if ($token) {
+        $headers[] = 'Authorization: Bearer ' . $token;
+    }
+    curl_setopt_array($handle, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => $headers,
+    ]);
+    $response = curl_exec($handle);
+    if ($response === false) {
+        $error = curl_error($handle);
+        curl_close($handle);
+        throw new RuntimeException('GitHub release lookup failed: ' . ($error !== '' ? $error : 'unknown error'));
+    }
+    $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+    curl_close($handle);
+    if ($status >= 400) {
+        throw new RuntimeException('GitHub release lookup returned HTTP ' . $status);
+    }
+    $decoded = json_decode($response, true);
+    if (!is_array($decoded) || empty($decoded['tag_name'])) {
+        throw new RuntimeException('GitHub response did not include a tag_name field.');
+    }
+    return [
+        'tag' => (string)$decoded['tag_name'],
+        'name' => isset($decoded['name']) && $decoded['name'] !== '' ? (string)$decoded['name'] : (string)$decoded['tag_name'],
+        'url' => isset($decoded['html_url']) ? (string)$decoded['html_url'] : null,
+    ];
+};
+
 $currentVersion = '3.0.0';
+$upgradeRepo = $resolveUpgradeRepo($cfg);
 $upgradeDefaults = [
     'current_version' => $currentVersion,
     'available_version' => null,
+    'available_version_label' => null,
+    'available_version_url' => null,
     'last_check' => null,
     'backup_ready' => false,
     'last_backup_at' => null,
     'last_backup_path' => null,
+    'upgrade_repo' => $upgradeRepo,
 ];
 $upgradeState = array_replace($upgradeDefaults, $_SESSION['admin_upgrade_state'] ?? []);
+$upgradeState['upgrade_repo'] = $upgradeRepo;
 $flashMessage = $_SESSION['admin_dashboard_flash'] ?? '';
 $flashType = $_SESSION['admin_dashboard_flash_type'] ?? 'info';
 unset($_SESSION['admin_dashboard_flash'], $_SESSION['admin_dashboard_flash_type']);
@@ -78,17 +151,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     switch ($action) {
         case 'check_upgrade':
-            $availableVersion = '3.2.1';
             $upgradeState['last_check'] = time();
-            if (version_compare($availableVersion, (string)$upgradeState['current_version'], '>')) {
-                $upgradeState['available_version'] = $availableVersion;
-                $upgradeState['backup_ready'] = false;
-                $flashMessage = sprintf(t($t, 'upgrade_available', 'Version %s is available for installation.'), $availableVersion);
-                $flashType = 'success';
-            } else {
-                $upgradeState['available_version'] = null;
-                $flashMessage = t($t, 'upgrade_latest', 'You are already on the latest version.');
-                $flashType = 'success';
+            try {
+                $token = trim((string)($cfg['github_token'] ?? getenv('GITHUB_TOKEN') ?? ''));
+                $release = $fetchLatestRelease($upgradeState['upgrade_repo'] ?? $upgradeRepo, $token !== '' ? $token : null);
+                if ($release) {
+                    $availableVersion = $release['tag'];
+                    $availableLabel = $release['name'];
+                    $availableUrl = $release['url'];
+                    if (version_compare($availableVersion, (string)$upgradeState['current_version'], '>')) {
+                        $upgradeState['available_version'] = $availableVersion;
+                        $upgradeState['available_version_label'] = $availableLabel;
+                        $upgradeState['available_version_url'] = $availableUrl;
+                        $upgradeState['backup_ready'] = false;
+                        $flashMessage = sprintf(
+                            t($t, 'upgrade_available', 'Version %s is available for installation.'),
+                            $availableLabel
+                        );
+                        $flashType = 'success';
+                    } else {
+                        $upgradeState['available_version'] = null;
+                        $upgradeState['available_version_label'] = $availableLabel;
+                        $upgradeState['available_version_url'] = $availableUrl;
+                        $flashMessage = t($t, 'upgrade_latest', 'You are already on the latest version.');
+                        $flashType = 'success';
+                    }
+                } else {
+                    $flashMessage = t($t, 'upgrade_check_no_release', 'No GitHub releases were found for the configured repository.');
+                    $flashType = 'warning';
+                }
+            } catch (Throwable $upgradeCheckError) {
+                error_log('Admin upgrade check failed: ' . $upgradeCheckError->getMessage());
+                $flashMessage = t($t, 'upgrade_check_failed', 'Unable to reach GitHub to verify the latest release. Please try again later.');
+                $flashType = 'error';
             }
             break;
 
@@ -110,6 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $filename = 'system-backup-' . $timestamp . '.zip';
             $fullPath = $backupDir . '/' . $filename;
 
+            $archiveSize = 0;
             try {
                 $zip = new ZipArchive();
                 if ($zip->open($fullPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -247,7 +343,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     error_log('Application archive export failed: ' . $archiveError->getMessage());
                 }
 
-                $zip->close();
+                $closeResult = $zip->close();
+                if ($closeResult !== true) {
+                    throw new RuntimeException('Failed to finalise the backup archive.');
+                }
+                clearstatcache(true, $fullPath);
+                $archiveSize = filesize($fullPath);
+                if ($archiveSize === false || $archiveSize <= 0) {
+                    throw new RuntimeException('The generated backup archive is empty.');
+                }
             } catch (Throwable $backupError) {
                 if (isset($zip) && $zip instanceof ZipArchive) {
                     $zip->close();
@@ -272,7 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             session_write_close();
             header('Content-Type: application/zip');
             header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
-            header('Content-Length: ' . (string)filesize($fullPath));
+            header('Content-Length: ' . (string)$archiveSize);
             header('Cache-Control: private, max-age=0');
             readfile($fullPath);
             exit;
@@ -294,6 +398,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ensure_users_schema($pdo);
                 $upgradeState['current_version'] = $upgradeState['available_version'];
                 $upgradeState['available_version'] = null;
+                $upgradeState['available_version_label'] = null;
+                $upgradeState['available_version_url'] = null;
                 $upgradeState['backup_ready'] = false;
                 $flashMessage = t(
                     $t,
@@ -356,10 +462,13 @@ if ($latestSubmissionRaw) {
 }
 
 $availableVersion = $upgradeState['available_version'] ?? null;
+$availableVersionLabel = $upgradeState['available_version_label'] ?? $availableVersion;
+$availableVersionUrl = $upgradeState['available_version_url'] ?? null;
 $backupReady = !empty($upgradeState['backup_ready']);
 $lastCheckDisplay = !empty($upgradeState['last_check']) ? date('M j, Y g:i a', (int)$upgradeState['last_check']) : null;
 $lastBackupDisplay = !empty($upgradeState['last_backup_at']) ? date('M j, Y g:i a', (int)$upgradeState['last_backup_at']) : null;
 $backupDownloadUrl = !empty($upgradeState['last_backup_path']) ? asset_url($upgradeState['last_backup_path']) : null;
+$upgradeRepoDisplay = $upgradeState['upgrade_repo'] ?? $upgradeRepo;
 ?>
 <!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head>
 <meta charset="utf-8"><title><?=htmlspecialchars(t($t,'admin_dashboard','Admin Dashboard'), ENT_QUOTES, 'UTF-8')?></title>
@@ -391,14 +500,42 @@ $backupDownloadUrl = !empty($upgradeState['last_backup_path']) ? asset_url($upgr
         <div><strong><?=t($t,'current_version','Current version')?>:</strong> <span class="md-status-badge success"><?=htmlspecialchars((string)$upgradeState['current_version'], ENT_QUOTES, 'UTF-8')?></span></div>
         <div><strong><?=t($t,'available_version','Available version')?>:</strong>
           <?php if ($availableVersion): ?>
-            <span class="md-status-badge warning"><?=htmlspecialchars($availableVersion, ENT_QUOTES, 'UTF-8')?></span>
+            <span class="md-status-badge warning">
+              <?php if ($availableVersionUrl): ?>
+                <a href="<?=htmlspecialchars($availableVersionUrl, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener">
+                  <?=htmlspecialchars($availableVersionLabel ?? $availableVersion, ENT_QUOTES, 'UTF-8')?>
+                </a>
+              <?php else: ?>
+                <?=htmlspecialchars($availableVersionLabel ?? $availableVersion, ENT_QUOTES, 'UTF-8')?>
+              <?php endif; ?>
+            </span>
           <?php else: ?>
             <span class="md-status-badge success"><?=t($t,'no_update_required','Up to date')?></span>
+            <?php if ($availableVersionLabel): ?>
+              <span class="md-upgrade-meta md-upgrade-meta--inline">
+                <?=t($t,'latest_release_label','Latest release')?>:
+                <?php if ($availableVersionUrl): ?>
+                  <a href="<?=htmlspecialchars($availableVersionUrl, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener">
+                    <?=htmlspecialchars($availableVersionLabel, ENT_QUOTES, 'UTF-8')?>
+                  </a>
+                <?php else: ?>
+                  <?=htmlspecialchars($availableVersionLabel, ENT_QUOTES, 'UTF-8')?>
+                <?php endif; ?>
+              </span>
+            <?php endif; ?>
           <?php endif; ?>
         </div>
         <div><strong><?=t($t,'backup_status','Backup status')?>:</strong>
           <span class="md-status-badge <?=$backupReady ? 'success' : 'warning'?>"><?=$backupReady ? t($t,'backup_ready','Backup ready') : t($t,'backup_required','Backup required')?></span>
         </div>
+        <?php if ($upgradeRepoDisplay): ?>
+          <div class="md-upgrade-meta">
+            <?=t($t,'release_source','Release source')?>:
+            <a href="<?=htmlspecialchars('https://github.com/' . ltrim($upgradeRepoDisplay, '/'), ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener">
+              <?=htmlspecialchars($upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>
+            </a>
+          </div>
+        <?php endif; ?>
         <?php if ($lastCheckDisplay): ?>
           <div class="md-upgrade-meta"><?=t($t,'last_checked','Last checked:')?> <?=htmlspecialchars($lastCheckDisplay, ENT_QUOTES, 'UTF-8')?></div>
         <?php endif; ?>
