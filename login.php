@@ -84,6 +84,7 @@ $bodyClass = htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8');
 $bodyStyle = htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8');
 $baseUrl = htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8');
 $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
+$brandStyle = site_brand_style($cfg);
 ?>
 <!doctype html>
 <html lang="<?= $langAttr ?>" data-base-url="<?= $baseUrl ?>">
@@ -95,6 +96,9 @@ $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
   <link rel="manifest" href="<?= asset_url('manifest.php') ?>">
   <link rel="stylesheet" href="<?= asset_url('assets/css/material.css') ?>">
   <link rel="stylesheet" href="<?= asset_url('assets/css/styles.css') ?>">
+  <?php if ($brandStyle !== ''): ?>
+    <style id="md-brand-style"><?= htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8') ?></style>
+  <?php endif; ?>
 </head>
 <body class="<?= $bodyClass ?>" style="<?= $bodyStyle ?>">
   <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
