@@ -35,7 +35,7 @@ $rows = $pdo->query("SELECT qr.*, u.username, q.title FROM questionnaire_respons
 <div class="md-card md-elev-2">
   <h2 class="md-card-title"><?=t($t,'pending_submissions','Pending Submissions')?></h2>
   <table class="md-table">
-    <thead><tr><th><?=t($t,'id','ID')?></th><th><?=t($t,'user','User')?></th><th><?=t($t,'questionnaire','Questionnaire')?></th><th><?=t($t,'score','Score (%)')?></th><th><?=t($t,'action','Action')?></th></tr></thead>
+    <thead><tr><th><?=t($t,'id','ID')?></th><th><?=t($t,'user','User')?></th><th><?=t($t,'questionnaire','Questionnaire')?></th><th><?=t($t,'score','Score (%)')?></th><th><?=t($t,'view','View')?></th><th><?=t($t,'action','Action')?></th></tr></thead>
     <tbody>
     <?php foreach ($rows as $r): ?>
     <tr>
@@ -43,6 +43,7 @@ $rows = $pdo->query("SELECT qr.*, u.username, q.title FROM questionnaire_respons
       <td><?=htmlspecialchars($r['username'])?></td>
       <td><?=htmlspecialchars($r['title'])?></td>
       <td><?= is_null($r['score']) ? '-' : (int)$r['score']?></td>
+      <td><a class="md-button" href="<?=htmlspecialchars(url_for('admin/view_submission.php?id=' . $r['id']), ENT_QUOTES, 'UTF-8')?>"><?=t($t,'open','Open')?></a></td>
       <td>
         <form method="post" class="md-inline-form" action="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>">
           <input type="hidden" name="csrf" value="<?=csrf_token()?>">

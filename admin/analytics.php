@@ -6,426 +6,367 @@ require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+
+$summaryStmt = $pdo->query(
+    "SELECT COUNT(*) AS total_responses, "
+    . "SUM(status='approved') AS approved_count, "
+    . "SUM(status='submitted') AS submitted_count, "
+    . "SUM(status='draft') AS draft_count, "
+    . "SUM(status='rejected') AS rejected_count, "
+    . "AVG(score) AS avg_score, "
+    . "MAX(created_at) AS latest_at "
+    . "FROM questionnaire_response"
+);
+$summary = $summaryStmt ? $summaryStmt->fetch(PDO::FETCH_ASSOC) : [];
+
+$totalParticipants = (int)($pdo->query('SELECT COUNT(DISTINCT user_id) FROM questionnaire_response')->fetchColumn() ?: 0);
+
+$questionnaireStmt = $pdo->query(
+    "SELECT q.id, q.title, COUNT(*) AS total_responses, "
+    . "SUM(qr.status='approved') AS approved_count, "
+    . "SUM(qr.status='submitted') AS submitted_count, "
+    . "SUM(qr.status='draft') AS draft_count, "
+    . "SUM(qr.status='rejected') AS rejected_count, "
+    . "AVG(qr.score) AS avg_score "
+    . "FROM questionnaire_response qr "
+    . "JOIN questionnaire q ON q.id = qr.questionnaire_id "
+    . "GROUP BY q.id, q.title "
+    . "ORDER BY q.title"
+);
+$questionnaires = $questionnaireStmt ? $questionnaireStmt->fetchAll() : [];
+
+$questionnaireIds = array_map(static fn($row) => (int)$row['id'], $questionnaires);
+$selectedQuestionnaireId = (int)($_GET['questionnaire_id'] ?? 0);
+if ($questionnaires) {
+    if (!$selectedQuestionnaireId || !in_array($selectedQuestionnaireId, $questionnaireIds, true)) {
+        $selectedQuestionnaireId = (int)$questionnaires[0]['id'];
+    }
+} else {
+    $selectedQuestionnaireId = 0;
+}
+
+$selectedResponses = [];
+$selectedUserBreakdown = [];
+if ($selectedQuestionnaireId) {
+    $responseStmt = $pdo->prepare(
+        'SELECT qr.id, qr.status, qr.score, qr.created_at, qr.review_comment, '
+        . 'u.username, u.full_name, u.work_function, pp.label AS period_label '
+        . 'FROM questionnaire_response qr '
+        . 'JOIN users u ON u.id = qr.user_id '
+        . 'LEFT JOIN performance_period pp ON pp.id = qr.performance_period_id '
+        . 'WHERE qr.questionnaire_id = ? '
+        . 'ORDER BY qr.created_at DESC'
+    );
+    $responseStmt->execute([$selectedQuestionnaireId]);
+    $selectedResponses = $responseStmt->fetchAll();
+
+    $userStmt = $pdo->prepare(
+        'SELECT u.id AS user_id, u.username, u.full_name, u.work_function, '
+        . 'COUNT(*) AS total_responses, '
+        . 'SUM(qr.status="approved") AS approved_count, '
+        . 'AVG(qr.score) AS avg_score '
+        . 'FROM questionnaire_response qr '
+        . 'JOIN users u ON u.id = qr.user_id '
+        . 'WHERE qr.questionnaire_id = ? '
+        . 'GROUP BY u.id, u.username, u.full_name, u.work_function '
+        . 'ORDER BY avg_score DESC'
+    );
+    $userStmt->execute([$selectedQuestionnaireId]);
+    $selectedUserBreakdown = $userStmt->fetchAll();
+}
+
 $workFunctionOptions = work_function_choices($pdo);
+$workFunctionStmt = $pdo->query(
+    "SELECT u.work_function, COUNT(*) AS total_responses, "
+    . "SUM(qr.status='approved') AS approved_count, "
+    . "AVG(qr.score) AS avg_score "
+    . "FROM questionnaire_response qr "
+    . "JOIN users u ON u.id = qr.user_id "
+    . "GROUP BY u.work_function "
+    . "ORDER BY total_responses DESC"
+);
+$workFunctionSummary = $workFunctionStmt ? $workFunctionStmt->fetchAll() : [];
 
-$avg = $pdo->query("SELECT u.username, u.full_name, AVG(score) avg_score, COUNT(*) cnt FROM questionnaire_response qr JOIN users u ON u.id=qr.user_id GROUP BY u.id ORDER BY avg_score DESC")->fetchAll();
-$time = $pdo->query("SELECT DATE(created_at) d, COUNT(*) c FROM questionnaire_response GROUP BY DATE(created_at) ORDER BY d ASC")->fetchAll();
-$workFunctionStats = $pdo->query("SELECT u.work_function, COUNT(*) total_responses, SUM(qr.status='approved') approved_count, AVG(qr.score) avg_score FROM questionnaire_response qr JOIN users u ON u.id = qr.user_id GROUP BY u.work_function ORDER BY avg_score DESC")->fetchAll();
-$statusRows = $pdo->query("SELECT status, COUNT(*) c FROM questionnaire_response GROUP BY status ORDER BY status ASC")->fetchAll();
-
-$avgChartData = [];
-foreach (array_slice($avg, 0, 12) as $row) {
-  $label = trim((string)($row['full_name'] ?? ''));
-  if ($label === '') {
-    $label = trim((string)($row['username'] ?? 'User'));
-  }
-  if ($label === '') {
-    $label = 'User';
-  }
-  $avgChartData[] = [
-    'label' => $label,
-    'average' => round((float)($row['avg_score'] ?? 0), 2),
-    'count' => (int)($row['cnt'] ?? 0),
-  ];
-}
-
-$timeSeries = [];
-foreach ($time as $row) {
-  $rawDate = $row['d'] ?? null;
-  $label = $rawDate ? date('M j', strtotime($rawDate)) : '';
-  $timeSeries[] = [
-    'date' => $rawDate,
-    'label' => $label,
-    'count' => (int)($row['c'] ?? 0),
-  ];
-}
-
-$workFunctionChart = [];
-foreach ($workFunctionStats as $row) {
-  $wfKey = $row['work_function'] ?? '';
-  $wfLabel = $workFunctionOptions[$wfKey] ?? ($wfKey !== '' ? $wfKey : t($t, 'unknown', 'Unknown'));
-  $workFunctionChart[] = [
-    'label' => $wfLabel,
-    'total' => (int)($row['total_responses'] ?? 0),
-    'approved' => (int)($row['approved_count'] ?? 0),
-    'average' => round((float)($row['avg_score'] ?? 0), 1),
-  ];
-}
-
-$statusLabelMap = [
-  'draft' => t($t, 'status_draft', 'Draft'),
-  'submitted' => t($t, 'status_submitted', 'Submitted'),
-  'approved' => t($t, 'status_approved', 'Approved'),
-  'rejected' => t($t, 'status_rejected', 'Returned'),
+$statusLabels = [
+    'draft' => t($t, 'status_draft', 'Draft'),
+    'submitted' => t($t, 'status_submitted', 'Submitted'),
+    'approved' => t($t, 'status_approved', 'Approved'),
+    'rejected' => t($t, 'status_rejected', 'Rejected'),
 ];
-$statusChart = [];
-foreach ($statusRows as $row) {
-  $key = (string)($row['status'] ?? '');
-  $statusChart[] = [
-    'label' => $statusLabelMap[$key] ?? ($key !== '' ? ucfirst($key) : t($t, 'unknown', 'Unknown')),
-    'value' => (int)($row['c'] ?? 0),
-  ];
-}
 
-$avgChartJson = json_encode($avgChartData, JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
-$timeChartJson = json_encode($timeSeries, JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
-$workFunctionJson = json_encode($workFunctionChart, JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
-$statusChartJson = json_encode($statusChart, JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
-$looker_sql = <<<SQL
-SELECT
-  qr.id AS response_id,
-  u.username,
-  u.full_name,
-  u.email,
-  u.role,
-  u.work_function,
-  u.account_status,
-  qr.questionnaire_id,
-  q.title AS questionnaire_title,
-  qr.status,
-  qr.score,
-  qr.created_at,
-  qr.reviewed_at,
-  qr.review_comment,
-  reviewer.username AS reviewer_username,
-  reviewer.full_name AS reviewer_name,
-  pp.label AS performance_period_label
-FROM questionnaire_response qr
-JOIN users u ON u.id = qr.user_id
-LEFT JOIN questionnaire q ON q.id = qr.questionnaire_id
-LEFT JOIN users reviewer ON reviewer.id = qr.reviewed_by
-LEFT JOIN performance_period pp ON pp.id = qr.performance_period_id;
-SQL;
+$formatScore = static function ($score, int $precision = 1): string {
+    if ($score === null) {
+        return '—';
+    }
+    return number_format((float)$score, $precision);
+};
+
+$selectedAggregate = [
+    'total' => count($selectedResponses),
+    'approved' => 0,
+    'submitted' => 0,
+    'draft' => 0,
+    'rejected' => 0,
+    'scored_count' => 0,
+    'score_sum' => 0.0,
+];
+foreach ($selectedResponses as $row) {
+    $statusKey = $row['status'] ?? '';
+    if (isset($selectedAggregate[$statusKey])) {
+        $selectedAggregate[$statusKey] += 1;
+    }
+    if (isset($row['score']) && $row['score'] !== null) {
+        $selectedAggregate['score_sum'] += (float)$row['score'];
+        $selectedAggregate['scored_count'] += 1;
+    }
+}
+$selectedAverage = $selectedAggregate['scored_count'] > 0
+    ? $selectedAggregate['score_sum'] / $selectedAggregate['scored_count']
+    : null;
 ?>
 <!doctype html>
 <html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
 <head>
   <meta charset="utf-8">
-  <title><?=htmlspecialchars(t($t,'analytics','Analytics'), ENT_QUOTES, 'UTF-8')?></title>
+  <title><?=htmlspecialchars(t($t, 'analytics', 'Analytics'), ENT_QUOTES, 'UTF-8')?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
   <link rel="manifest" href="<?=asset_url('manifest.php')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
+  <style nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+    .md-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    .md-summary-card {
+      padding: 1rem;
+      border-radius: 6px;
+      background: var(--app-surface-alt, #f5f7fa);
+    }
+    .md-summary-card strong {
+      display: block;
+      font-size: 1.25rem;
+      margin-bottom: 0.35rem;
+    }
+    .md-table--interactive tr.is-selected {
+      background: rgba(0, 132, 255, 0.08);
+    }
+    .md-table--interactive tr.is-selected td {
+      font-weight: 600;
+    }
+    .md-table--interactive a.md-row-link {
+      display: inline-block;
+      color: inherit;
+      text-decoration: none;
+    }
+    .md-table--interactive a.md-row-link:hover,
+    .md-table--interactive a.md-row-link:focus {
+      text-decoration: underline;
+    }
+    .md-analytics-meta {
+      margin: 0.75rem 0 0;
+      color: var(--app-text-secondary, #555);
+    }
+  </style>
 </head>
 <body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
-<?php include __DIR__.'/../templates/header.php'; ?>
+<?php include __DIR__ . '/../templates/header.php'; ?>
 <section class="md-section">
-  <div class="md-dashboard-grid md-dashboard-grid--analytics">
-    <div class="md-card md-elev-2">
-      <h2 class="md-card-title"><?=t($t,'avg_score_chart','Average Score by User')?></h2>
-      <?php if ($avgChartData): ?>
-        <canvas id="avgScoreChart" height="280"></canvas>
-        <p class="md-upgrade-meta"><?=t($t,'avg_score_chart_hint','Top performers are limited to the most recent 12 users with scored responses.')?></p>
-      <?php else: ?>
-        <p class="md-upgrade-meta"><?=t($t,'avg_score_chart_empty','Score data will appear here after responses are submitted.')?></p>
-      <?php endif; ?>
-    </div>
-    <div class="md-card md-elev-2">
-      <h2 class="md-card-title"><?=t($t,'submissions_trend','Submissions Trend')?></h2>
-      <?php if ($timeSeries): ?>
-        <canvas id="submissionTrendChart" height="280"></canvas>
-        <p class="md-upgrade-meta"><?=t($t,'submissions_trend_hint','Monitor the pacing of questionnaire activity over time.')?></p>
-      <?php else: ?>
-        <p class="md-upgrade-meta"><?=t($t,'submissions_trend_empty','No submissions recorded yet for the selected period.')?></p>
-      <?php endif; ?>
-    </div>
-    <div class="md-card md-elev-2">
-      <h2 class="md-card-title"><?=t($t,'work_function_performance','Work Function Performance')?></h2>
-      <?php if ($workFunctionChart): ?>
-        <canvas id="workFunctionChart" height="280"></canvas>
-        <p class="md-upgrade-meta"><?=t($t,'work_function_hint','Compare response volume, approvals and average scores by work function.')?></p>
-      <?php else: ?>
-        <p class="md-upgrade-meta"><?=t($t,'work_function_empty','Assign questionnaires to teams to see benchmarks populate here.')?></p>
-      <?php endif; ?>
-    </div>
-    <div class="md-card md-elev-2">
-      <h2 class="md-card-title"><?=t($t,'status_mix','Response Status Mix')?></h2>
-      <?php if ($statusChart): ?>
-        <canvas id="statusChart" height="280"></canvas>
-        <p class="md-upgrade-meta"><?=t($t,'status_mix_hint','Quickly spot where responses are waiting for review or approval.')?></p>
-      <?php else: ?>
-        <p class="md-upgrade-meta"><?=t($t,'status_mix_empty','Once assessments are started the status mix will be visualised here.')?></p>
-      <?php endif; ?>
-    </div>
-  </div>
   <div class="md-card md-elev-2">
-    <h2 class="md-card-title"><?=t($t,'avg_score_per_user','Average Score per User')?></h2>
-    <table class="md-table">
-      <thead>
-        <tr>
-          <th><?=t($t,'user','User')?></th>
-          <th><?=t($t,'full_name','Full Name')?></th>
-          <th><?=t($t,'average_score','Average Score (%)')?></th>
-          <th><?=t($t,'count','Count')?></th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($avg as $r): ?>
-          <?php $fullName = trim((string)($r['full_name'] ?? '')); ?>
+    <h2 class="md-card-title"><?=t($t, 'analytics_overview', 'Analytics overview')?></h2>
+    <div class="md-summary-grid">
+      <div class="md-summary-card">
+        <strong><?= (int)($summary['total_responses'] ?? 0) ?></strong>
+        <span><?=t($t, 'total_responses', 'Total responses recorded')?></span>
+      </div>
+      <div class="md-summary-card">
+        <strong><?= $formatScore($summary['avg_score'] ?? null, 1) ?></strong>
+        <span><?=t($t, 'average_score_all', 'Average score across all questionnaires')?></span>
+      </div>
+      <div class="md-summary-card">
+        <strong><?= (int)($summary['approved_count'] ?? 0) ?></strong>
+        <span><?=t($t, 'approved_responses', 'Approved responses')?></span>
+      </div>
+      <div class="md-summary-card">
+        <strong><?= $totalParticipants ?></strong>
+        <span><?=t($t, 'unique_participants', 'Unique participants')?></span>
+      </div>
+    </div>
+    <?php if (!empty($summary['latest_at'])): ?>
+      <p class="md-analytics-meta"><?=t($t, 'latest_submission', 'Latest submission:')?> <?=htmlspecialchars($summary['latest_at'], ENT_QUOTES, 'UTF-8')?></p>
+    <?php endif; ?>
+  </div>
+
+  <div class="md-card md-elev-2">
+    <h2 class="md-card-title"><?=t($t, 'questionnaire_performance', 'Questionnaire performance')?></h2>
+    <?php if ($questionnaires): ?>
+      <p class="md-upgrade-meta"><?=t($t, 'questionnaire_drilldown_hint', 'Select a questionnaire to drill into individual responses.')?></p>
+      <table class="md-table md-table--interactive">
+        <thead>
           <tr>
-            <td><?=htmlspecialchars($r['username'])?></td>
-            <td><?= $fullName !== '' ? htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') : '—' ?></td>
-            <td><?=number_format((float)$r['avg_score'], 2)?></td>
-            <td><?=$r['cnt']?></td>
+            <th><?=t($t, 'questionnaire', 'Questionnaire')?></th>
+            <th><?=t($t, 'count', 'Responses')?></th>
+            <th><?=t($t, 'approved', 'Approved')?></th>
+            <th><?=t($t, 'status_submitted', 'Submitted')?></th>
+            <th><?=t($t, 'status_draft', 'Draft')?></th>
+            <th><?=t($t, 'status_rejected', 'Rejected')?></th>
+            <th><?=t($t, 'average_score', 'Average score (%)')?></th>
           </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <?php foreach ($questionnaires as $row): ?>
+            <?php $isSelected = ((int)$row['id'] === $selectedQuestionnaireId); ?>
+            <tr class="<?= $isSelected ? 'is-selected' : '' ?>">
+              <td>
+                <a class="md-row-link" href="<?=htmlspecialchars(url_for('admin/analytics.php') . '?questionnaire_id=' . (int)$row['id'], ENT_QUOTES, 'UTF-8')?>">
+                  <?=htmlspecialchars($row['title'] ?? '', ENT_QUOTES, 'UTF-8')?>
+                </a>
+              </td>
+              <td><?= (int)$row['total_responses'] ?></td>
+              <td><?= (int)$row['approved_count'] ?></td>
+              <td><?= (int)$row['submitted_count'] ?></td>
+              <td><?= (int)$row['draft_count'] ?></td>
+              <td><?= (int)$row['rejected_count'] ?></td>
+              <td><?= $formatScore($row['avg_score'] ?? null) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php else: ?>
+      <p class="md-upgrade-meta"><?=t($t, 'no_questionnaire_stats', 'No questionnaire responses are available yet.')?></p>
+    <?php endif; ?>
   </div>
-  <div class="md-card md-elev-2">
-    <h2 class="md-card-title"><?=t($t,'avg_score_per_work_function','Average Score per Work Function')?></h2>
-    <table class="md-table">
-      <thead>
-        <tr>
-          <th><?=t($t,'work_function','Work Function / Cadre')?></th>
-          <th><?=t($t,'count','Responses')?></th>
-          <th><?=t($t,'approved','Approved')?></th>
-          <th><?=t($t,'average_score','Average Score (%)')?></th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($workFunctionStats as $row): ?>
-          <?php
-            $wfKey = $row['work_function'] ?? '';
-            $wfLabel = $workFunctionOptions[$wfKey] ?? ($wfKey !== '' ? $wfKey : t($t,'unknown','Unknown'));
-          ?>
-          <tr>
-            <td><?=htmlspecialchars($wfLabel, ENT_QUOTES, 'UTF-8')?></td>
-            <td><?= (int)$row['total_responses'] ?></td>
-            <td><?= (int)$row['approved_count'] ?></td>
-            <td><?=number_format((float)$row['avg_score'], 2)?></td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <div class="md-card md-elev-2">
-    <h2 class="md-card-title"><?=t($t,'submissions_over_time','Submissions Over Time (daily)')?></h2>
-    <table class="md-table">
-      <thead>
-        <tr><th><?=t($t,'date','Date')?></th><th><?=t($t,'count','Count')?></th></tr>
-      </thead>
-      <tbody>
-        <?php foreach ($time as $r): ?>
-          <tr>
-            <td><?=$r['d']?></td>
-            <td><?=$r['c']?></td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <div class="md-card md-elev-2">
-    <h2 class="md-card-title"><?=t($t,'looker_sql','Looker Studio Fields (SQL)')?></h2>
-    <pre><?=htmlspecialchars($looker_sql)?></pre>
-  </div>
-  <script src="<?=asset_url('assets/adminlte/plugins/chart.js/Chart.min.js')?>"></script>
-  <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
-    (function () {
-      if (typeof window.Chart === 'undefined') {
-        return;
-      }
-      const avgData = <?=$avgChartJson?>;
-      const timeData = <?=$timeChartJson?>;
-      const workFunctionData = <?=$workFunctionJson?>;
-      const statusData = <?=$statusChartJson?>;
-      const rootStyles = getComputedStyle(document.documentElement);
-      const cssVar = (name, fallbackName) => {
-        const value = rootStyles.getPropertyValue(name);
-        if (value) {
-          const trimmed = value.trim();
-          if (trimmed) {
-            return trimmed;
-          }
-        }
-        if (fallbackName) {
-          const fallbackValue = rootStyles.getPropertyValue(fallbackName);
-          if (fallbackValue) {
-            const fallbackTrimmed = fallbackValue.trim();
-            if (fallbackTrimmed) {
-              return fallbackTrimmed;
+
+  <?php if ($selectedQuestionnaireId): ?>
+    <div class="md-card md-elev-2">
+      <?php
+        $selectedQuestionnaire = null;
+        foreach ($questionnaires as $candidate) {
+            if ((int)$candidate['id'] === $selectedQuestionnaireId) {
+                $selectedQuestionnaire = $candidate;
+                break;
             }
-          }
         }
-        return '';
-      };
-      const palette = {
-        primary: cssVar('--app-primary', '--brand-primary'),
-        secondary: cssVar('--app-secondary', '--brand-secondary'),
-        accent: cssVar('--app-accent', '--status-warning'),
-        muted: cssVar('--app-muted', '--brand-muted'),
-        border: cssVar('--app-primary-dark', '--brand-primary-dark'),
-      };
+      ?>
+      <h2 class="md-card-title">
+        <?=t($t, 'responses_for_questionnaire', 'Responses for questionnaire')?> ·
+        <?=htmlspecialchars($selectedQuestionnaire['title'] ?? '', ENT_QUOTES, 'UTF-8')?>
+      </h2>
+      <?php if ($selectedAggregate['total'] > 0): ?>
+        <p class="md-upgrade-meta">
+          <?=t($t, 'selected_summary', 'Average score:')?>
+          <?=$formatScore($selectedAverage)?> ·
+          <?=t($t, 'approved_responses', 'Approved responses')?>: <?=$selectedAggregate['approved']?> ·
+          <?=t($t, 'status_submitted', 'Submitted')?>: <?=$selectedAggregate['submitted']?> ·
+          <?=t($t, 'status_draft', 'Draft')?>: <?=$selectedAggregate['draft']?> ·
+          <?=t($t, 'status_rejected', 'Rejected')?>: <?=$selectedAggregate['rejected']?>
+        </p>
+        <table class="md-table">
+          <thead>
+            <tr>
+              <th><?=t($t, 'user', 'User')?></th>
+              <th><?=t($t, 'performance_period', 'Performance Period')?></th>
+              <th><?=t($t, 'status', 'Status')?></th>
+              <th><?=t($t, 'score', 'Score (%)')?></th>
+              <th><?=t($t, 'date', 'Submitted on')?></th>
+              <th><?=t($t, 'review_comment', 'Review comment')?></th>
+              <th><?=t($t, 'view', 'View')?></th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($selectedResponses as $row): ?>
+              <?php $statusKey = $row['status'] ?? ''; ?>
+              <tr>
+                <td>
+                  <?=htmlspecialchars($row['username'] ?? '', ENT_QUOTES, 'UTF-8')?>
+                  <?php if (!empty($row['full_name'])): ?>
+                    <br><span class="md-muted"><?=htmlspecialchars($row['full_name'], ENT_QUOTES, 'UTF-8')?></span>
+                  <?php endif; ?>
+                </td>
+                <td><?=htmlspecialchars($row['period_label'] ?? '', ENT_QUOTES, 'UTF-8')?></td>
+                <td><?=htmlspecialchars($statusLabels[$statusKey] ?? ucfirst((string)$statusKey), ENT_QUOTES, 'UTF-8')?></td>
+                <td><?= isset($row['score']) && $row['score'] !== null ? (int)$row['score'] : '—' ?></td>
+                <td><?=htmlspecialchars($row['created_at'] ?? '', ENT_QUOTES, 'UTF-8')?></td>
+                <td><?=htmlspecialchars($row['review_comment'] ?? '', ENT_QUOTES, 'UTF-8')?></td>
+                <td><a class="md-button" href="<?=htmlspecialchars(url_for('admin/view_submission.php?id=' . (int)$row['id']), ENT_QUOTES, 'UTF-8')?>"><?=t($t, 'open', 'Open')?></a></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php else: ?>
+        <p class="md-upgrade-meta"><?=t($t, 'no_responses_for_selection', 'There are no responses for this questionnaire yet.')?></p>
+      <?php endif; ?>
+    </div>
 
-      const avgCanvas = document.getElementById('avgScoreChart');
-      if (avgCanvas && avgData.length) {
-        new Chart(avgCanvas, {
-          type: 'bar',
-          data: {
-            labels: avgData.map((entry) => entry.label),
-            datasets: [
-              {
-                label: 'Average %',
-                data: avgData.map((entry) => entry.average),
-                backgroundColor: palette.primary,
-                borderColor: palette.border,
-                borderWidth: 1,
-                borderRadius: 6,
-                maxBarThickness: 42,
-              },
-              {
-                type: 'line',
-                label: 'Responses',
-                data: avgData.map((entry) => entry.count),
-                borderColor: palette.accent,
-                backgroundColor: palette.accent,
-                yAxisID: 'y1',
-                tension: 0.28,
-                fill: false,
-                pointRadius: 3,
-                pointHoverRadius: 5,
-              },
-            ],
-          },
-          options: {
-            maintainAspectRatio: false,
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  callback: (value) => `${value}%`,
-                },
-              },
-              y1: {
-                beginAtZero: true,
-                position: 'right',
-                grid: {
-                  drawOnChartArea: false,
-                },
-              },
-            },
-          },
-        });
-      }
+    <div class="md-card md-elev-2">
+      <h2 class="md-card-title"><?=t($t, 'user_breakdown', 'Participant breakdown')?></h2>
+      <?php if ($selectedUserBreakdown): ?>
+        <table class="md-table">
+          <thead>
+            <tr>
+              <th><?=t($t, 'user', 'User')?></th>
+              <th><?=t($t, 'work_function', 'Work Function / Cadre')?></th>
+              <th><?=t($t, 'count', 'Responses')?></th>
+              <th><?=t($t, 'approved', 'Approved')?></th>
+              <th><?=t($t, 'average_score', 'Average score (%)')?></th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($selectedUserBreakdown as $row): ?>
+              <?php $workFunctionKey = $row['work_function'] ?? ''; ?>
+              <tr>
+                <td>
+                  <?=htmlspecialchars($row['username'] ?? '', ENT_QUOTES, 'UTF-8')?>
+                  <?php if (!empty($row['full_name'])): ?>
+                    <br><span class="md-muted"><?=htmlspecialchars($row['full_name'], ENT_QUOTES, 'UTF-8')?></span>
+                  <?php endif; ?>
+                </td>
+                <td><?=htmlspecialchars($workFunctionOptions[$workFunctionKey] ?? $workFunctionKey ?? '', ENT_QUOTES, 'UTF-8')?></td>
+                <td><?= (int)$row['total_responses'] ?></td>
+                <td><?= (int)$row['approved_count'] ?></td>
+                <td><?= $formatScore($row['avg_score'] ?? null) ?></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php else: ?>
+        <p class="md-upgrade-meta"><?=t($t, 'no_user_breakdown', 'No participant data available for this questionnaire.')?></p>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
-      const trendCanvas = document.getElementById('submissionTrendChart');
-      if (trendCanvas && timeData.length) {
-        new Chart(trendCanvas, {
-          type: 'line',
-          data: {
-            labels: timeData.map((entry) => entry.label || entry.date),
-            datasets: [
-              {
-                label: 'Submissions',
-                data: timeData.map((entry) => entry.count),
-                borderColor: palette.secondary,
-                backgroundColor: palette.secondary,
-                fill: true,
-                tension: 0.25,
-                pointRadius: 3,
-                pointHoverRadius: 5,
-              },
-            ],
-          },
-          options: {
-            maintainAspectRatio: false,
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  precision: 0,
-                },
-              },
-            },
-          },
-        });
-      }
-
-      const wfCanvas = document.getElementById('workFunctionChart');
-      if (wfCanvas && workFunctionData.length) {
-        new Chart(wfCanvas, {
-          data: {
-            labels: workFunctionData.map((entry) => entry.label),
-            datasets: [
-              {
-                type: 'bar',
-                label: 'Responses',
-                data: workFunctionData.map((entry) => entry.total),
-                backgroundColor: palette.primary,
-                borderRadius: 6,
-                maxBarThickness: 48,
-              },
-              {
-                type: 'bar',
-                label: 'Approved',
-                data: workFunctionData.map((entry) => entry.approved),
-                backgroundColor: palette.secondary,
-                borderRadius: 6,
-                maxBarThickness: 48,
-              },
-              {
-                type: 'line',
-                label: 'Average %',
-                data: workFunctionData.map((entry) => entry.average),
-                borderColor: palette.accent,
-                backgroundColor: palette.accent,
-                yAxisID: 'y1',
-                tension: 0.25,
-                fill: false,
-                pointRadius: 3,
-                pointHoverRadius: 5,
-              },
-            ],
-          },
-          options: {
-            maintainAspectRatio: false,
-            scales: {
-              y: {
-                beginAtZero: true,
-                stacked: false,
-                ticks: { precision: 0 },
-              },
-              y1: {
-                beginAtZero: true,
-                position: 'right',
-                grid: { drawOnChartArea: false },
-              },
-            },
-          },
-        });
-      }
-
-      const statusCanvas = document.getElementById('statusChart');
-      if (statusCanvas && statusData.length) {
-        const baseColors = [palette.primary, palette.secondary, palette.accent, palette.muted];
-        const colors = statusData.map((_, index) => baseColors[index % baseColors.length]);
-        new Chart(statusCanvas, {
-          type: 'doughnut',
-          data: {
-            labels: statusData.map((entry) => entry.label),
-            datasets: [
-              {
-                data: statusData.map((entry) => entry.value),
-                backgroundColor: colors,
-                borderColor: cssVar('--app-surface', '--brand-bg'),
-                borderWidth: 2,
-              },
-            ],
-          },
-          options: {
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'bottom',
-              },
-            },
-          },
-        });
-      }
-    })();
-  </script>
+  <div class="md-card md-elev-2">
+    <h2 class="md-card-title"><?=t($t, 'work_function_performance', 'Work Function Performance')?></h2>
+    <?php if ($workFunctionSummary): ?>
+      <table class="md-table">
+        <thead>
+          <tr>
+            <th><?=t($t, 'work_function', 'Work Function / Cadre')?></th>
+            <th><?=t($t, 'count', 'Responses')?></th>
+            <th><?=t($t, 'approved', 'Approved')?></th>
+            <th><?=t($t, 'average_score', 'Average score (%)')?></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($workFunctionSummary as $row): ?>
+            <?php $wfKey = $row['work_function'] ?? ''; ?>
+            <tr>
+              <td><?=htmlspecialchars($workFunctionOptions[$wfKey] ?? ($wfKey !== '' ? $wfKey : t($t, 'unknown', 'Unknown')), ENT_QUOTES, 'UTF-8')?></td>
+              <td><?= (int)$row['total_responses'] ?></td>
+              <td><?= (int)$row['approved_count'] ?></td>
+              <td><?= $formatScore($row['avg_score'] ?? null) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php else: ?>
+      <p class="md-upgrade-meta"><?=t($t, 'work_function_empty', 'Assign questionnaires to teams to see benchmarks populate here.')?></p>
+    <?php endif; ?>
+  </div>
 </section>
-<?php include __DIR__.'/../templates/footer.php'; ?>
+<?php include __DIR__ . '/../templates/footer.php'; ?>
 </body>
 </html>
