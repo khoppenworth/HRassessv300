@@ -72,8 +72,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = 'logo_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
             $destFs = $uploadDirFs . '/' . $name;
 
+            if (!is_uploaded_file($tmp)) {
+                throw new RuntimeException('Upload origin could not be verified.');
+            }
+
+            if (!is_writable($uploadDirFs) && !@chmod($uploadDirFs, 0775)) {
+                throw new RuntimeException('Upload directory is not writable.');
+            }
+
             if (!move_uploaded_file($tmp, $destFs)) {
-                throw new RuntimeException('Failed to move uploaded file.');
+                if (!@rename($tmp, $destFs)) {
+                    if (!@copy($tmp, $destFs)) {
+                        throw new RuntimeException('Failed to move uploaded file.');
+                    }
+                    @unlink($tmp);
+                }
             }
 
             @chmod($destFs, 0644);
