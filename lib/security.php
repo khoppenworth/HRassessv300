@@ -30,6 +30,7 @@ function apply_security_headers(bool $isDebugMode = false): void
         "'self'",
         "'unsafe-inline'", // legacy support for third-party stylesheets.
         'https://translate.googleapis.com',
+        'https://cdn.jsdelivr.net',
     ];
 
     $directives = [
