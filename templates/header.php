@@ -19,6 +19,43 @@ $siteTitle = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
 $availableLocales = available_locales();
 $defaultLocale = $availableLocales[0] ?? 'en';
 $brandStyle = site_brand_style($cfg);
+$drawerKey = $drawerKey ?? null;
+$scriptName = ltrim((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+$navKeyMap = [
+    'my_performance.php' => 'workspace.my_performance',
+    'submit_assessment.php' => 'workspace.submit_assessment',
+    'profile.php' => 'workspace.profile',
+    'admin/supervisor_review.php' => 'team.review_queue',
+    'admin/pending_accounts.php' => 'team.pending_accounts',
+    'admin/questionnaire_assignments.php' => 'team.assignments',
+    'admin/dashboard.php' => 'admin.dashboard',
+    'admin/users.php' => 'admin.users',
+    'admin/questionnaire_manage.php' => 'admin.manage_questionnaires',
+    'admin/analytics.php' => 'admin.analytics',
+    'admin/export.php' => 'admin.export',
+    'admin/branding.php' => 'admin.branding',
+    'admin/settings.php' => 'admin.settings',
+    'swagger.php' => 'admin.api_docs',
+];
+if ($drawerKey === null && $scriptName !== '') {
+    $drawerKey = $navKeyMap[$scriptName] ?? null;
+}
+$isActiveNav = static function (string ...$keys) use ($drawerKey): bool {
+    if ($drawerKey === null) {
+        return false;
+    }
+    foreach ($keys as $key) {
+        if ($drawerKey === $key) {
+            return true;
+        }
+    }
+    return false;
+};
+$drawerLinkAttributes = static function (string ...$keys) use ($isActiveNav): string {
+    $class = 'md-drawer-link' . ($isActiveNav(...$keys) ? ' active' : '');
+    $aria = $isActiveNav(...$keys) ? ' aria-current="page"' : '';
+    return sprintf('class="%s"%s', $class, $aria);
+};
 ?>
 <?php if ($brandStyle !== ''): ?>
 <style id="md-brand-style">:root { <?=htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8')?>; }</style>
@@ -54,29 +91,29 @@ $brandStyle = site_brand_style($cfg);
   <nav class="md-drawer-nav">
     <div class="md-drawer-section">
       <span class="md-drawer-label"><?=t($t, 'my_workspace', 'My Workspace')?></span>
-      <a href="<?=htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'my_performance', 'My Performance')?></a>
-      <a href="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'submit_assessment', 'Submit Assessment')?></a>
-      <a href="<?=htmlspecialchars(url_for('profile.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'profile', 'Profile')?></a>
+      <a href="<?=htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('workspace.my_performance')?>><?=t($t, 'my_performance', 'My Performance')?></a>
+      <a href="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('workspace.submit_assessment')?>><?=t($t, 'submit_assessment', 'Submit Assessment')?></a>
+      <a href="<?=htmlspecialchars(url_for('profile.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('workspace.profile')?>><?=t($t, 'profile', 'Profile')?></a>
     </div>
     <?php if (in_array($role, ['admin', 'supervisor'], true)): ?>
       <div class="md-drawer-section">
         <span class="md-drawer-label"><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
-        <a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'review_queue', 'Review Queue')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'pending_accounts', 'Pending Approvals')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('team.review_queue')?>><?=t($t, 'review_queue', 'Review Queue')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('team.pending_accounts')?>><?=t($t, 'pending_accounts', 'Pending Approvals')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('team.assignments')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a>
       </div>
     <?php endif; ?>
     <?php if ($role === 'admin'): ?>
       <div class="md-drawer-section">
         <span class="md-drawer-label"><?=t($t, 'admin_navigation', 'Administration')?></span>
-        <a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'admin_dashboard', 'Admin Dashboard')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'manage_users', 'Manage Users')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'analytics', 'Analytics')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'export_data', 'Export Data')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'branding', 'Branding & Landing')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t, 'settings', 'Settings')?></a>
-        <a href="<?=htmlspecialchars(url_for('swagger.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link"><?=t($t,'api_documentation','API Documentation')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.dashboard')?>><?=t($t, 'admin_dashboard', 'Admin Dashboard')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.users')?>><?=t($t, 'manage_users', 'Manage Users')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.manage_questionnaires')?>><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.analytics')?>><?=t($t, 'analytics', 'Analytics')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.export')?>><?=t($t, 'export_data', 'Export Data')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.branding')?>><?=t($t, 'branding', 'Branding & Landing')?></a>
+        <a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.settings')?>><?=t($t, 'settings', 'Settings')?></a>
+        <a href="<?=htmlspecialchars(url_for('swagger.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.api_docs')?>><?=t($t,'api_documentation','API Documentation')?></a>
       </div>
     <?php endif; ?>
   </nav>

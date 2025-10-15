@@ -204,6 +204,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $timestamp = date('Ymd_His');
             $filename = 'system-backup-' . $timestamp . '.zip';
             $fullPath = $backupDir . '/' . $filename;
+            $tempFiles = [];
+            $backupGenerated = false;
 
             $archiveSize = 0;
             try {
@@ -252,6 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $responseItemsStmt = $pdo->query('SELECT response_id, linkId, answer FROM questionnaire_response_item ORDER BY response_id, id');
                 $addJson($zip, 'data/questionnaire_response_items.json', $responseItemsStmt ? $responseItemsStmt->fetchAll(PDO::FETCH_ASSOC) : []);
 
+                $databaseDump = '-- Database backup generated ' . date('c') . "\n";
                 try {
                     $tablesStmt = $pdo->query('SHOW TABLES');
                     $tables = $tablesStmt ? $tablesStmt->fetchAll(PDO::FETCH_COLUMN) : [];
@@ -295,11 +298,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 }
                             }
                         }
-                        $zip->addFromString('database/backup.sql', implode("\n", $dumpLines) . "\n");
+                        $databaseDump = implode("\n", $dumpLines) . "\n";
+                    } else {
+                        $databaseDump .= "-- No tables were found in the database at the time of backup.\n";
                     }
                 } catch (Throwable $dumpError) {
                     error_log('Database backup export failed: ' . $dumpError->getMessage());
+                    $databaseDump .= "-- Failed to export database. Check server logs for details.\n";
                 }
+                $zip->addFromString('database/backup.sql', $databaseDump);
 
                 $uploadsDir = base_path('assets/uploads');
                 if (is_dir($uploadsDir)) {
@@ -317,9 +324,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 try {
                     $appRoot = base_path('');
-                    $zip->addEmptyDir('application');
+                    $tempArchive = tempnam(sys_get_temp_dir(), 'appzip_');
+                    if ($tempArchive === false) {
+                        throw new RuntimeException('Unable to create temporary archive for application backup.');
+                    }
+                    $appArchivePath = $tempArchive . '.zip';
+                    if (!@rename($tempArchive, $appArchivePath)) {
+                        @unlink($tempArchive);
+                        throw new RuntimeException('Unable to prepare archive path for application backup.');
+                    }
+                    $tempFiles[] = $appArchivePath;
+                    $appZip = new ZipArchive();
+                    if ($appZip->open($appArchivePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+                        throw new RuntimeException('Unable to create application archive.');
+                    }
                     $iterator = new RecursiveIteratorIterator(
-                        new RecursiveDirectoryIterator($appRoot, FilesystemIterator::SKIP_DOTS)
+                        new RecursiveDirectoryIterator($appRoot, FilesystemIterator::SKIP_DOTS),
+                        RecursiveIteratorIterator::SELF_FIRST
                     );
                     foreach ($iterator as $fileInfo) {
                         if (!$fileInfo->isFile()) {
@@ -334,12 +355,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             continue;
                         }
                         $relative = str_replace('\\', '/', $relative);
-                        if (strpos($relative, '.git/') === 0) {
+                        if ($relative === '' || strpos($relative, '.git/') === 0) {
                             continue;
                         }
-                        $zip->addFile($pathName, 'application/' . $relative);
+                        if (strpos($relative, 'assets/backups/') === 0 || strpos($relative, 'backups/') === 0) {
+                            continue;
+                        }
+                        $appZip->addFile($pathName, $relative);
                     }
+                    $appZip->close();
+                    $zip->addFile($appArchivePath, 'application.zip');
                 } catch (Throwable $archiveError) {
+                    if (isset($appZip) && $appZip instanceof ZipArchive) {
+                        $appZip->close();
+                    }
                     error_log('Application archive export failed: ' . $archiveError->getMessage());
                 }
 
@@ -362,6 +391,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 error_log('Admin backup failed: ' . $backupError->getMessage());
                 $flashMessage = t($t, 'backup_failed', 'Unable to generate the backup archive.');
                 $flashType = 'error';
+            }
+
+            foreach ($tempFiles as $tempFile) {
+                if (is_string($tempFile) && is_file($tempFile)) {
+                    @unlink($tempFile);
+                }
+            }
+
+            if (!$backupGenerated) {
                 break;
             }
 

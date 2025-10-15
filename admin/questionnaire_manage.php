@@ -468,10 +468,18 @@ if ($action === 'save' || $action === 'publish') {
     ]);
 }
 
-$msg = '';
+$msg = $_SESSION['questionnaire_import_flash'] ?? '';
 $recentImportId = null;
+if (isset($_SESSION['questionnaire_import_focus'])) {
+    $candidate = (int)$_SESSION['questionnaire_import_focus'];
+    if ($candidate > 0) {
+        $recentImportId = $candidate;
+    }
+}
+unset($_SESSION['questionnaire_import_flash'], $_SESSION['questionnaire_import_focus']);
 if (isset($_POST['import'])) {
     csrf_check();
+    $recentImportId = null;
     if (!empty($_FILES['file']['tmp_name'])) {
         $raw = file_get_contents($_FILES['file']['tmp_name']);
         $data = null;
@@ -650,6 +658,13 @@ if (isset($_POST['import'])) {
     } else {
         $msg = t($t, 'no_file_uploaded', 'No file uploaded');
     }
+    $_SESSION['questionnaire_import_flash'] = $msg;
+    if ($recentImportId) {
+        $_SESSION['questionnaire_import_focus'] = $recentImportId;
+    }
+    session_write_close();
+    header('Location: ' . url_for('admin/questionnaire_manage.php'));
+    exit;
 }
 ?>
 <!doctype html>
