@@ -10,6 +10,7 @@ function withBase(path) {
 }
 
 const PRECACHE_URLS = [
+  withBase(''),
   withBase('index.php'),
   OFFLINE_URL,
   withBase('assets/css/material.css'),
@@ -108,26 +109,44 @@ async function networkFirst(event) {
   }
 }
 
+async function getOfflineResponse(cache) {
+  const offline = await cache.match(OFFLINE_URL);
+  if (offline) {
+    return offline;
+  }
+  return new Response('<h1>Offline</h1><p>The application is unavailable while offline.</p>', {
+    status: 503,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' }
+  });
+}
+
 async function handleNavigationRequest(event) {
+  const cache = await caches.open(CACHE_NAME);
   try {
+    if (event.preloadResponse) {
+      const preload = await event.preloadResponse;
+      if (preload) {
+        event.waitUntil(putInCache(event.request, preload.clone()));
+        return preload;
+      }
+    }
     const response = await fetch(event.request);
     await putInCache(event.request, response.clone());
     return response;
   } catch (err) {
-    const cache = await caches.open(CACHE_NAME);
     const cached = await cache.match(event.request);
     if (cached) {
       return cached;
     }
-    const offline = await cache.match(OFFLINE_URL);
-    if (offline) {
-      return offline;
+    const rootShell = await cache.match(withBase(''));
+    if (rootShell) {
+      return rootShell;
     }
     const fallback = await cache.match(withBase('index.php'));
     if (fallback) {
       return fallback;
     }
-    throw err;
+    return getOfflineResponse(cache);
   }
 }
 
@@ -153,11 +172,17 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
-    )
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+    if (self.registration.navigationPreload) {
+      try {
+        await self.registration.navigationPreload.enable();
+      } catch (err) {
+        // Ignore navigation preload failures.
+      }
+    }
+  })());
   self.clients.claim();
 });
 
@@ -176,7 +201,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (request.mode === 'navigate') {
+  const acceptHeader = request.headers.get('accept') || '';
+  if (
+    request.mode === 'navigate'
+    || ((request.destination === '' || request.destination === 'document') && acceptHeader.includes('text/html'))
+  ) {
     event.respondWith(handleNavigationRequest(event));
     return;
   }
@@ -192,7 +221,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  const acceptHeader = request.headers.get('accept') || '';
   if (acceptHeader.includes('application/json')) {
     event.respondWith(networkFirst(event));
     return;
