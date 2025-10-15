@@ -72,6 +72,15 @@ $drawerLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
   </button>
   <div class="md-appbar-title"><?=$siteTitle?></div>
   <nav class="md-appbar-actions">
+    <button
+      type="button"
+      class="md-appbar-button"
+      id="appbar-install-btn"
+      hidden
+      aria-hidden="true"
+    >
+      <?=htmlspecialchars(t($t, 'install_app', 'Install App'), ENT_QUOTES, 'UTF-8')?>
+    </button>
     <div
       class="md-status-indicator"
       data-status-indicator
