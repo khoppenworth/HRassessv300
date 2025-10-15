@@ -1,5 +1,192 @@
 <?php
 require_once __DIR__ . '/../config.php';
+
+const BRANDING_LOGO_MAX_WIDTH = 480;
+const BRANDING_LOGO_MAX_HEIGHT = 480;
+const BRANDING_LOGO_MAX_FILESIZE = 5_242_880; // 5 MB
+
+/**
+ * @param resource $image
+ */
+function save_branding_image($image, string $destination, string $mime): void
+{
+    switch ($mime) {
+        case 'image/png':
+            if (!imagepng($image, $destination, 6)) {
+                throw new RuntimeException('Failed to save PNG logo.');
+            }
+            break;
+        case 'image/jpeg':
+            if (!imagejpeg($image, $destination, 90)) {
+                throw new RuntimeException('Failed to save JPEG logo.');
+            }
+            break;
+        case 'image/gif':
+            if (!imagegif($image, $destination)) {
+                throw new RuntimeException('Failed to save GIF logo.');
+            }
+            break;
+        case 'image/webp':
+            if (!function_exists('imagewebp')) {
+                throw new RuntimeException('WebP conversion is not available.');
+            }
+            if (!imagewebp($image, $destination, 90)) {
+                throw new RuntimeException('Failed to save WebP logo.');
+            }
+            break;
+        default:
+            throw new RuntimeException('Unsupported image format.');
+    }
+}
+
+/**
+ * @return resource
+ */
+function create_branding_image(string $path, string $mime)
+{
+    return match ($mime) {
+        'image/png' => imagecreatefrompng($path),
+        'image/jpeg' => imagecreatefromjpeg($path),
+        'image/gif' => imagecreatefromgif($path),
+        'image/webp' => function_exists('imagecreatefromwebp') ? imagecreatefromwebp($path) : false,
+        default => false,
+    } ?: throw new RuntimeException('Unable to read uploaded logo.');
+}
+
+function ensure_branding_upload_dir(): string
+{
+    $uploadDirFs = BASE_PATH . '/assets/uploads/branding';
+    if (!is_dir($uploadDirFs)) {
+        if (!mkdir($uploadDirFs, 0775, true) && !is_dir($uploadDirFs)) {
+            throw new RuntimeException('Failed to create upload directory.');
+        }
+    }
+
+    return $uploadDirFs;
+}
+
+function delete_previous_branding_logo(?string $path): void
+{
+    if ($path === null || $path === '') {
+        return;
+    }
+
+    $normalized = normalize_branding_logo_path($path);
+    if ($normalized === null) {
+        return;
+    }
+
+    if (!str_starts_with($normalized, '/assets/uploads/branding/')) {
+        return;
+    }
+
+    $uploadDir = realpath(BASE_PATH . '/assets/uploads/branding');
+    $candidate = realpath(BASE_PATH . $normalized);
+    if ($uploadDir === false || $candidate === false) {
+        return;
+    }
+
+    if (str_starts_with($candidate, $uploadDir) && is_file($candidate)) {
+        @unlink($candidate);
+    }
+}
+
+function handle_branding_logo_upload(array $logoFile): string
+{
+    $errorCode = (int)($logoFile['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($errorCode !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('Upload error code: ' . $errorCode);
+    }
+
+    $tmp = $logoFile['tmp_name'] ?? '';
+    if ($tmp === '' || !is_string($tmp) || !is_uploaded_file($tmp)) {
+        throw new RuntimeException('Upload origin could not be verified.');
+    }
+
+    if (($logoFile['size'] ?? 0) > BRANDING_LOGO_MAX_FILESIZE) {
+        throw new RuntimeException('Uploaded logo is too large.');
+    }
+
+    if (!class_exists('finfo')) {
+        throw new RuntimeException('PHP fileinfo extension required.');
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = (string)$finfo->file($tmp);
+
+    $allowed = [
+        'image/png' => 'png',
+        'image/jpeg' => 'jpg',
+        'image/gif' => 'gif',
+        'image/svg+xml' => 'svg',
+        'image/webp' => 'webp',
+    ];
+
+    if (!isset($allowed[$mime])) {
+        throw new RuntimeException('Unsupported logo type: ' . $mime);
+    }
+
+    $uploadDirFs = ensure_branding_upload_dir();
+    if (!is_writable($uploadDirFs) && !@chmod($uploadDirFs, 0775)) {
+        throw new RuntimeException('Upload directory is not writable.');
+    }
+
+    $ext = $allowed[$mime];
+    $name = 'logo_' . date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+    $destFs = $uploadDirFs . '/' . $name;
+
+    if ($mime === 'image/svg+xml') {
+        $svg = file_get_contents($tmp);
+        if ($svg === false) {
+            throw new RuntimeException('Failed to read uploaded SVG logo.');
+        }
+        if (strlen($svg) > BRANDING_LOGO_MAX_FILESIZE) {
+            throw new RuntimeException('Uploaded SVG logo is too large.');
+        }
+        if (file_put_contents($destFs, $svg) === false) {
+            throw new RuntimeException('Failed to store SVG logo.');
+        }
+    } else {
+        $info = @getimagesize($tmp);
+        if ($info === false) {
+            throw new RuntimeException('Unable to determine logo dimensions.');
+        }
+
+        [$width, $height] = $info;
+        if ($width <= 0 || $height <= 0) {
+            throw new RuntimeException('Uploaded logo dimensions are invalid.');
+        }
+
+        $scale = min(BRANDING_LOGO_MAX_WIDTH / $width, BRANDING_LOGO_MAX_HEIGHT / $height, 1.0);
+        $targetWidth = max(1, (int)round($width * $scale));
+        $targetHeight = max(1, (int)round($height * $scale));
+
+        $source = create_branding_image($tmp, $mime);
+        $resized = imagecreatetruecolor($targetWidth, $targetHeight);
+
+        if (in_array($mime, ['image/png', 'image/gif', 'image/webp'], true)) {
+            imagealphablending($resized, false);
+            imagesavealpha($resized, true);
+            $transparent = imagecolorallocatealpha($resized, 0, 0, 0, 127);
+            imagefill($resized, 0, 0, $transparent);
+        }
+
+        if (!imagecopyresampled($resized, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height)) {
+            imagedestroy($source);
+            imagedestroy($resized);
+            throw new RuntimeException('Failed to resize uploaded logo.');
+        }
+
+        save_branding_image($resized, $destFs, $mime);
+        imagedestroy($source);
+        imagedestroy($resized);
+    }
+
+    @chmod($destFs, 0644);
+
+    return '/assets/uploads/branding/' . $name;
+}
+
 auth_required(['admin']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
@@ -33,70 +220,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $logoErrorCode = (int)($logoFile['error'] ?? UPLOAD_ERR_NO_FILE);
     if ($logoErrorCode !== UPLOAD_ERR_NO_FILE) {
         try {
-            if ($logoErrorCode !== UPLOAD_ERR_OK) {
-                throw new RuntimeException('Upload error code: ' . $logoErrorCode);
-            }
-
-            if (empty($logoFile['tmp_name'])) {
-                throw new RuntimeException('Upload did not contain a file.');
-            }
-
-            $uploadDirFs = BASE_PATH . '/assets/uploads/branding';
-            if (!is_dir($uploadDirFs)) {
-                if (!mkdir($uploadDirFs, 0775, true) && !is_dir($uploadDirFs)) {
-                    throw new RuntimeException('Failed to create upload dir.');
-                }
-            }
-
-            if (!class_exists('finfo')) {
-                throw new RuntimeException('PHP fileinfo extension required.');
-            }
-
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-            $tmp = $logoFile['tmp_name'];
-            $mime = $finfo->file($tmp);
-
-            $allowed = [
-                'image/png' => 'png',
-                'image/jpeg' => 'jpg',
-                'image/gif' => 'gif',
-                'image/svg+xml' => 'svg',
-                'image/webp' => 'webp',
-            ];
-
-            if (!isset($allowed[$mime])) {
-                throw new RuntimeException('Unsupported logo type: ' . (string)$mime);
-            }
-
-            $ext = $allowed[$mime];
-            $name = 'logo_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-            $destFs = $uploadDirFs . '/' . $name;
-
-            if (!is_uploaded_file($tmp)) {
-                throw new RuntimeException('Upload origin could not be verified.');
-            }
-
-            if (!is_writable($uploadDirFs) && !@chmod($uploadDirFs, 0775)) {
-                throw new RuntimeException('Upload directory is not writable.');
-            }
-
-            if (!move_uploaded_file($tmp, $destFs)) {
-                if (!@rename($tmp, $destFs)) {
-                    if (!@copy($tmp, $destFs)) {
-                        throw new RuntimeException('Failed to move uploaded file.');
-                    }
-                    @unlink($tmp);
-                }
-            }
-
-            @chmod($destFs, 0644);
-            $logoWebPath = '/assets/uploads/branding/' . $name;
+            $previousLogoPath = $logo_path;
+            $logoWebPath = handle_branding_logo_upload($logoFile);
             persist_branding_logo_path($pdo, $logoWebPath);
             $logo_path = $logoWebPath;
+            delete_previous_branding_logo($previousLogoPath);
         } catch (RuntimeException $e) {
             error_log('Logo upload failed: ' . $e->getMessage());
             if (str_starts_with($e->getMessage(), 'Unsupported')) {
                 $logoError = t($t, 'invalid_file_type', 'Invalid file type. Logo was not updated.');
+            } elseif (str_contains($e->getMessage(), 'large')) {
+                $logoError = t($t, 'logo_too_large', 'Logo is too large. Upload a smaller image.');
             } else {
                 $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
             }
@@ -173,6 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="md-field">
         <span><?=t($t,'logo','Logo')?></span>
         <input type="file" name="branding_logo" accept="image/*">
+        <p class="md-hint"><?=t($t,'logo_hint','PNG, JPG, GIF, WebP, or SVG up to 5 MB. Larger images are resized to fit 480×480 px.')?></p>
         <?php $currentLogoPath = get_branding_logo_path($cfg);
         if (!empty($currentLogoPath)):
             $logoSrc = preg_match('#^https?://#i', $currentLogoPath) ? $currentLogoPath : asset_url(ltrim($currentLogoPath, '/'));
