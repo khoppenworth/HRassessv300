@@ -82,6 +82,84 @@ body.md-bg {
   gap: 0.85rem;
 }
 
+.md-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.md-status-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--status-success);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.md-status-label {
+  font-size: 0.85rem;
+}
+
+.md-status-indicator.is-offline {
+  background: rgba(255, 140, 0, 0.18);
+}
+
+.md-status-indicator.is-offline .md-status-dot {
+  background: var(--status-warning);
+  box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.35);
+}
+
+.md-appbar-button {
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+  font-weight: 600;
+  padding: 0.4rem 0.95rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.3s ease, opacity 0.2s ease;
+}
+
+.md-appbar-button:hover,
+.md-appbar-button:focus {
+  background: var(--app-on-primary-soft);
+}
+
+.md-appbar-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.md-appbar-button.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-left: 0.5rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-top-color: rgba(255, 255, 255, 0.2);
+  animation: md-appbar-spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes md-appbar-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 .md-appbar-link {
   color: inherit;
   text-decoration: none;

@@ -72,6 +72,21 @@ $drawerLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
   </button>
   <div class="md-appbar-title"><?=$siteTitle?></div>
   <nav class="md-appbar-actions">
+    <div
+      class="md-status-indicator"
+      data-status-indicator
+      data-online-text="<?=htmlspecialchars(t($t, 'status_online', 'Online'), ENT_QUOTES, 'UTF-8')?>"
+      data-offline-text="<?=htmlspecialchars(t($t, 'status_offline', 'Offline'), ENT_QUOTES, 'UTF-8')?>"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <span class="md-status-dot" aria-hidden="true"></span>
+      <span class="md-status-label"><?=htmlspecialchars(t($t, 'status_online', 'Online'), ENT_QUOTES, 'UTF-8')?></span>
+    </div>
+    <button type="button" class="md-appbar-button" id="appbar-reload-btn">
+      <?=htmlspecialchars(t($t, 'reload_app', 'Reload App'), ENT_QUOTES, 'UTF-8')?>
+    </button>
     <div class="md-lang-switch">
       <?php foreach ($availableLocales as $loc): ?>
         <a href="<?=htmlspecialchars(url_for('set_lang.php?lang=' . $loc), ENT_QUOTES, 'UTF-8')?>" class="<?=($locale === $loc) ? 'active' : ''?>"><?=strtoupper($loc)?></a>
@@ -81,6 +96,69 @@ $drawerLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
     <a href="<?=htmlspecialchars(url_for('logout.php'), ENT_QUOTES, 'UTF-8')?>" class="md-appbar-link"><?=t($t, 'logout', 'Logout')?></a>
   </nav>
 </header>
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+  document.addEventListener('DOMContentLoaded', function () {
+    var indicator = document.querySelector('[data-status-indicator]');
+    if (indicator) {
+      var label = indicator.querySelector('.md-status-label');
+      var onlineText = indicator.getAttribute('data-online-text') || 'Online';
+      var offlineText = indicator.getAttribute('data-offline-text') || 'Offline';
+
+      var updateStatus = function () {
+        var isOnline = navigator.onLine;
+        indicator.classList.toggle('is-offline', !isOnline);
+        indicator.setAttribute('data-status', isOnline ? 'online' : 'offline');
+        label.textContent = isOnline ? onlineText : offlineText;
+      };
+
+      window.addEventListener('online', updateStatus);
+      window.addEventListener('offline', updateStatus);
+      updateStatus();
+    }
+
+    var reloadButton = document.getElementById('appbar-reload-btn');
+    if (reloadButton) {
+      var performReload = function () {
+        window.location.reload();
+      };
+
+      reloadButton.addEventListener('click', function () {
+        reloadButton.disabled = true;
+        reloadButton.classList.add('is-loading');
+
+        var cleanupTasks = [];
+
+        if ('caches' in window && typeof caches.keys === 'function') {
+          cleanupTasks.push(
+            caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (key) {
+                return caches.delete(key);
+              }));
+            })
+          );
+        }
+
+        if ('serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistrations === 'function') {
+          cleanupTasks.push(
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+              return Promise.all(registrations.map(function (registration) {
+                return registration.unregister();
+              }));
+            })
+          );
+        }
+
+        if (cleanupTasks.length > 0) {
+          Promise.all(cleanupTasks)
+            .catch(function () { /* ignore */ })
+            .finally(performReload);
+        } else {
+          performReload();
+        }
+      });
+    }
+  });
+</script>
 <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
 <div class="md-shell">
 <aside class="md-drawer" data-drawer>
