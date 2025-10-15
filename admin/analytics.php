@@ -47,6 +47,9 @@ if ($questionnaires) {
 
 $selectedResponses = [];
 $selectedUserBreakdown = [];
+$sectionColumns = [];
+$sectionScoresByResponse = [];
+$sectionAggregates = [];
 if ($selectedQuestionnaireId) {
     $responseStmt = $pdo->prepare(
         'SELECT qr.id, qr.status, qr.score, qr.created_at, qr.review_comment, '
@@ -73,6 +76,204 @@ if ($selectedQuestionnaireId) {
     );
     $userStmt->execute([$selectedQuestionnaireId]);
     $selectedUserBreakdown = $userStmt->fetchAll();
+
+    if ($selectedResponses) {
+        $sectionStmt = $pdo->prepare(
+            'SELECT id, title FROM questionnaire_section WHERE questionnaire_id=? ORDER BY order_index, id'
+        );
+        $sectionStmt->execute([$selectedQuestionnaireId]);
+        $sectionLabels = [];
+        $sectionOrder = [];
+        foreach ($sectionStmt->fetchAll(PDO::FETCH_ASSOC) as $sectionRow) {
+            $sid = (int)$sectionRow['id'];
+            $sectionOrder[] = $sid;
+            $sectionLabels[$sid] = trim((string)($sectionRow['title'] ?? ''));
+        }
+
+        $itemStmt = $pdo->prepare(
+            'SELECT section_id, linkId, type, allow_multiple, COALESCE(weight_percent,0) AS weight '
+            . 'FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index, id'
+        );
+        $itemStmt->execute([$selectedQuestionnaireId]);
+        $rawItems = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $unassignedKey = 'unassigned';
+        $generalLabel = t($t, 'unassigned_section_label', 'General');
+        $sectionFallback = t($t, 'section_placeholder', 'Section');
+
+        $baseSectionWeights = [];
+        $scoringItems = [];
+        foreach ($rawItems as $itemRow) {
+            $sectionKey = $itemRow['section_id'] !== null ? (int)$itemRow['section_id'] : $unassignedKey;
+            $weight = (float)($itemRow['weight'] ?? 0.0);
+            if ($weight <= 0) {
+                continue;
+            }
+            $baseSectionWeights[$sectionKey] = ($baseSectionWeights[$sectionKey] ?? 0.0) + $weight;
+            $scoringItems[] = [
+                'section_key' => $sectionKey,
+                'linkId' => (string)($itemRow['linkId'] ?? ''),
+                'type' => (string)($itemRow['type'] ?? 'text'),
+                'allow_multiple' => !empty($itemRow['allow_multiple']),
+                'weight' => $weight,
+            ];
+        }
+
+        $sectionColumns = [];
+        foreach ($sectionOrder as $sid) {
+            if (($baseSectionWeights[$sid] ?? 0) <= 0) {
+                continue;
+            }
+            $label = $sectionLabels[$sid] ?? '';
+            $label = trim($label) !== '' ? $label : $sectionFallback;
+            $sectionColumns[] = [
+                'key' => $sid,
+                'label' => $label,
+            ];
+        }
+        if (($baseSectionWeights[$unassignedKey] ?? 0) > 0) {
+            $sectionColumns[] = [
+                'key' => $unassignedKey,
+                'label' => $generalLabel,
+            ];
+        }
+
+        if ($scoringItems && $sectionColumns) {
+            $responseIds = array_map(static fn($row) => (int)$row['id'], $selectedResponses);
+            $answersByResponse = [];
+            if ($responseIds) {
+                $placeholders = implode(',', array_fill(0, count($responseIds), '?'));
+                $answerStmt = $pdo->prepare(
+                    "SELECT response_id, linkId, answer FROM questionnaire_response_item WHERE response_id IN ($placeholders)"
+                );
+                $answerStmt->execute($responseIds);
+                foreach ($answerStmt->fetchAll(PDO::FETCH_ASSOC) as $answerRow) {
+                    $rid = (int)$answerRow['response_id'];
+                    $decoded = [];
+                    $rawAnswer = $answerRow['answer'] ?? '[]';
+                    if (is_string($rawAnswer) && $rawAnswer !== '') {
+                        $decoded = json_decode($rawAnswer, true);
+                        if (!is_array($decoded)) {
+                            $decoded = [];
+                        }
+                    }
+                    $answersByResponse[$rid][$answerRow['linkId']] = $decoded;
+                }
+            }
+
+            $scoreCalculator = static function (array $item, array $answerSet, float $weight): float {
+                if ($weight <= 0) {
+                    return 0.0;
+                }
+                $type = (string)($item['type'] ?? 'text');
+                if ($type === 'boolean') {
+                    foreach ($answerSet as $entry) {
+                        if ((isset($entry['valueBoolean']) && $entry['valueBoolean'])
+                            || (isset($entry['valueString']) && strtolower((string)$entry['valueString']) === 'true')) {
+                            return $weight;
+                        }
+                    }
+                    return 0.0;
+                }
+                if ($type === 'likert') {
+                    $score = null;
+                    foreach ($answerSet as $entry) {
+                        if (isset($entry['valueInteger']) && is_numeric($entry['valueInteger'])) {
+                            $score = (int)$entry['valueInteger'];
+                            break;
+                        }
+                        if (isset($entry['valueString'])) {
+                            $candidate = trim((string)$entry['valueString']);
+                            if (preg_match('/^([1-5])/', $candidate, $matches)) {
+                                $score = (int)$matches[1];
+                                break;
+                            }
+                            if (is_numeric($candidate)) {
+                                $value = (int)$candidate;
+                                if ($value >= 1 && $value <= 5) {
+                                    $score = $value;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if ($score !== null && $score >= 1 && $score <= 5) {
+                        return $weight * $score / 5.0;
+                    }
+                    return 0.0;
+                }
+                if ($type === 'choice') {
+                    foreach ($answerSet as $entry) {
+                        if (isset($entry['valueString']) && trim((string)$entry['valueString']) !== '') {
+                            return $weight;
+                        }
+                    }
+                    return 0.0;
+                }
+                foreach ($answerSet as $entry) {
+                    if (isset($entry['valueString']) && trim((string)$entry['valueString']) !== '') {
+                        return $weight;
+                    }
+                }
+                return 0.0;
+            };
+
+            $aggregateStats = [];
+            foreach ($selectedResponses as $row) {
+                $responseId = (int)$row['id'];
+                $answers = $answersByResponse[$responseId] ?? [];
+                $sectionStats = [];
+                foreach ($sectionColumns as $col) {
+                    $sectionStats[$col['key']] = [
+                        'weight' => 0.0,
+                        'achieved' => 0.0,
+                    ];
+                }
+
+                foreach ($scoringItems as $item) {
+                    $sectionKey = $item['section_key'];
+                    if (!isset($sectionStats[$sectionKey])) {
+                        continue;
+                    }
+                    $sectionStats[$sectionKey]['weight'] += $item['weight'];
+                    $answerSet = $answers[$item['linkId']] ?? [];
+                    $sectionStats[$sectionKey]['achieved'] += $scoreCalculator($item, $answerSet, $item['weight']);
+                }
+
+                $sectionScores = [];
+                foreach ($sectionColumns as $col) {
+                    $stat = $sectionStats[$col['key']];
+                    if ($stat['weight'] > 0) {
+                        $scorePct = round(($stat['achieved'] / $stat['weight']) * 100, 1);
+                        $sectionScores[$col['key']] = $scorePct;
+                        $aggregateStats[$col['key']]['achieved'] = ($aggregateStats[$col['key']]['achieved'] ?? 0.0) + $stat['achieved'];
+                        $aggregateStats[$col['key']]['weight'] = ($aggregateStats[$col['key']]['weight'] ?? 0.0) + $stat['weight'];
+                    } else {
+                        $sectionScores[$col['key']] = null;
+                    }
+                }
+
+                $sectionScoresByResponse[] = [
+                    'id' => $responseId,
+                    'username' => $row['username'] ?? '',
+                    'full_name' => $row['full_name'] ?? '',
+                    'period' => $row['period_label'] ?? '',
+                    'status' => $row['status'] ?? '',
+                    'overall' => isset($row['score']) && $row['score'] !== null ? (int)$row['score'] : null,
+                    'sections' => $sectionScores,
+                ];
+            }
+
+            foreach ($sectionColumns as $col) {
+                $stat = $aggregateStats[$col['key']] ?? ['achieved' => 0.0, 'weight' => 0.0];
+                $avg = $stat['weight'] > 0 ? round(($stat['achieved'] / $stat['weight']) * 100, 1) : null;
+                $sectionAggregates[] = [
+                    'label' => $col['label'],
+                    'score' => $avg,
+                ];
+            }
+        }
+    }
 }
 
 $workFunctionOptions = work_function_choices($pdo);
@@ -224,6 +425,13 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       margin-top: 0.35rem;
       font-size: 0.9rem;
     }
+    .md-table-responsive {
+      overflow-x: auto;
+    }
+    .md-sectional-table th,
+    .md-sectional-table td {
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
@@ -360,6 +568,71 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
         <p class="md-upgrade-meta"><?=t($t, 'no_responses_for_selection', 'There are no responses for this questionnaire yet.')?></p>
       <?php endif; ?>
     </div>
+
+    <?php if ($sectionColumns && $sectionScoresByResponse): ?>
+      <div class="md-card md-elev-2">
+        <h2 class="md-card-title"><?=t($t, 'sectional_scores_by_user', 'Sectional performance by participant')?></h2>
+        <p class="md-upgrade-meta"><?=t($t, 'sectional_scores_by_user_hint', 'Scores reflect the weighted result for each questionnaire section per submission.')?></p>
+        <div class="md-table-responsive">
+          <table class="md-table md-sectional-table">
+            <thead>
+              <tr>
+                <th><?=t($t, 'user', 'User')?></th>
+                <th><?=t($t, 'performance_period', 'Performance Period')?></th>
+                <th><?=t($t, 'status', 'Status')?></th>
+                <th><?=t($t, 'score', 'Score (%)')?></th>
+                <?php foreach ($sectionColumns as $col): ?>
+                  <th><?=htmlspecialchars($col['label'], ENT_QUOTES, 'UTF-8')?></th>
+                <?php endforeach; ?>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($sectionScoresByResponse as $row): ?>
+                <?php $statusKey = $row['status'] ?? ''; ?>
+                <tr>
+                  <td>
+                    <?=htmlspecialchars($row['username'] ?? '', ENT_QUOTES, 'UTF-8')?>
+                    <?php if (!empty($row['full_name'])): ?>
+                      <br><span class="md-muted"><?=htmlspecialchars($row['full_name'], ENT_QUOTES, 'UTF-8')?></span>
+                    <?php endif; ?>
+                  </td>
+                  <td><?=htmlspecialchars($row['period'] ?? '', ENT_QUOTES, 'UTF-8')?></td>
+                  <td><?=htmlspecialchars($statusLabels[$statusKey] ?? ucfirst((string)$statusKey), ENT_QUOTES, 'UTF-8')?></td>
+                  <td><?= $row['overall'] !== null ? (int)$row['overall'] : '—' ?></td>
+                  <?php foreach ($sectionColumns as $col): ?>
+                    <?php $value = $row['sections'][$col['key']] ?? null; ?>
+                    <td><?= $value !== null ? htmlspecialchars(number_format((float)$value, 1), ENT_QUOTES, 'UTF-8') : '—' ?></td>
+                  <?php endforeach; ?>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <?php if ($sectionAggregates): ?>
+      <div class="md-card md-elev-2">
+        <h2 class="md-card-title"><?=t($t, 'sectional_scores_aggregated', 'Section averages for questionnaire')?></h2>
+        <p class="md-upgrade-meta"><?=t($t, 'sectional_scores_aggregated_hint', 'Average weighted score per section across all submissions for this questionnaire.')?></p>
+        <table class="md-table">
+          <thead>
+            <tr>
+              <th><?=t($t, 'section_label', 'Section')?></th>
+              <th><?=t($t, 'average_score', 'Average score (%)')?></th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($sectionAggregates as $aggregate): ?>
+              <tr>
+                <td><?=htmlspecialchars($aggregate['label'], ENT_QUOTES, 'UTF-8')?></td>
+                <td><?= $aggregate['score'] !== null ? htmlspecialchars(number_format((float)$aggregate['score'], 1), ENT_QUOTES, 'UTF-8') : '—' ?></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
 
     <div class="md-card md-elev-2">
       <h2 class="md-card-title"><?=t($t, 'user_breakdown', 'Participant breakdown')?></h2>
