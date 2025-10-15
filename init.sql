@@ -197,6 +197,24 @@ CREATE TABLE questionnaire_assignment (
   CONSTRAINT fk_assignment_supervisor FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE analytics_report_schedule (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  recipients TEXT NOT NULL,
+  frequency ENUM('daily','weekly','monthly') NOT NULL DEFAULT 'weekly',
+  next_run_at DATETIME NOT NULL,
+  last_run_at DATETIME NULL,
+  created_by INT NULL,
+  questionnaire_id INT NULL,
+  include_details TINYINT(1) NOT NULL DEFAULT 0,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_report_schedule_next_run (next_run_at),
+  KEY idx_report_schedule_active (active),
+  CONSTRAINT fk_report_schedule_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_report_schedule_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 INSERT INTO site_config (
   id,
   site_name,
