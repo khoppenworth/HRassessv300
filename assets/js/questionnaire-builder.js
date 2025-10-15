@@ -19,6 +19,10 @@ const Builder = (() => {
     metaCsrf: 'meta[name="csrf-token"]',
   };
 
+  const STORAGE_KEYS = {
+    active: 'hrassess:qb:last-active',
+  };
+
   const QUESTION_TYPES = ['likert', 'choice', 'text', 'textarea', 'boolean'];
   const LIKERT_DEFAULT_LABELS = [
     '1 - Strongly Disagree',
@@ -77,6 +81,19 @@ const Builder = (() => {
     }
 
     fetchData();
+  }
+
+  function rememberActiveKey(key) {
+    if (!key) {
+      return;
+    }
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(STORAGE_KEYS.active, key);
+      }
+    } catch (error) {
+      console.warn('Unable to persist questionnaire tab state', error);
+    }
   }
 
   function uuid(prefix = 'tmp') {
@@ -306,6 +323,7 @@ const Builder = (() => {
     state.questionnaires.unshift(questionnaire);
     state.activeKey = keyFor(questionnaire);
     state.pendingActiveKey = state.activeKey;
+    rememberActiveKey(state.activeKey);
     markDirty();
     render();
   }
@@ -416,14 +434,31 @@ const Builder = (() => {
       }
       const questionnaires = Array.isArray(data.questionnaires) ? data.questionnaires : [];
       state.questionnaires = questionnaires.map(normalizeQuestionnaire);
+      let restoredActive = false;
       if (typeof window.QB_INITIAL_ACTIVE_ID !== 'undefined' && window.QB_INITIAL_ACTIVE_ID !== null) {
         const requested = Number(window.QB_INITIAL_ACTIVE_ID);
         const match = state.questionnaires.find((q) => Number(q.id) === requested);
         if (match) {
           state.activeKey = keyFor(match);
           state.pendingActiveKey = state.activeKey;
+          rememberActiveKey(state.activeKey);
+          restoredActive = true;
         }
         delete window.QB_INITIAL_ACTIVE_ID;
+      }
+      if (!restoredActive) {
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            const storedKey = sessionStorage.getItem(STORAGE_KEYS.active);
+            if (storedKey && state.questionnaires.some((q) => keyFor(q) === storedKey)) {
+              state.activeKey = storedKey;
+              state.pendingActiveKey = state.activeKey;
+              restoredActive = true;
+            }
+          }
+        } catch (error) {
+          console.warn('Unable to restore questionnaire tab state', error);
+        }
       }
       ensureActiveKey();
       state.dirty = false;
@@ -557,12 +592,21 @@ const Builder = (() => {
   function ensureActiveKey() {
     if (!state.questionnaires.length) {
       state.activeKey = null;
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem(STORAGE_KEYS.active);
+        }
+      } catch (error) {
+        console.warn('Unable to clear questionnaire tab state', error);
+      }
       return;
     }
     if (state.activeKey && state.questionnaires.some((q) => keyFor(q) === state.activeKey)) {
       return;
     }
     state.activeKey = keyFor(state.questionnaires[0]);
+    state.pendingActiveKey = state.activeKey;
+    rememberActiveKey(state.activeKey);
   }
 
   function setActiveKey(key) {
@@ -573,6 +617,8 @@ const Builder = (() => {
       return;
     }
     state.activeKey = key;
+    state.pendingActiveKey = key;
+    rememberActiveKey(key);
     render();
   }
 

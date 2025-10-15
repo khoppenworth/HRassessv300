@@ -271,9 +271,9 @@ foreach ($rows as $row) {
 }
 
 $sectionBreakdowns = compute_section_breakdowns($pdo, array_values($latestScores), $t);
-$radarJsonFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+$chartDataFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
 if (defined('JSON_THROW_ON_ERROR')) {
-    $radarJsonFlags |= JSON_THROW_ON_ERROR;
+    $chartDataFlags |= JSON_THROW_ON_ERROR;
 }
 
 $belowThreshold = array_values(array_filter($rows, static function ($row) {
@@ -286,7 +286,6 @@ foreach ($rows as $row) {
     $chartLabels[] = date('Y-m-d', strtotime($row['created_at'])) . ' · ' . $row['period_label'];
     $chartScores[] = $row['score'] !== null ? (int)$row['score'] : null;
 }
-$chartVersion = $latestEntry ? strtotime((string)$latestEntry['created_at']) : time();
 
 $recommendedCourses = [];
 if (!empty($user['work_function'])) {
@@ -376,11 +375,15 @@ if ($flash === 'submitted') {
   <?php endif; ?>
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t,'your_trend','Your Score Trend')?></h2>
-    <?php if ($chartLabels): ?>
+  <?php if ($chartLabels): ?>
       <div class="trend-chart-wrap">
-        <img src="<?=htmlspecialchars(url_for('charts/performance_timeline.php?v=' . $chartVersion), ENT_QUOTES, 'UTF-8')?>" alt="<?=htmlspecialchars(t($t,'performance_timeline_alt','Line chart showing your performance timeline'), ENT_QUOTES, 'UTF-8')?>">
+        <canvas
+          id="performance-timeline-chart"
+          role="img"
+          aria-label="<?=htmlspecialchars(t($t,'performance_timeline_alt','Line chart showing your performance timeline'), ENT_QUOTES, 'UTF-8')?>"
+        ></canvas>
       </div>
-    <?php else: ?>
+  <?php else: ?>
       <p><?=t($t,'no_trend_data','Submit assessments to generate your performance trend.')?></p>
     <?php endif; ?>
     <table class="md-table">
@@ -450,12 +453,18 @@ if ($flash === 'submitted') {
     <?php endif; ?>
   </div>
 </section>
-<?php if ($sectionBreakdowns): ?>
+<?php $hasChartJs = !empty($chartLabels) || !empty($sectionBreakdowns); ?>
+<?php if ($hasChartJs): ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-EtBsuD6bYDI7ilMWVT09G/1nHQRE8PbtY7TIn4lZG3Fjm1fvcDUoJ7Sm9Ua+bJOy" crossorigin="anonymous"></script>
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
   (function () {
-    const radarData = <?=json_encode($sectionBreakdowns, $radarJsonFlags)?>;
+    const timelineData = <?=json_encode([
+      'labels' => $chartLabels,
+      'scores' => array_map(static fn($score) => $score === null ? null : (float)$score, $chartScores),
+    ], $chartDataFlags)?>;
+    const radarData = <?=json_encode($sectionBreakdowns, $chartDataFlags)?>;
     const rootStyles = getComputedStyle(document.documentElement);
+
     const cssVar = (name, fallback) => {
       const value = rootStyles.getPropertyValue(name);
       if (value && value.trim()) {
@@ -469,27 +478,142 @@ if ($flash === 'submitted') {
       }
       return '';
     };
-    const palette = [
+
+    const radarPalette = [
       { bg: cssVar('--app-primary-soft'), border: cssVar('--app-primary') },
       { bg: cssVar('--status-warning-soft'), border: cssVar('--status-warning') },
       { bg: cssVar('--status-success-soft'), border: cssVar('--status-success') },
       { bg: cssVar('--status-info-soft'), border: cssVar('--status-info', '--app-secondary') }
     ].filter((entry) => entry.bg && entry.border);
-    if (!palette.length) {
-      palette.push({ bg: cssVar('--app-primary-soft'), border: cssVar('--app-primary') });
+    if (!radarPalette.length) {
+      radarPalette.push({ bg: cssVar('--app-primary-soft'), border: cssVar('--app-primary') });
     }
 
-    function formatLabel(label, value) {
-      const rounded = typeof value === 'number' ? value.toFixed(1) : value;
-      return `${label}: ${rounded}%`;
+    const heatStops = [
+      { stop: 0, color: [211, 47, 47] },
+      { stop: 0.5, color: [249, 168, 37] },
+      { stop: 1, color: [46, 125, 50] }
+    ];
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+    const mix = (start, end, ratio) => Math.round(start + (end - start) * ratio);
+
+    function heatColor(score, alpha = 0.85) {
+      if (typeof score !== 'number' || Number.isNaN(score)) {
+        score = 0;
+      }
+      const normalized = clamp(score / 100, 0, 1);
+      let left = heatStops[0];
+      let right = heatStops[heatStops.length - 1];
+      for (let i = 0; i < heatStops.length - 1; i += 1) {
+        const current = heatStops[i];
+        const next = heatStops[i + 1];
+        if (normalized >= current.stop && normalized <= next.stop) {
+          left = current;
+          right = next;
+          break;
+        }
+      }
+      const range = right.stop - left.stop || 1;
+      const ratio = clamp((normalized - left.stop) / range, 0, 1);
+      const r = mix(left.color[0], right.color[0], ratio);
+      const g = mix(left.color[1], right.color[1], ratio);
+      const b = mix(left.color[2], right.color[2], ratio);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-      if (!window.Chart || !radarData) {
+    function renderTimeline() {
+      const labels = Array.isArray(timelineData.labels) ? timelineData.labels : [];
+      const scores = Array.isArray(timelineData.scores) ? timelineData.scores : [];
+      if (!labels.length) {
+        return;
+      }
+      const canvas = document.getElementById('performance-timeline-chart');
+      if (!canvas) {
+        return;
+      }
+      const context = canvas.getContext('2d');
+      if (!context) {
+        return;
+      }
+      const gradient = context.createLinearGradient(0, 0, 0, canvas.height || 320);
+      gradient.addColorStop(0, 'rgba(46, 125, 50, 0.25)');
+      gradient.addColorStop(1, 'rgba(211, 47, 47, 0.05)');
+
+      new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data: scores,
+            fill: true,
+            backgroundColor: gradient,
+            borderColor: 'rgba(25, 89, 147, 0.85)',
+            borderWidth: 3,
+            pointBackgroundColor: scores.map((score) => heatColor(score, 1)),
+            pointBorderColor: cssVar('--app-surface', '--brand-bg') || '#ffffff',
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointHoverBorderWidth: 2,
+            segment: {
+              borderColor: (ctx) => heatColor(resolveSegmentScore(ctx, scores), 0.9),
+            },
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'nearest' },
+          elements: {
+            line: { tension: 0.35 },
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  const value = typeof context.parsed.y === 'number' ? context.parsed.y.toFixed(1) : context.parsed.y;
+                  return `${context.label}: ${value}%`;
+                },
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: {
+                callback: (value) => `${value}%`,
+              },
+              grid: { color: 'rgba(17, 56, 94, 0.08)' },
+            },
+            x: {
+              ticks: { maxRotation: 45, minRotation: 0, autoSkip: true },
+              grid: { display: false },
+            },
+          },
+        },
+      });
+    }
+
+    function resolveSegmentScore(context, scores) {
+      const forward = scores[context.p1DataIndex];
+      if (typeof forward === 'number') {
+        return forward;
+      }
+      const backward = scores[context.p0DataIndex];
+      if (typeof backward === 'number') {
+        return backward;
+      }
+      return 0;
+    }
+
+    function renderRadars() {
+      if (!radarData) {
         return;
       }
       let paletteIndex = 0;
-      Object.keys(radarData).forEach(function (qid) {
+      Object.keys(radarData).forEach((qid) => {
         const canvas = document.getElementById(`radar-chart-${qid}`);
         if (!canvas) {
           return;
@@ -498,9 +622,9 @@ if ($flash === 'submitted') {
         if (!dataset || !Array.isArray(dataset.sections) || !dataset.sections.length) {
           return;
         }
-        const labels = dataset.sections.map(function (section) { return section.label; });
-        const values = dataset.sections.map(function (section) { return Number(section.score) || 0; });
-        const colors = palette[paletteIndex % palette.length];
+        const labels = dataset.sections.map((section) => section.label);
+        const values = dataset.sections.map((section) => Number(section.score) || 0);
+        const colors = radarPalette[paletteIndex % radarPalette.length];
         paletteIndex += 1;
         new Chart(canvas, {
           type: 'radar',
@@ -516,8 +640,8 @@ if ($flash === 'submitted') {
               pointBackgroundColor: colors.border,
               pointBorderColor: cssVar('--app-surface', '--brand-bg'),
               pointRadius: 4,
-              pointHoverRadius: 5
-            }]
+              pointHoverRadius: 5,
+            }],
           },
           options: {
             responsive: true,
@@ -526,12 +650,13 @@ if ($flash === 'submitted') {
               legend: { display: false },
               tooltip: {
                 callbacks: {
-                  label: function (context) {
+                  label: (context) => {
                     const raw = context.parsed && typeof context.parsed.r === 'number' ? context.parsed.r : context.parsed;
-                    return formatLabel(context.label, raw);
-                  }
-                }
-              }
+                    const rounded = typeof raw === 'number' ? raw.toFixed(1) : raw;
+                    return `${context.label}: ${rounded}%`;
+                  },
+                },
+              },
             },
             scales: {
               r: {
@@ -540,21 +665,23 @@ if ($flash === 'submitted') {
                 ticks: {
                   stepSize: 20,
                   showLabelBackdrop: false,
-                  callback: function (value) {
-                    return `${value}%`;
-                  }
+                  callback: (value) => `${value}%`,
                 },
-                grid: {
-                  color: 'rgba(32, 115, 191, 0.15)'
-                },
-                angleLines: {
-                  color: 'rgba(32, 115, 191, 0.2)'
-                }
-              }
-            }
-          }
+                grid: { color: 'rgba(32, 115, 191, 0.15)' },
+                angleLines: { color: 'rgba(32, 115, 191, 0.2)' },
+              },
+            },
+          },
         });
       });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.Chart) {
+        return;
+      }
+      renderTimeline();
+      renderRadars();
     });
   })();
 </script>

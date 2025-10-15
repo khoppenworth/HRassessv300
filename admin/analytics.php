@@ -87,6 +87,56 @@ $workFunctionStmt = $pdo->query(
 );
 $workFunctionSummary = $workFunctionStmt ? $workFunctionStmt->fetchAll() : [];
 
+$questionnaireChartData = [];
+foreach ($questionnaires as $row) {
+    $questionnaireChartData[] = [
+        'label' => (string)($row['title'] ?? ('Questionnaire ' . (int)$row['id'])),
+        'score' => $row['avg_score'] !== null ? (float)$row['avg_score'] : null,
+        'responses' => (int)($row['total_responses'] ?? 0),
+    ];
+}
+$questionnaireChartData = array_values(array_filter($questionnaireChartData, static fn($row) => $row['score'] !== null));
+usort($questionnaireChartData, static function ($a, $b) {
+    $aScore = $a['score'] ?? 101;
+    $bScore = $b['score'] ?? 101;
+    if ($aScore === $bScore) {
+        return strcmp($a['label'], $b['label']);
+    }
+    return $aScore <=> $bScore;
+});
+if (count($questionnaireChartData) > 12) {
+    $questionnaireChartData = array_slice($questionnaireChartData, 0, 12);
+}
+
+$workFunctionChartData = [];
+foreach ($workFunctionSummary as $row) {
+    $wfKey = $row['work_function'] ?? '';
+    $label = $workFunctionOptions[$wfKey] ?? ($wfKey !== '' ? (string)$wfKey : t($t, 'unknown', 'Unknown'));
+    $workFunctionChartData[] = [
+        'label' => (string)$label,
+        'score' => $row['avg_score'] !== null ? (float)$row['avg_score'] : null,
+        'responses' => (int)($row['total_responses'] ?? 0),
+    ];
+}
+$workFunctionChartData = array_values(array_filter($workFunctionChartData, static fn($row) => $row['score'] !== null));
+usort($workFunctionChartData, static function ($a, $b) {
+    $aScore = $a['score'] ?? 101;
+    $bScore = $b['score'] ?? 101;
+    if ($aScore === $bScore) {
+        return strcmp($a['label'], $b['label']);
+    }
+    return $aScore <=> $bScore;
+});
+if (count($workFunctionChartData) > 12) {
+    $workFunctionChartData = array_slice($workFunctionChartData, 0, 12);
+}
+
+$chartJsonFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+if (defined('JSON_THROW_ON_ERROR')) {
+    $chartJsonFlags |= JSON_THROW_ON_ERROR;
+}
+$hasAnalyticsCharts = !empty($questionnaireChartData) || !empty($workFunctionChartData);
+
 $statusLabels = [
     'draft' => t($t, 'status_draft', 'Draft'),
     'submitted' => t($t, 'status_submitted', 'Submitted'),
@@ -170,6 +220,10 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       margin: 0.75rem 0 0;
       color: var(--app-text-secondary, #555);
     }
+    .md-analytics-meta--hint {
+      margin-top: 0.35rem;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 <body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
@@ -204,6 +258,12 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
     <h2 class="md-card-title"><?=t($t, 'questionnaire_performance', 'Questionnaire performance')?></h2>
     <?php if ($questionnaires): ?>
       <p class="md-upgrade-meta"><?=t($t, 'questionnaire_drilldown_hint', 'Select a questionnaire to drill into individual responses.')?></p>
+      <?php if ($questionnaireChartData): ?>
+        <div class="md-chart-container">
+          <canvas id="questionnaire-performance-heatmap" role="img" aria-label="<?=htmlspecialchars(t($t, 'questionnaire_heatmap_alt', 'Horizontal bar chart highlighting questionnaire averages with heatmap colours.'), ENT_QUOTES, 'UTF-8')?>"></canvas>
+        </div>
+        <p class="md-analytics-meta md-analytics-meta--hint"><?=t($t, 'performance_heatmap_hint', 'Heatmap colours shift from red to green so low scores stand out for follow-up.')?></p>
+      <?php endif; ?>
       <table class="md-table md-table--interactive">
         <thead>
           <tr>
@@ -257,7 +317,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       </h2>
       <?php if ($selectedAggregate['total'] > 0): ?>
         <p class="md-upgrade-meta">
-          <?=t($t, 'selected_summary', 'Average score:')?>
+          <?=t($t, 'selected_summary', 'Average score: ')?>
           <?=$formatScore($selectedAverage)?> ·
           <?=t($t, 'approved_responses', 'Approved responses')?>: <?=$selectedAggregate['approved']?> ·
           <?=t($t, 'status_submitted', 'Submitted')?>: <?=$selectedAggregate['submitted']?> ·
@@ -341,6 +401,11 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t, 'work_function_performance', 'Work Function Performance')?></h2>
     <?php if ($workFunctionSummary): ?>
+      <?php if ($workFunctionChartData): ?>
+        <div class="md-chart-container">
+          <canvas id="work-function-heatmap" role="img" aria-label="<?=htmlspecialchars(t($t, 'work_function_heatmap_alt', 'Horizontal bar chart comparing work function averages using heatmap colours.'), ENT_QUOTES, 'UTF-8')?>"></canvas>
+        </div>
+      <?php endif; ?>
       <table class="md-table">
         <thead>
           <tr>
@@ -367,6 +432,137 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
     <?php endif; ?>
   </div>
 </section>
+<?php if ($hasAnalyticsCharts): ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-EtBsuD6bYDI7ilMWVT09G/1nHQRE8PbtY7TIn4lZG3Fjm1fvcDUoJ7Sm9Ua+bJOy" crossorigin="anonymous"></script>
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+  (function () {
+    const questionnaireHeatmap = <?=json_encode([
+      'labels' => array_column($questionnaireChartData, 'label'),
+      'scores' => array_map(static fn($row) => $row['score'], $questionnaireChartData),
+      'counts' => array_map(static fn($row) => $row['responses'], $questionnaireChartData),
+    ], $chartJsonFlags)?>;
+    const workFunctionHeatmap = <?=json_encode([
+      'labels' => array_column($workFunctionChartData, 'label'),
+      'scores' => array_map(static fn($row) => $row['score'], $workFunctionChartData),
+      'counts' => array_map(static fn($row) => $row['responses'], $workFunctionChartData),
+    ], $chartJsonFlags)?>;
+    const labels = {
+      averageScore: <?=json_encode(t($t, 'average_score', 'Average score (%)'), $chartJsonFlags)?>,
+      responses: <?=json_encode(t($t, 'count', 'Responses'), $chartJsonFlags)?>,
+    };
+
+    const heatStops = [
+      { stop: 0, color: [211, 47, 47] },
+      { stop: 0.5, color: [249, 168, 37] },
+      { stop: 1, color: [46, 125, 50] },
+    ];
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+    const mix = (start, end, ratio) => Math.round(start + (end - start) * ratio);
+
+    function heatColor(score, alpha = 0.85) {
+      if (typeof score !== 'number' || Number.isNaN(score)) {
+        score = 0;
+      }
+      const normalized = clamp(score / 100, 0, 1);
+      let left = heatStops[0];
+      let right = heatStops[heatStops.length - 1];
+      for (let i = 0; i < heatStops.length - 1; i += 1) {
+        const current = heatStops[i];
+        const next = heatStops[i + 1];
+        if (normalized >= current.stop && normalized <= next.stop) {
+          left = current;
+          right = next;
+          break;
+        }
+      }
+      const range = right.stop - left.stop || 1;
+      const ratio = clamp((normalized - left.stop) / range, 0, 1);
+      const r = mix(left.color[0], right.color[0], ratio);
+      const g = mix(left.color[1], right.color[1], ratio);
+      const b = mix(left.color[2], right.color[2], ratio);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function renderHeatmap(targetId, dataset, options = {}) {
+      if (!dataset || !Array.isArray(dataset.labels) || !dataset.labels.length) {
+        return;
+      }
+      const canvas = document.getElementById(targetId);
+      if (!canvas) {
+        return;
+      }
+      const context = canvas.getContext('2d');
+      if (!context) {
+        return;
+      }
+      const scores = dataset.scores.map((score) => (typeof score === 'number' ? score : 0));
+      const colors = scores.map((score) => heatColor(score, 0.8));
+      const borderColors = scores.map((score) => heatColor(score, 1));
+      const counts = dataset.counts || [];
+      new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: dataset.labels,
+          datasets: [{
+            data: scores,
+            backgroundColor: colors,
+            borderColor: borderColors,
+            borderWidth: 1.5,
+            borderRadius: 6,
+            barPercentage: 0.75,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: options.indexAxis || 'y',
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: 100,
+              ticks: {
+                callback: (value) => `${value}%`,
+              },
+              grid: { color: 'rgba(17, 56, 94, 0.08)' },
+              title: options.indexAxis === 'y' ? { display: true, text: labels.averageScore } : undefined,
+            },
+            y: {
+              ticks: { autoSkip: false },
+              grid: { display: false },
+            },
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  const value = typeof context.parsed.x === 'number' ? context.parsed.x.toFixed(1) : context.parsed.x;
+                  const count = counts[context.dataIndex];
+                  const countText = typeof count === 'number' ? ` · ${count} ${labels.responses}` : '';
+                  return `${context.label}: ${value}%${countText}`;
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.Chart) {
+        return;
+      }
+      if (questionnaireHeatmap.labels && questionnaireHeatmap.labels.length) {
+        renderHeatmap('questionnaire-performance-heatmap', questionnaireHeatmap, { indexAxis: 'y' });
+      }
+      if (workFunctionHeatmap.labels && workFunctionHeatmap.labels.length) {
+        renderHeatmap('work-function-heatmap', workFunctionHeatmap, { indexAxis: 'y' });
+      }
+    });
+  })();
+</script>
+<?php endif; ?>
 <?php include __DIR__ . '/../templates/footer.php'; ?>
 </body>
 </html>
