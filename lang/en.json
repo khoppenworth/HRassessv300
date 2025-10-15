@@ -20,6 +20,8 @@
   "api_doc_step_open": "Open this page to load the live OpenAPI specification and review endpoint details.",
   "api_doc_step_sign_in": "Sign in as an administrator to establish your session before making API calls.",
   "api_doc_step_try_it": "Select an operation, expand it, and click <strong>Try it out</strong> to execute a request with the current theme styling applied to all controls.",
+  "api_doc_loading": "Loading API documentation…",
+  "api_doc_viewer_failed": "Unable to load the interactive viewer. You can still download the OpenAPI JSON below.",
   "api_documentation": "API Documentation",
   "api_documentation_intro": "Explore the available REST and FHIR endpoints exposed by the platform. Authentication is required to call protected endpoints.",
   "appearance_settings": "Appearance",

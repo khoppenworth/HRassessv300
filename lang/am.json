@@ -20,6 +20,8 @@
   "api_doc_step_open": "ይህን ገፅ ክፈቱ እና በቀጥታ የOpenAPI መግለጫውን ይመልከቱ።",
   "api_doc_step_sign_in": "API ጥሪ ከመጀመርዎ በፊት እንደ አስተዳዳሪ ይግቡ እና ክፍለ ጊዜዎን ያቋቋሙ።",
   "api_doc_step_try_it": "አንድ ስራ ይምረጡ፣ ይዘረጉት እና <strong>Try it out</strong> ብለው በአሁኑ ገጽታ የተስተካከለ ጥያቄ ያቀርቡ።",
+  "api_doc_loading": "የAPI ሰነዱን በመጫን ላይ…",
+  "api_doc_viewer_failed": "ተንቀሳቃሽ ተመልካቹን መጫን አልተቻለም። ከዚህ በታች ያለውን OpenAPI JSON መውረድ ትችላለህ።",
   "api_documentation": "API Documentation",
   "api_documentation_intro": "በመድረኩ ላይ ያሉትን REST እና FHIR መገናኛዎች ይመልከቱ። የተጠበቁ ነጥቦችን ለመጠቀም ማረጋገጫ ያስፈልጋል።",
   "appearance_settings": "መልክ",
