@@ -60,6 +60,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $pdo->commit();
+
+            $staffDetails = null;
+            try {
+                $staffDetailsStmt = $pdo->prepare('SELECT id, username, full_name, email, next_assessment_date FROM users WHERE id = ?');
+                $staffDetailsStmt->execute([$selectedStaffId]);
+                $staffDetails = $staffDetailsStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            } catch (PDOException $e) {
+                error_log('questionnaire_assignments staff detail fetch failed: ' . $e->getMessage());
+            }
+
+            $assignedTitles = [];
+            if ($staffDetails) {
+                try {
+                    $titlesStmt = $pdo->prepare('SELECT q.title FROM questionnaire_assignment qa JOIN questionnaire q ON q.id = qa.questionnaire_id WHERE qa.staff_id = ? ORDER BY q.title ASC');
+                    $titlesStmt->execute([$selectedStaffId]);
+                    $titles = $titlesStmt->fetchAll(PDO::FETCH_COLUMN);
+                    $fallbackTitle = t($t, 'questionnaire', 'Questionnaire');
+                    foreach ($titles as $title) {
+                        $normalized = trim((string)$title);
+                        $assignedTitles[] = $normalized !== '' ? $normalized : $fallbackTitle;
+                    }
+                } catch (PDOException $e) {
+                    error_log('questionnaire_assignments assignment titles fetch failed: ' . $e->getMessage());
+                }
+
+                $assigner = $_SESSION['user'] ?? null;
+                notify_questionnaire_assignment_update($cfg, $staffDetails, $assignedTitles, $assigner);
+            }
+
             $_SESSION['questionnaire_assignment_flash'] = t($t, 'assignments_saved', 'Assignments updated successfully.');
         } catch (PDOException $e) {
             $pdo->rollBack();

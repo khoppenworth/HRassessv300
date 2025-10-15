@@ -233,6 +233,19 @@ $expectedSchemas = [
         'assigned_by' => ['type' => 'int', 'null' => 'YES'],
         'assigned_at' => ['type' => 'datetime', 'null' => 'NO'],
     ],
+    'analytics_report_schedule' => [
+        'id' => ['type' => 'int', 'null' => 'NO', 'key' => 'PRI', 'extra' => 'auto_increment'],
+        'recipients' => ['type' => 'text', 'null' => 'NO'],
+        'frequency' => ['type' => "enum('daily','weekly','monthly')", 'null' => 'NO'],
+        'next_run_at' => ['type' => 'datetime', 'null' => 'NO'],
+        'last_run_at' => ['type' => 'datetime', 'null' => 'YES'],
+        'created_by' => ['type' => 'int', 'null' => 'YES'],
+        'questionnaire_id' => ['type' => 'int', 'null' => 'YES'],
+        'include_details' => ['type' => 'tinyint', 'null' => 'NO'],
+        'active' => ['type' => 'tinyint', 'null' => 'NO'],
+        'created_at' => ['type' => 'datetime', 'null' => 'NO'],
+        'updated_at' => ['type' => 'datetime', 'null' => 'NO'],
+    ],
 ];
 
 $issues = [];

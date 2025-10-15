@@ -36,7 +36,7 @@ function app_smtp_config(array $cfg): array
     ];
 }
 
-function send_notification_email(array $cfg, $recipients, string $subject, string $body): bool
+function send_notification_email(array $cfg, $recipients, string $subject, string $body, array $attachments = []): bool
 {
     $smtp = app_smtp_config($cfg);
     if (!$smtp['enabled']) {
@@ -68,14 +68,14 @@ function send_notification_email(array $cfg, $recipients, string $subject, strin
     }
 
     try {
-        return smtp_send($smtp, $list, $subject, $body);
+        return smtp_send($smtp, $list, $subject, $body, $attachments);
     } catch (Throwable $e) {
         error_log('SMTP send failed: ' . $e->getMessage());
         return false;
     }
 }
 
-function smtp_send(array $smtp, array $recipients, string $subject, string $body): bool
+function smtp_send(array $smtp, array $recipients, string $subject, string $body, array $attachments = []): bool
 {
     $host = $smtp['host'];
     $port = (int)$smtp['port'];
@@ -138,12 +138,59 @@ function smtp_send(array $smtp, array $recipients, string $subject, string $body
         return smtp_format_address($email, '');
     }, $recipients));
     $headers[] = 'Subject: ' . $encodedSubject;
-    $headers[] = 'MIME-Version: 1.0';
-    $headers[] = 'Content-Type: text/plain; charset=UTF-8';
-    $headers[] = 'Content-Transfer-Encoding: 8bit';
     $headers[] = 'Message-ID: <' . uniqid('', true) . '@' . ($ehloHost ?: 'localhost') . '>';
 
-    $lines = array_merge($headers, [''], explode("\n", str_replace(["\r\n", "\r"], "\n", $body)));
+    $normalizedBody = str_replace(["\r\n", "\r"], "\n", $body);
+    $hasAttachments = !empty($attachments);
+    $lines = $headers;
+    if ($hasAttachments) {
+        $boundary = '=_mixed_' . bin2hex(random_bytes(12));
+        $lines[] = 'MIME-Version: 1.0';
+        $lines[] = 'Content-Type: multipart/mixed; boundary="' . $boundary . '"';
+        $lines[] = '';
+        $lines[] = 'This is a multi-part message in MIME format.';
+        $lines[] = '';
+        $lines[] = '--' . $boundary;
+        $lines[] = 'Content-Type: text/plain; charset=UTF-8';
+        $lines[] = 'Content-Transfer-Encoding: 8bit';
+        $lines[] = '';
+        foreach (explode("\n", $normalizedBody) as $bodyLine) {
+            $lines[] = $bodyLine;
+        }
+        foreach ($attachments as $attachment) {
+            if (!is_array($attachment)) {
+                continue;
+            }
+            $filename = isset($attachment['filename']) ? (string)$attachment['filename'] : 'attachment.bin';
+            $contentType = isset($attachment['content_type']) ? (string)$attachment['content_type'] : 'application/octet-stream';
+            $content = isset($attachment['content']) ? (string)$attachment['content'] : '';
+            if ($content === '') {
+                continue;
+            }
+            $sanitizedFilename = smtp_sanitize_filename($filename);
+            $lines[] = '';
+            $lines[] = '--' . $boundary;
+            $lines[] = 'Content-Type: ' . $contentType . '; name="' . $sanitizedFilename . '"';
+            $lines[] = 'Content-Transfer-Encoding: base64';
+            $lines[] = 'Content-Disposition: attachment; filename="' . $sanitizedFilename . '"';
+            $lines[] = '';
+            $encoded = rtrim(chunk_split(base64_encode($content)));
+            foreach (explode("\n", $encoded) as $encodedLine) {
+                $lines[] = $encodedLine;
+            }
+        }
+        $lines[] = '';
+        $lines[] = '--' . $boundary . '--';
+    } else {
+        $lines[] = 'MIME-Version: 1.0';
+        $lines[] = 'Content-Type: text/plain; charset=UTF-8';
+        $lines[] = 'Content-Transfer-Encoding: 8bit';
+        $lines[] = '';
+        foreach (explode("\n", $normalizedBody) as $bodyLine) {
+            $lines[] = $bodyLine;
+        }
+    }
+
     foreach ($lines as $line) {
         $normalized = rtrim((string)$line, "\r\n");
         if ($normalized !== '' && $normalized[0] === '.') {
@@ -198,15 +245,18 @@ function smtp_escape_address(string $address): string
 function smtp_format_address(string $email, string $name): string
 {
     $email = smtp_escape_address($email);
-    if ($name === '') {
-        return '<' . $email . '>';
-    }
-    $cleanName = trim($name);
+    $cleanName = trim(str_replace(["\r", "\n"], '', $name));
     if ($cleanName === '') {
         return '<' . $email . '>';
     }
     $encoded = function_exists('mb_encode_mimeheader') ? mb_encode_mimeheader($cleanName, 'UTF-8', 'B', "\r\n") : addslashes($cleanName);
     return $encoded . ' <' . $email . '>';
+}
+
+function smtp_sanitize_filename(string $filename): string
+{
+    $clean = trim(str_replace(['"', '\\'], '', str_replace(["\r", "\n"], '', $filename)));
+    return $clean !== '' ? $clean : 'attachment.bin';
 }
 
 function smtp_store_last_response_code(int $code): void

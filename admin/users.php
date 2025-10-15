@@ -77,6 +77,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $accountStatus,
                         $nextAssessment
                     ]);
+                    if ($accountStatus === 'active' && $nextAssessment) {
+                        $newUserId = (int)$pdo->lastInsertId();
+                        if ($newUserId > 0) {
+                            try {
+                                $createdStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+                                $createdStmt->execute([$newUserId]);
+                                $createdUser = $createdStmt->fetch(PDO::FETCH_ASSOC);
+                                if ($createdUser) {
+                                    notify_user_next_assessment($cfg, $createdUser, $nextAssessment);
+                                }
+                            } catch (PDOException $e) {
+                                error_log('Admin user create notification fetch failed: ' . $e->getMessage());
+                            }
+                        }
+                    }
                     $msg = t($t, 'user_created', 'User created successfully.');
                 } catch (PDOException $e) {
                     if ((int)$e->getCode() === 23000) {
@@ -118,6 +133,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = t($t, 'invalid_role', 'Invalid role selection.');
             } else {
                 if (!isset($workFunctionOptions[$workFunction])) { $workFunction = $defaultWorkFunction; }
+                $existingUser = null;
+                if ($id > 0) {
+                    try {
+                        $existingStmt = $pdo->prepare('SELECT id, email, full_name, username, account_status, next_assessment_date FROM users WHERE id = ?');
+                        $existingStmt->execute([$id]);
+                        $existingUser = $existingStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+                    } catch (PDOException $e) {
+                        error_log('Admin user existing fetch failed: ' . $e->getMessage());
+                    }
+                }
                 $fields = ['role = ?', 'work_function = ?', 'account_status = ?', 'next_assessment_date = ?'];
                 $params = [$role, $workFunction, $accountStatus, $nextAssessment, $id];
                 $profileReset = '';
@@ -131,6 +156,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $stm = $pdo->prepare($sql);
                     $stm->execute($params);
+                    if ($accountStatus === 'active' && $nextAssessment) {
+                        try {
+                            $updatedStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+                            $updatedStmt->execute([$id]);
+                            $updatedUser = $updatedStmt->fetch(PDO::FETCH_ASSOC);
+                        } catch (PDOException $e) {
+                            $updatedUser = null;
+                            error_log('Admin user update notification fetch failed: ' . $e->getMessage());
+                        }
+                        if (!empty($updatedUser)) {
+                            $previousDate = $existingUser['next_assessment_date'] ?? null;
+                            $previousStatus = $existingUser['account_status'] ?? null;
+                            if ($nextAssessment !== $previousDate || $previousStatus !== 'active') {
+                                notify_user_next_assessment($cfg, $updatedUser, $nextAssessment);
+                            }
+                        }
+                    }
                     $msg = t($t, 'user_updated', 'User updated successfully.');
                 } catch (PDOException $e) {
                     error_log('Admin user update failed: ' . $e->getMessage());

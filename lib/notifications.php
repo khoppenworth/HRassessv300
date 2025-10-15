@@ -68,3 +68,56 @@ function notify_user_next_assessment(array $cfg, array $user, string $nextAssess
         'Thank you.';
     send_notification_email($cfg, [$email], $subject, $body);
 }
+
+function notify_questionnaire_assignment_update(array $cfg, array $staff, array $assignedTitles, ?array $assigner = null): void
+{
+    $recipients = [];
+    $staffEmail = trim((string)($staff['email'] ?? ''));
+    if ($staffEmail !== '') {
+        $recipients[] = $staffEmail;
+    }
+    $assignerEmail = '';
+    if ($assigner) {
+        $assignerEmail = trim((string)($assigner['email'] ?? ''));
+        if ($assignerEmail !== '' && strcasecmp($assignerEmail, $staffEmail) !== 0) {
+            $recipients[] = $assignerEmail;
+        }
+    }
+    if (!$recipients) {
+        return;
+    }
+
+    $staffName = trim((string)($staff['full_name'] ?? $staff['username'] ?? 'team member'));
+    $assignerName = $assigner ? trim((string)($assigner['full_name'] ?? $assigner['username'] ?? '')) : '';
+
+    $subject = 'Questionnaire assignments updated';
+    $lines = [];
+    $lines[] = 'Hello ' . ($staffName !== '' ? $staffName : 'team member') . ',';
+    $lines[] = '';
+    if ($assignedTitles) {
+        $lines[] = 'The following questionnaires are now assigned to you:';
+        foreach ($assignedTitles as $title) {
+            $lines[] = ' - ' . $title;
+        }
+    } else {
+        $lines[] = 'All previously assigned questionnaires have been removed from your profile.';
+    }
+
+    $nextAssessment = trim((string)($staff['next_assessment_date'] ?? ''));
+    if ($nextAssessment !== '') {
+        $lines[] = '';
+        $lines[] = 'Your next assessment date: ' . $nextAssessment;
+    }
+
+    if ($assignerName !== '') {
+        $lines[] = '';
+        $lines[] = 'Assignments updated by: ' . $assignerName;
+    }
+
+    $lines[] = '';
+    $lines[] = 'You can review your questionnaires here: ' . url_for('dashboard.php');
+    $lines[] = '';
+    $lines[] = 'Thank you.';
+
+    send_notification_email($cfg, $recipients, $subject, implode("\n", $lines));
+}

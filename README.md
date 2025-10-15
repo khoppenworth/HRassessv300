@@ -34,6 +34,16 @@ Performance assessment portal built with PHP and MySQL.
    ```
 8. Visit [http://localhost:8080](http://localhost:8080) and sign in with the seeded administrator credentials.
 
+## Scheduled analytics reports
+
+Administrators can configure recurring analytics emails from the **Analytics → Scheduled analytics reports** card. Once a schedule is active, add the CLI helper to cron so PDFs are generated and emailed on time:
+
+```sh
+php scripts/send_scheduled_reports.php
+```
+
+The command checks for all due schedules, renders the latest analytics snapshot, and emails recipients using the SMTP configuration stored in **Settings → Notifications**. Review the script output (or cron logs) periodically to confirm reports are delivered successfully.
+
 ## LAMP deployment guide
 
 The application runs on a traditional Linux + Apache + MySQL/MariaDB + PHP stack. The steps below assume Ubuntu 22.04 with

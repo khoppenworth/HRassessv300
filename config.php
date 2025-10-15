@@ -69,6 +69,7 @@ if (!defined('APP_BOOTSTRAPPED')) {
         ensure_questionnaire_item_schema($pdo);
         ensure_questionnaire_work_function_schema($pdo);
         ensure_questionnaire_assignment_schema($pdo);
+        ensure_analytics_report_schedule_schema($pdo);
     } catch (PDOException $e) {
         $friendly = 'Unable to connect to the application database. Please try again later or contact support.';
         error_log('DB connection failed: ' . $e->getMessage());
@@ -630,6 +631,73 @@ function ensure_questionnaire_assignment_schema(PDO $pdo): void
         }
     } catch (PDOException $e) {
         error_log('ensure_questionnaire_assignment_schema: ' . $e->getMessage());
+    }
+}
+
+function ensure_analytics_report_schedule_schema(PDO $pdo): void
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS analytics_report_schedule (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            recipients TEXT NOT NULL,
+            frequency ENUM('daily','weekly','monthly') NOT NULL DEFAULT 'weekly',
+            next_run_at DATETIME NOT NULL,
+            last_run_at DATETIME NULL,
+            created_by INT NULL,
+            questionnaire_id INT NULL,
+            include_details TINYINT(1) NOT NULL DEFAULT 0,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            KEY idx_report_schedule_next_run (next_run_at),
+            KEY idx_report_schedule_active (active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $columnsStmt = $pdo->query('SHOW COLUMNS FROM analytics_report_schedule');
+        $existingColumns = [];
+        if ($columnsStmt) {
+            foreach ($columnsStmt->fetchAll(PDO::FETCH_ASSOC) as $column) {
+                $existingColumns[] = $column['Field'];
+            }
+        }
+        $addColumn = static function (PDO $pdo, array $columns, string $name, string $definition): void {
+            if (!in_array($name, $columns, true)) {
+                $pdo->exec('ALTER TABLE analytics_report_schedule ADD COLUMN ' . $definition);
+            }
+        };
+        $addColumn($pdo, $existingColumns, 'last_run_at', 'last_run_at DATETIME NULL AFTER next_run_at');
+        $addColumn($pdo, $existingColumns, 'created_by', 'created_by INT NULL AFTER last_run_at');
+        $addColumn($pdo, $existingColumns, 'questionnaire_id', 'questionnaire_id INT NULL AFTER created_by');
+        $addColumn($pdo, $existingColumns, 'include_details', 'include_details TINYINT(1) NOT NULL DEFAULT 0 AFTER questionnaire_id');
+        $addColumn($pdo, $existingColumns, 'active', 'active TINYINT(1) NOT NULL DEFAULT 1 AFTER include_details');
+        $addColumn($pdo, $existingColumns, 'created_at', 'created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER active');
+        $addColumn($pdo, $existingColumns, 'updated_at', 'updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at');
+
+        $indexesStmt = $pdo->query("SHOW INDEX FROM analytics_report_schedule WHERE Key_name = 'idx_report_schedule_next_run'");
+        if (!$indexesStmt || !$indexesStmt->fetch()) {
+            $pdo->exec('CREATE INDEX idx_report_schedule_next_run ON analytics_report_schedule (next_run_at)');
+        }
+        $activeIdxStmt = $pdo->query("SHOW INDEX FROM analytics_report_schedule WHERE Key_name = 'idx_report_schedule_active'");
+        if (!$activeIdxStmt || !$activeIdxStmt->fetch()) {
+            $pdo->exec('CREATE INDEX idx_report_schedule_active ON analytics_report_schedule (active)');
+        }
+
+        $fkStmt = $pdo->prepare(
+            'SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE '
+            . 'WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "analytics_report_schedule" AND CONSTRAINT_NAME = ?'
+        );
+        if ($fkStmt) {
+            $fkStmt->execute(['fk_report_schedule_creator']);
+            if (!$fkStmt->fetch()) {
+                $pdo->exec('ALTER TABLE analytics_report_schedule ADD CONSTRAINT fk_report_schedule_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL');
+            }
+            $fkStmt->execute(['fk_report_schedule_questionnaire']);
+            if (!$fkStmt->fetch()) {
+                $pdo->exec('ALTER TABLE analytics_report_schedule ADD CONSTRAINT fk_report_schedule_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE SET NULL');
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('ensure_analytics_report_schedule_schema: ' . $e->getMessage());
     }
 }
 

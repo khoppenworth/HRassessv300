@@ -242,3 +242,63 @@ SET @sql_assignment_assigned_by_idx := IF(
 PREPARE stmt FROM @sql_assignment_assigned_by_idx;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- Ensure analytics_report_schedule exists for scheduled report delivery.
+CREATE TABLE IF NOT EXISTS analytics_report_schedule (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  recipients TEXT NOT NULL,
+  frequency ENUM('daily','weekly','monthly') NOT NULL DEFAULT 'weekly',
+  next_run_at DATETIME NOT NULL,
+  last_run_at DATETIME NULL,
+  created_by INT NULL,
+  questionnaire_id INT NULL,
+  include_details TINYINT(1) NOT NULL DEFAULT 0,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_report_schedule_next_run (next_run_at),
+  KEY idx_report_schedule_active (active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE analytics_report_schedule
+  ADD COLUMN IF NOT EXISTS last_run_at DATETIME NULL AFTER next_run_at,
+  ADD COLUMN IF NOT EXISTS created_by INT NULL AFTER last_run_at,
+  ADD COLUMN IF NOT EXISTS questionnaire_id INT NULL AFTER created_by,
+  ADD COLUMN IF NOT EXISTS include_details TINYINT(1) NOT NULL DEFAULT 0 AFTER questionnaire_id,
+  ADD COLUMN IF NOT EXISTS active TINYINT(1) NOT NULL DEFAULT 1 AFTER include_details,
+  ADD COLUMN IF NOT EXISTS created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER active,
+  ADD COLUMN IF NOT EXISTS updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at;
+
+ALTER TABLE analytics_report_schedule
+  ADD INDEX IF NOT EXISTS idx_report_schedule_next_run (next_run_at),
+  ADD INDEX IF NOT EXISTS idx_report_schedule_active (active);
+
+SET @has_schedule_creator_fk := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'analytics_report_schedule'
+    AND CONSTRAINT_NAME = 'fk_report_schedule_creator'
+);
+SET @sql_schedule_creator_fk := IF(
+  @has_schedule_creator_fk = 0,
+  'ALTER TABLE analytics_report_schedule ADD CONSTRAINT fk_report_schedule_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_schedule_creator_fk;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_schedule_questionnaire_fk := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'analytics_report_schedule'
+    AND CONSTRAINT_NAME = 'fk_report_schedule_questionnaire'
+);
+SET @sql_schedule_questionnaire_fk := IF(
+  @has_schedule_questionnaire_fk = 0,
+  'ALTER TABLE analytics_report_schedule ADD CONSTRAINT fk_report_schedule_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE SET NULL;',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_schedule_questionnaire_fk;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
