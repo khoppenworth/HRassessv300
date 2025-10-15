@@ -125,6 +125,29 @@ $fetchLatestRelease = static function (string $repo, ?string $token = null): ?ar
     ];
 };
 
+$normalizeVersionTag = static function (string $tag): string {
+    $trimmed = trim($tag);
+    if ($trimmed === '') {
+        return $trimmed;
+    }
+
+    $withoutRefs = preg_replace('/^refs\\/tags\\//i', '', $trimmed);
+    if ($withoutRefs === null) {
+        $withoutRefs = $trimmed;
+    }
+
+    $withoutCommonPrefixes = preg_replace('/^(?:release|version)[-_](?=\d)/i', '', $withoutRefs);
+    if ($withoutCommonPrefixes === null) {
+        $withoutCommonPrefixes = $withoutRefs;
+    }
+
+    if (preg_match('/^v(?=\d)/i', $withoutCommonPrefixes)) {
+        return substr($withoutCommonPrefixes, 1);
+    }
+
+    return $withoutCommonPrefixes;
+};
+
 $currentVersion = '3.0.0';
 $upgradeRepo = $resolveUpgradeRepo($cfg);
 $upgradeDefaults = [
@@ -156,7 +179,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $token = trim((string)($cfg['github_token'] ?? getenv('GITHUB_TOKEN') ?? ''));
                 $release = $fetchLatestRelease($upgradeState['upgrade_repo'] ?? $upgradeRepo, $token !== '' ? $token : null);
                 if ($release) {
-                    $availableVersion = $release['tag'];
+                    $availableVersionRaw = $release['tag'];
+                    $availableVersion = $normalizeVersionTag($availableVersionRaw);
+                    if ($availableVersion === '') {
+                        $availableVersion = $availableVersionRaw;
+                    }
                     $availableLabel = $release['name'];
                     $availableUrl = $release['url'];
                     if (version_compare($availableVersion, (string)$upgradeState['current_version'], '>')) {
