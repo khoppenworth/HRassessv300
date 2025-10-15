@@ -23,6 +23,7 @@ body.md-bg {
   background: var(--md-bg);
   color: var(--app-text-primary);
   font-family: "Segoe UI", "Poppins", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.6;
 }
 
 .md-appbar {
@@ -238,9 +239,9 @@ body.md-bg {
 }
 
 .md-alert {
-  background: var(--app-warning-soft));
-  border-left: 4px solid var(--app-warning));
-  color: var(--md-muted);
+  background: var(--status-warning-surface);
+  border-left: 4px solid var(--status-warning);
+  color: var(--status-warning-text);
   padding: 12px 16px;
   border-radius: 12px;
   margin: 12px 0;
@@ -379,16 +380,160 @@ body.md-bg {
 }
 
 .md-container {
+  position: relative;
   min-height: 100vh;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 32px 18px;
+}
+
+.md-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 12% 18%, rgba(14, 165, 233, 0.18), transparent 45%),
+    radial-gradient(circle at 88% 12%, rgba(124, 58, 237, 0.14), transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.md-container > * {
+  position: relative;
+  z-index: 1;
 }
 
 .md-login {
   max-width: 460px;
   width: 100%;
+}
+
+.md-login.md-login--split {
+  max-width: 960px;
+  padding: 0;
+  border-radius: 28px;
+  overflow: hidden;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: 0 36px 86px rgba(15, 23, 42, 0.16);
+}
+
+.md-login.md-login--split::before {
+  content: none;
+}
+
+.md-login--split .md-login-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 960px) {
+  .md-login--split .md-login-grid {
+    grid-template-columns: 1.05fr 1fr;
+  }
+}
+
+.md-login--split .md-login-panel {
+  padding: 2.75rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (max-width: 599px) {
+  .md-login--split .md-login-panel {
+    padding: 2.2rem 1.75rem;
+  }
+}
+
+.md-login--split .md-login-panel--brand {
+  background: linear-gradient(162deg, var(--app-primary-dark) 0%, var(--app-primary) 52%, var(--app-secondary) 100%);
+  color: var(--app-text-inverse);
+  position: relative;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.md-login--split .md-login-panel--brand::after {
+  content: "";
+  position: absolute;
+  inset: -40% -35% auto -30%;
+  height: 420px;
+  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.22), transparent 70%);
+  pointer-events: none;
+}
+
+.md-login--split .md-login-panel--brand > * {
+  position: relative;
+  z-index: 1;
+}
+
+.md-login--split .md-login-panel--brand .md-title {
+  margin-top: 0.5rem;
+  font-size: 2.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: inherit;
+}
+
+.md-login--split .md-login-panel--brand .md-logo {
+  width: min(220px, 60%);
+  max-width: 220px;
+  height: auto;
+  filter: drop-shadow(0 18px 36px rgba(6, 15, 40, 0.25));
+}
+
+.md-login--split .md-login-tagline {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 28rem;
+}
+
+.md-login--split .md-login-panel--form {
+  background: var(--app-surface);
+  color: var(--app-text-primary);
+  justify-content: center;
+  gap: 1.25rem;
+}
+
+.md-login--split .md-login-panel--form .md-subtitle {
+  margin: 0;
+  color: var(--app-text-secondary);
+  text-align: left;
+}
+
+.md-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.md-login-form .md-field {
+  gap: 0.5rem;
+}
+
+.md-login-form .md-field span {
+  font-weight: 600;
+  color: var(--app-text-secondary);
+}
+
+.md-login-form .md-field input {
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-on-surface-strong);
+}
+
+.md-login-form .md-field input:focus {
+  border-color: var(--app-secondary);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
+  background: #ffffff;
+}
+
+.md-login--split .md-login-panel--form .md-alert {
+  margin-bottom: 0;
 }
 
 .md-card-media {

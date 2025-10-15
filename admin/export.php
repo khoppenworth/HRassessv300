@@ -95,8 +95,8 @@ if ($latestSubmission) {
     <h2 class="md-card-title"><?=t($t, 'export_assessments_title', 'Export questionnaire responses')?></h2>
     <p><?=t($t, 'export_assessments_intro', 'Download all recorded assessment responses as a CSV file for offline analysis or archival.')?></p>
     <ul class="md-stat-list">
-      <li class="md-stat-item"><span class="md-stat-label"><?=t($t, 'responses_available', 'Responses available')?></span><span class="md-stat-value"><?=$totalResponses?></span></li>
-      <li class="md-stat-item"><span class="md-stat-label"><?=t($t, 'latest_submission', 'Latest submission')?></span><span class="md-stat-value"><?=htmlspecialchars($latestSubmissionDisplay, ENT_QUOTES, 'UTF-8')?></span></li>
+      <li class="md-stat-item"><span class="md-stat-label"><?=t($t, 'responses_available', 'Responses available')?>: </span><span class="md-stat-value"><?=$totalResponses?></span></li>
+      <li class="md-stat-item"><span class="md-stat-label"><?=t($t, 'latest_submission', 'Latest submission')?>: </span><span class="md-stat-value"><?=htmlspecialchars($latestSubmissionDisplay, ENT_QUOTES, 'UTF-8')?></span></li>
     </ul>
     <div class="md-form-actions md-form-actions--center md-form-actions--stack">
       <a class="md-button md-primary md-elev-2" href="<?=htmlspecialchars(url_for('admin/export.php?download=1'), ENT_QUOTES, 'UTF-8')?>">
