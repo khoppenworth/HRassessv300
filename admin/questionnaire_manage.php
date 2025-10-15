@@ -688,33 +688,44 @@ if (isset($_POST['import'])) {
   <?php if ($msg): ?>
     <div class="md-alert"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div>
   <?php endif; ?>
-  <div class="md-card md-elev-2">
-    <h2 class="md-card-title"><?=t($t,'fhir_import','FHIR Import')?></h2>
-    <form method="post" enctype="multipart/form-data" class="qb-import-form" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
-      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-      <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
-      <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
-    </form>
-    <div class="qb-import-actions">
-      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(url_for('scripts/download_questionnaire_template.php'), ENT_QUOTES, 'UTF-8')?>" download>
-        <?=t($t,'download_xml_template','Download XML template')?>
-      </a>
-      <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
-        <?=t($t,'download_import_guide','Download Import Guide')?>
-      </a>
+  <div class="qb-manager-layout">
+    <div class="qb-manager-main">
+      <div class="md-card md-elev-2 qb-builder-card">
+        <div class="qb-toolbar">
+          <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
+          <div class="qb-toolbar-spacer"></div>
+          <button class="md-button md-elev-2" id="qb-save" disabled><?=t($t,'save','Save Changes')?></button>
+          <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
+        </div>
+        <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
+        <div id="qb-list" class="qb-list" aria-live="polite"></div>
+      </div>
     </div>
-  </div>
-
-  <div class="md-card md-elev-2">
-    <div class="qb-toolbar">
-      <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
-      <div class="qb-toolbar-spacer"></div>
-      <button class="md-button md-elev-2" id="qb-save" disabled><?=t($t,'save','Save Changes')?></button>
-      <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
-    </div>
-    <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
-    <div id="qb-tabs" class="qb-tabs" role="tablist" aria-label="<?=htmlspecialchars(t($t,'questionnaire_tabs','Questionnaire navigation'), ENT_QUOTES, 'UTF-8')?>"></div>
-    <div id="qb-list" class="qb-list" aria-live="polite"></div>
+    <aside class="qb-manager-sidebar" aria-label="<?=htmlspecialchars(t($t,'questionnaire_side_menu','Questionnaire side menu'), ENT_QUOTES, 'UTF-8')?>">
+      <div class="md-card md-elev-2 qb-sidebar-card">
+        <h3 class="md-card-title"><?=t($t,'questionnaire_navigation','Questionnaire Navigation')?></h3>
+        <div id="qb-tabs" class="qb-tabs qb-tabs-vertical" role="tablist" aria-label="<?=htmlspecialchars(t($t,'questionnaire_tabs','Questionnaire navigation'), ENT_QUOTES, 'UTF-8')?>"></div>
+        <nav id="qb-section-nav" class="qb-section-nav" aria-label="<?=htmlspecialchars(t($t,'section_navigation','Section navigation'), ENT_QUOTES, 'UTF-8')?>" data-empty-label="<?=htmlspecialchars(t($t,'select_questionnaire_to_view_sections','Select a questionnaire to view its sections'), ENT_QUOTES, 'UTF-8')?>" data-root-label="<?=htmlspecialchars(t($t,'items_without_section','Items without a section'), ENT_QUOTES, 'UTF-8')?>" data-untitled-label="<?=htmlspecialchars(t($t,'untitled_questionnaire','Untitled questionnaire'), ENT_QUOTES, 'UTF-8')?>">
+          <p class="qb-section-nav-empty"><?=t($t,'select_questionnaire_to_view_sections','Select a questionnaire to view its sections')?></p>
+        </nav>
+      </div>
+      <div class="md-card md-elev-2 qb-sidebar-card">
+        <h3 class="md-card-title"><?=t($t,'fhir_import','FHIR Import')?></h3>
+        <form method="post" enctype="multipart/form-data" class="qb-import-form" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
+          <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+          <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
+          <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
+        </form>
+        <div class="qb-import-actions">
+          <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(url_for('scripts/download_questionnaire_template.php'), ENT_QUOTES, 'UTF-8')?>" download>
+            <?=t($t,'download_xml_template','Download XML template')?>
+          </a>
+          <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
+            <?=t($t,'download_import_guide','Download Import Guide')?>
+          </a>
+        </div>
+      </div>
+    </aside>
   </div>
 </section>
 <?php if ($recentImportId): ?>
