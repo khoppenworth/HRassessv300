@@ -210,4 +210,171 @@
   if (initialLocale) {
     applyGoogleTranslate(initialLocale);
   }
+
+  const stackableTableSelector = '.md-table';
+  const enhancementFlag = 'true';
+
+  const enhanceTable = (table) => {
+    if (!table) {
+      return;
+    }
+    if (table.dataset.noMobileStack === 'true' || table.hasAttribute('data-no-mobile-stack')) {
+      table.dataset.mobileEnhanced = enhancementFlag;
+      return;
+    }
+    const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+    if (!headers.length) {
+      table.dataset.mobileEnhanced = enhancementFlag;
+      return;
+    }
+    const rows = table.querySelectorAll('tbody tr');
+    if (!rows.length) {
+      table.dataset.mobileEnhanced = enhancementFlag;
+      return;
+    }
+    let labeled = false;
+    rows.forEach((row) => {
+      Array.from(row.children).forEach((cell, index) => {
+        if (!cell || cell.nodeType !== 1) {
+          return;
+        }
+        if (cell.tagName !== 'TD') {
+          return;
+        }
+        if (!cell.hasAttribute('data-label')) {
+          const label = headers[index] || headers[headers.length - 1] || '';
+          if (label) {
+            cell.setAttribute('data-label', label);
+            labeled = true;
+          }
+        } else if ((cell.getAttribute('data-label') || '').trim() !== '') {
+          labeled = true;
+        }
+      });
+    });
+    if (labeled) {
+      table.classList.add('md-table--stacked');
+    }
+    table.dataset.mobileEnhanced = enhancementFlag;
+  };
+
+  const enhanceTables = () => {
+    document.querySelectorAll(stackableTableSelector).forEach((table) => {
+      enhanceTable(table);
+    });
+  };
+
+  let tableEnhancementScheduled = false;
+  const scheduleTableEnhancement = () => {
+    if (tableEnhancementScheduled) {
+      return;
+    }
+    tableEnhancementScheduled = true;
+    requestAnimationFrame(() => {
+      tableEnhancementScheduled = false;
+      enhanceTables();
+    });
+  };
+
+  enhanceTables();
+
+  if ('MutationObserver' in window) {
+    const tableObserver = new MutationObserver(scheduleTableEnhancement);
+    tableObserver.observe(document.body, { childList: true, subtree: true });
+  }
+  window.addEventListener('resize', scheduleTableEnhancement);
+
+  let offlineBanner = null;
+  let offlineHideTimer = null;
+  let offlineDismissedWhileOffline = false;
+
+  const offlineMessages = {
+    offline: 'You are offline. Recent data will stay available until you reconnect.',
+    online: 'Back online. Syncing the latest updates now.',
+  };
+
+  const ensureOfflineBanner = () => {
+    if (offlineBanner) {
+      return offlineBanner;
+    }
+    offlineBanner = document.createElement('div');
+    offlineBanner.className = 'md-offline-banner';
+    offlineBanner.setAttribute('role', 'status');
+    offlineBanner.setAttribute('aria-live', 'polite');
+    offlineBanner.hidden = true;
+
+    const message = document.createElement('span');
+    message.className = 'md-offline-banner__message';
+    offlineBanner.appendChild(message);
+
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'md-offline-banner__dismiss';
+    dismiss.textContent = 'Dismiss';
+    dismiss.setAttribute('aria-label', 'Dismiss offline status message');
+    dismiss.addEventListener('click', () => {
+      if (offlineBanner.dataset.state === 'offline') {
+        offlineDismissedWhileOffline = true;
+      }
+      hideOfflineBanner();
+    });
+    offlineBanner.appendChild(dismiss);
+
+    document.body.appendChild(offlineBanner);
+    return offlineBanner;
+  };
+
+  const hideOfflineBanner = () => {
+    if (!offlineBanner) {
+      return;
+    }
+    if (offlineHideTimer) {
+      clearTimeout(offlineHideTimer);
+      offlineHideTimer = null;
+    }
+    offlineBanner.classList.remove('is-visible');
+    offlineHideTimer = setTimeout(() => {
+      offlineBanner.hidden = true;
+      offlineBanner.dataset.state = '';
+    }, 250);
+  };
+
+  const showOfflineBanner = (state) => {
+    if (state === 'offline' && offlineDismissedWhileOffline) {
+      return;
+    }
+    const banner = ensureOfflineBanner();
+    const messageEl = banner.querySelector('.md-offline-banner__message');
+    if (!messageEl) {
+      return;
+    }
+    if (offlineHideTimer) {
+      clearTimeout(offlineHideTimer);
+      offlineHideTimer = null;
+    }
+    banner.dataset.state = state;
+    messageEl.textContent = offlineMessages[state] || '';
+    banner.hidden = false;
+    banner.classList.add('is-visible');
+
+    if (state === 'online') {
+      offlineDismissedWhileOffline = false;
+      offlineHideTimer = setTimeout(() => {
+        hideOfflineBanner();
+      }, 4000);
+    }
+  };
+
+  window.addEventListener('offline', () => {
+    offlineDismissedWhileOffline = false;
+    showOfflineBanner('offline');
+  });
+
+  window.addEventListener('online', () => {
+    showOfflineBanner('online');
+  });
+
+  if (!navigator.onLine) {
+    showOfflineBanner('offline');
+  }
 })();

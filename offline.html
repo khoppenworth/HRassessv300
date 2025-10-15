@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Offline · MyPerformance</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="assets/css/material.css">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, rgba(30, 64, 175, 0.12), transparent 65%), var(--app-surface, #f5f7fb);
+      margin: 0;
+      font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--app-text-primary, #1f2937);
+      padding: 2rem;
+    }
+    .offline-card {
+      max-width: 420px;
+      width: 100%;
+      background: var(--app-surface, #ffffff);
+      border-radius: 22px;
+      padding: 2.4rem 2.1rem;
+      box-shadow: 0 28px 65px rgba(15, 23, 42, 0.18);
+      text-align: center;
+    }
+    .offline-card h1 {
+      margin: 0 0 0.75rem;
+      font-size: 1.55rem;
+      letter-spacing: 0.02em;
+    }
+    .offline-card p {
+      margin: 0 0 1.6rem;
+      color: var(--app-muted, #4b5563);
+      line-height: 1.6;
+      font-size: 0.98rem;
+    }
+    .offline-card button {
+      appearance: none;
+      border: none;
+      border-radius: 999px;
+      padding: 0.75rem 1.65rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--app-primary, #1d4ed8);
+      color: var(--app-on-primary, #ffffff);
+      box-shadow: 0 18px 32px rgba(29, 78, 216, 0.28);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .offline-card button:hover,
+    .offline-card button:focus {
+      transform: translateY(-1px);
+      box-shadow: 0 20px 36px rgba(29, 78, 216, 0.35);
+      outline: none;
+    }
+    .offline-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 1.5rem;
+      border-radius: 50%;
+      background: rgba(29, 78, 216, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--app-primary, #1d4ed8);
+      font-size: 1.9rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="offline-card" role="status" aria-live="polite">
+    <div class="offline-icon" aria-hidden="true">☁️</div>
+    <h1>You're offline</h1>
+    <p>We'll keep the most recent data ready for you. Reconnect to sync changes and continue where you left off.</p>
+    <button type="button" onclick="window.location.reload()">Try again</button>
+  </main>
+</body>
+</html>

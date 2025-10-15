@@ -876,6 +876,79 @@ body.theme-dark .md-floating-save-draft {
   border-left-color: var(--app-warning));
 }
 
+.md-offline-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translate(-50%, 1.5rem);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: 999px;
+  background: var(--app-surface);
+  color: var(--app-text-primary);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  z-index: 1100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.md-offline-banner.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.md-offline-banner[data-state="offline"] {
+  background: var(--app-danger);
+  color: var(--app-on-primary);
+  box-shadow: 0 22px 45px rgba(220, 38, 38, 0.25);
+}
+
+body.theme-dark .md-offline-banner[data-state="offline"] {
+  background: #b91c1c;
+}
+
+.md-offline-banner[data-state="online"] {
+  background: var(--app-primary);
+  color: var(--app-on-primary);
+  box-shadow: 0 22px 45px rgba(30, 64, 175, 0.25);
+}
+
+.md-offline-banner__message {
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.01em;
+}
+
+.md-offline-banner__dismiss {
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  font-weight: 600;
+  padding: 0.3rem 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.md-offline-banner__dismiss:hover,
+.md-offline-banner__dismiss:focus {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+body.theme-dark .md-offline-banner__dismiss {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+body.theme-dark .md-offline-banner__dismiss:hover,
+body.theme-dark .md-offline-banner__dismiss:focus {
+  background: rgba(15, 23, 42, 0.5);
+}
+
 .md-draft-alert {
   margin-top: 1rem;
 }
@@ -1020,6 +1093,14 @@ body.theme-dark .md-button.md-primary {
   border-bottom: 1px solid var(--app-primary-soft);
 }
 
+.md-table--stacked {
+  position: relative;
+}
+
+.md-table--stacked tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .md-table th {
   text-align: left;
   font-size: 0.78rem;
@@ -1046,6 +1127,101 @@ body.theme-dark .md-button.md-primary {
   background: var(--app-secondary-soft);
   color: var(--app-primary-dark);
   font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .md-table--stacked {
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    overflow: visible;
+  }
+
+  .md-table--stacked thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    border: 0;
+    padding: 0;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    overflow: hidden;
+  }
+
+  .md-table--stacked tbody {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .md-table--stacked tbody tr {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 1.15rem;
+    border-radius: 18px;
+    border: 1px solid var(--app-border);
+    background: var(--app-surface);
+    box-shadow: 0 14px 28px var(--app-primary-soft);
+  }
+
+  body.theme-dark .md-table--stacked tbody tr {
+    border-color: var(--app-primary-soft);
+    background: var(--app-surface-alt);
+  }
+
+  .md-table--stacked td {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0;
+    border: 0;
+  }
+
+  .md-table--stacked td + td {
+    border-top: 1px solid var(--app-primary-soft);
+    padding-top: 0.9rem;
+  }
+
+  .md-table--stacked td:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  body.theme-dark .md-table--stacked td + td {
+    border-top-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .md-table--stacked td::before {
+    content: attr(data-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--app-text-secondary);
+    font-weight: 600;
+  }
+
+  .md-table--stacked td > * {
+    max-width: 100%;
+  }
+
+  .md-table--stacked .md-inline-form,
+  .md-table--stacked form {
+    width: 100%;
+  }
+
+  .md-table--stacked .md-inline-actions {
+    justify-content: flex-start;
+  }
+
+  .md-table-responsive {
+    overflow: visible;
+  }
+
+  .md-table-responsive .md-table {
+    min-width: 0;
+  }
 }
 
 .md-footer {
