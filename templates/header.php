@@ -191,7 +191,7 @@ $drawerLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
         <a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.export')?>><?=t($t, 'export_data', 'Export Data')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.branding')?>><?=t($t, 'branding', 'Branding & Landing')?></a>
         <a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.settings')?>><?=t($t, 'settings', 'Settings')?></a>
-        <a href="<?=htmlspecialchars(url_for('swagger.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.api_docs')?>><?=t($t,'api_documentation','API Documentation')?></a>
+        <a href="<?=htmlspecialchars(url_for('swagger.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link" target="_blank" rel="noopener"><?=t($t,'api_documentation','API Documentation')?></a>
       </div>
     <?php endif; ?>
   </nav>
