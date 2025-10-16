@@ -425,42 +425,11 @@ function get_site_config(PDO $pdo): array
     }
 
     $merged = array_merge($defaults, $cfg ?: []);
-    $merged['logo_path'] = normalize_branding_logo_path($merged['logo_path'] ?? null);
+    $merged['logo_path'] = null;
     $merged['enabled_locales'] = site_enabled_locales($merged);
     remember_available_locales($merged['enabled_locales']);
 
     return $merged;
-}
-
-function normalize_branding_logo_path(?string $value): ?string
-{
-    $value = trim((string)($value ?? ''));
-    if ($value === '') {
-        return null;
-    }
-
-    if (preg_match('#^https?://#i', $value) === 1) {
-        return $value;
-    }
-
-    return '/' . ltrim($value, '/');
-}
-
-function get_branding_logo_path(?array $cfg = null): ?string
-{
-    if ($cfg === null) {
-        global $pdo;
-        $cfg = get_site_config($pdo);
-    }
-
-    return normalize_branding_logo_path($cfg['logo_path'] ?? null);
-}
-
-function persist_branding_logo_path(PDO $pdo, ?string $path): void
-{
-    $normalized = normalize_branding_logo_path($path);
-    $stmt = $pdo->prepare('UPDATE site_config SET logo_path = ? WHERE id = 1');
-    $stmt->execute([$normalized]);
 }
 
 function ensure_users_schema(PDO $pdo): void
