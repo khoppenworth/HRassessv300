@@ -1,6 +1,9 @@
 
 -- Enhanced init.sql (adds site_config and weight_percent)
 DROP TABLE IF EXISTS training_recommendation;
+DROP TABLE IF EXISTS analytics_report_schedule;
+DROP TABLE IF EXISTS questionnaire_assignment;
+DROP TABLE IF EXISTS questionnaire_work_function;
 DROP TABLE IF EXISTS course_catalogue;
 DROP TABLE IF EXISTS questionnaire_response_item;
 DROP TABLE IF EXISTS questionnaire_response;
