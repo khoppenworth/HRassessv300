@@ -187,6 +187,18 @@ body.md-bg {
   z-index: 980;
 }
 
+@media (hover: hover) {
+  .md-topnav-submenu::before {
+    content: "";
+    position: absolute;
+    top: -0.6rem;
+    left: 0;
+    right: 0;
+    height: 0.6rem;
+    display: block;
+  }
+}
+
 .md-topnav-item.is-open > .md-topnav-submenu,
 .md-topnav-item:focus-within > .md-topnav-submenu {
   display: flex;
