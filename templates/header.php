@@ -6,9 +6,10 @@ $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $user = current_user();
 $role = $user['role'] ?? ($_SESSION['user']['role'] ?? null);
-$logoUrl = asset_url('logo.php');
+$logoUrl = site_logo_url($cfg);
 $logoPathSmall = htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8');
 $siteTitle = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
+$siteLogoAlt = htmlspecialchars($cfg['site_name'] ?? 'Logo', ENT_QUOTES, 'UTF-8');
 $availableLocales = available_locales();
 $defaultLocale = $availableLocales[0] ?? 'en';
 $brandStyle = site_brand_style($cfg);
@@ -63,7 +64,10 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
     <span></span>
     <span></span>
   </button>
-  <div class="md-appbar-title"><?=$siteTitle?></div>
+  <div class="md-appbar-title">
+    <img src="<?=$logoPathSmall?>" alt="<?=$siteLogoAlt?>" class="md-appbar-logo" loading="lazy">
+    <span><?=$siteTitle?></span>
+  </div>
   <nav class="md-appbar-actions">
     <button
       type="button"

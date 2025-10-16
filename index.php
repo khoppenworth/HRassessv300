@@ -7,9 +7,10 @@ $cfg = get_site_config($pdo);
 $availableLocales = available_locales();
 $defaultLocale = $availableLocales[0] ?? 'en';
 
-$logoRenderPath = asset_url('logo.php');
+$logoRenderPath = site_logo_url($cfg);
 
 $logo = htmlspecialchars($logoRenderPath, ENT_QUOTES, 'UTF-8');
+$logoAlt = htmlspecialchars($cfg['site_name'] ?? 'Logo', ENT_QUOTES, 'UTF-8');
 $siteName = htmlspecialchars($cfg['site_name'] ?? 'My Performance', ENT_QUOTES, 'UTF-8');
 $landingText = htmlspecialchars($cfg['landing_text'] ?? '', ENT_QUOTES, 'UTF-8');
 $address = htmlspecialchars($cfg['address'] ?? '', ENT_QUOTES, 'UTF-8');
@@ -40,7 +41,7 @@ $loginUrl = htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8');
   <div class="md-container">
     <div class="md-card md-elev-3 md-login">
       <div class="md-card-media">
-        <img src="<?= $logo ?>" alt="Logo" class="md-logo">
+        <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="md-logo">
         <h1 class="md-title"><?= $siteName ?></h1>
       </div>
 

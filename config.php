@@ -425,11 +425,139 @@ function get_site_config(PDO $pdo): array
     }
 
     $merged = array_merge($defaults, $cfg ?: []);
-    $merged['logo_path'] = null;
+    $merged['logo_path'] = normalize_logo_path($merged['logo_path'] ?? null);
     $merged['enabled_locales'] = site_enabled_locales($merged);
     remember_available_locales($merged['enabled_locales']);
 
     return $merged;
+}
+
+function branding_logo_relative_dir(): string
+{
+    return 'assets/uploads/branding';
+}
+
+function branding_logo_directory(): string
+{
+    return base_path(branding_logo_relative_dir());
+}
+
+function ensure_branding_logo_directory(): bool
+{
+    $dir = branding_logo_directory();
+    if (!is_dir($dir)) {
+        if (!mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return false;
+        }
+    }
+
+    return is_writable($dir);
+}
+
+function normalize_logo_path($value): ?string
+{
+    if (!is_string($value)) {
+        return null;
+    }
+
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    $normalized = str_replace('\\', '/', ltrim($trimmed, '/'));
+    $relativeDir = branding_logo_relative_dir();
+    $expectedPrefix = $relativeDir . '/';
+    if (strpos($normalized, $expectedPrefix) !== 0) {
+        return null;
+    }
+
+    $filename = basename($normalized);
+    if ($filename === '' || preg_match('/[^A-Za-z0-9._-]/', $filename)) {
+        return null;
+    }
+
+    return $relativeDir . '/' . $filename;
+}
+
+function branding_logo_full_path(?string $path): ?string
+{
+    $normalized = normalize_logo_path($path);
+    if ($normalized === null) {
+        return null;
+    }
+
+    return base_path($normalized);
+}
+
+function site_logo_path(array $cfg): ?string
+{
+    $normalized = normalize_logo_path($cfg['logo_path'] ?? null);
+    if ($normalized === null) {
+        return null;
+    }
+
+    $fullPath = base_path($normalized);
+    if (!is_file($fullPath)) {
+        return null;
+    }
+
+    return $normalized;
+}
+
+function site_logo_url(array $cfg): string
+{
+    $path = site_logo_path($cfg);
+    if ($path !== null) {
+        return asset_url($path);
+    }
+
+    return asset_url('logo.php');
+}
+
+function detect_mime_type(string $path): ?string
+{
+    if (!is_file($path)) {
+        return null;
+    }
+
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo !== false) {
+            $mime = finfo_file($finfo, $path);
+            finfo_close($finfo);
+            if (is_string($mime) && $mime !== '') {
+                return strtolower(trim($mime));
+            }
+        }
+    }
+
+    if (function_exists('mime_content_type')) {
+        $mime = mime_content_type($path);
+        if ($mime !== false && $mime !== '') {
+            return strtolower(trim((string)$mime));
+        }
+    }
+
+    return null;
+}
+
+function site_logo_mime(array $cfg): ?string
+{
+    $path = site_logo_path($cfg);
+    if ($path === null) {
+        return null;
+    }
+
+    return detect_mime_type(base_path($path));
+}
+
+function delete_branding_logo_file(?string $path): void
+{
+    $fullPath = branding_logo_full_path($path);
+    if ($fullPath !== null && is_file($fullPath)) {
+        @unlink($fullPath);
+    }
 }
 
 function ensure_users_schema(PDO $pdo): void
