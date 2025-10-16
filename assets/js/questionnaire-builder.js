@@ -16,6 +16,7 @@ const Builder = (() => {
     message: '#qb-message',
     list: '#qb-list',
     tabs: '#qb-tabs',
+    sectionNav: '#qb-section-nav',
     metaCsrf: 'meta[name="csrf-token"]',
   };
 
@@ -55,6 +56,7 @@ const Builder = (() => {
     const saveBtn = document.querySelector(selectors.saveButton);
     const publishBtn = document.querySelector(selectors.publishButton);
     const tabs = document.querySelector(selectors.tabs);
+    const sectionNav = document.querySelector(selectors.sectionNav);
 
     if (!addBtn || !saveBtn || !publishBtn) {
       return;
@@ -78,6 +80,10 @@ const Builder = (() => {
       tabs.addEventListener('click', handleTabClick);
       tabs.addEventListener('keydown', handleTabKeydown);
       tabs.setAttribute('role', 'tablist');
+    }
+
+    if (sectionNav) {
+      sectionNav.addEventListener('click', handleSectionNavClick);
     }
 
     fetchData();
@@ -157,6 +163,7 @@ const Builder = (() => {
       if (!section) return;
       if (role === 'section-title') {
         section.title = target.value;
+        renderSectionNav();
       } else {
         section.description = target.value;
       }
@@ -564,6 +571,12 @@ const Builder = (() => {
     return `client:${entity.clientId}`;
   }
 
+  function domIdFor(prefix, entity) {
+    const key = keyFor(entity);
+    const normalized = key.replace(/[^a-zA-Z0-9_-]/g, '-');
+    return `${prefix}-${normalized}`;
+  }
+
   function escapeSelector(value) {
     if (typeof value !== 'string') {
       return '';
@@ -587,6 +600,7 @@ const Builder = (() => {
       ? questionnaire.title
       : `Questionnaire ${qIndex + 1}`;
     tab.textContent = label;
+    renderSectionNav();
   }
 
   function ensureActiveKey() {
@@ -647,6 +661,106 @@ const Builder = (() => {
     }
   }
 
+  function renderSectionNav() {
+    const nav = document.querySelector(selectors.sectionNav);
+    if (!nav) return;
+
+    const emptyLabel = nav.dataset.emptyLabel || 'Select a questionnaire to view its sections';
+    const rootLabel = nav.dataset.rootLabel || 'Items without a section';
+    const untitledLabel = nav.dataset.untitledLabel || 'Untitled questionnaire';
+    nav.innerHTML = '';
+
+    const active = state.questionnaires.find((q) => keyFor(q) === state.activeKey);
+    if (!active) {
+      const empty = document.createElement('p');
+      empty.className = 'qb-section-nav-empty';
+      empty.textContent = emptyLabel;
+      nav.appendChild(empty);
+      return;
+    }
+
+    const summary = document.createElement('div');
+    summary.className = 'qb-section-nav-summary';
+    const activeIndex = state.questionnaires.findIndex((q) => keyFor(q) === state.activeKey);
+    const fallbackLabel = activeIndex >= 0 ? `Questionnaire ${activeIndex + 1}` : untitledLabel;
+    summary.textContent = active.title && active.title.trim() !== ''
+      ? active.title
+      : fallbackLabel;
+    nav.appendChild(summary);
+
+    const list = document.createElement('ul');
+    list.className = 'qb-section-nav-list';
+
+    const rootItems = Array.isArray(active.items) ? active.items : [];
+    if (rootItems.length) {
+      list.appendChild(buildSectionNavItem(rootLabel, domIdFor('qb-root-items', active), rootItems.length));
+    }
+
+    const sections = Array.isArray(active.sections) ? active.sections : [];
+    sections.forEach((section, index) => {
+      const label = section.title && section.title.trim() !== ''
+        ? section.title
+        : `Section ${index + 1}`;
+      const itemCount = Array.isArray(section.items) ? section.items.length : 0;
+      list.appendChild(buildSectionNavItem(label, domIdFor('qb-section', section), itemCount));
+    });
+
+    if (!list.childElementCount) {
+      const empty = document.createElement('p');
+      empty.className = 'qb-section-nav-empty';
+      empty.textContent = emptyLabel;
+      nav.appendChild(empty);
+      return;
+    }
+
+    nav.appendChild(list);
+  }
+
+  function buildSectionNavItem(label, targetId, itemCount) {
+    const listItem = document.createElement('li');
+    listItem.className = 'qb-section-nav-item';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'qb-section-nav-button';
+    button.textContent = label;
+    button.dataset.sectionTarget = targetId;
+    listItem.appendChild(button);
+
+    if (typeof itemCount === 'number') {
+      const count = document.createElement('span');
+      count.className = 'qb-section-nav-count';
+      count.textContent = String(itemCount);
+      listItem.appendChild(count);
+    }
+
+    return listItem;
+  }
+
+  function handleSectionNavClick(event) {
+    const button = event.target.closest('.qb-section-nav-button');
+    if (!button) return;
+    event.preventDefault();
+    const targetId = button.dataset.sectionTarget;
+    if (!targetId) return;
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    if (typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    highlightSection(target);
+  }
+
+  function highlightSection(element) {
+    if (!element || typeof element.classList === 'undefined') {
+      return;
+    }
+    element.classList.add('qb-section-highlight');
+    window.setTimeout(() => {
+      element.classList.remove('qb-section-highlight');
+    }, 1500);
+  }
+
   function render() {
     const list = document.querySelector(selectors.list);
     if (!list) return;
@@ -700,6 +814,7 @@ const Builder = (() => {
     initSortable();
     updateDirtyState();
     focusActiveQuestionnaire();
+    renderSectionNav();
   }
 
   function buildQuestionnaireCard(questionnaire, qIndex) {
@@ -786,6 +901,7 @@ const Builder = (() => {
     rootItems.dataset.sortable = 'items';
     rootItems.dataset.qIndex = String(qIndex);
     rootItems.dataset.sectionIndex = 'root';
+    rootItems.id = domIdFor('qb-root-items', questionnaire);
     questionnaire.items.forEach((item, itemIndex) => {
       const itemEl = buildItem(item, qIndex, 'root', itemIndex);
       rootItems.appendChild(itemEl);
@@ -807,6 +923,7 @@ const Builder = (() => {
     sectionEl.dataset.key = keyFor(section);
     sectionEl.dataset.qIndex = String(qIndex);
     sectionEl.dataset.sectionIndex = String(sectionIndex);
+    sectionEl.id = domIdFor('qb-section', section);
 
     const header = document.createElement('div');
     header.className = 'qb-section-header';
