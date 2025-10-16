@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . '/../config.php';
-require_once __DIR__ . '/../lib/branding_logo.php';
 
 auth_required(['admin']);
 refresh_current_user($pdo);
@@ -9,7 +8,6 @@ $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $msg = '';
-$logoError = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -17,7 +15,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $landing_text = trim($_POST['landing_text'] ?? '');
     $address = trim($_POST['address'] ?? '');
     $contact = trim($_POST['contact'] ?? '');
-    $logo_path = get_branding_logo_path($cfg);
     $footer_org_name = trim($_POST['footer_org_name'] ?? '');
     $footer_org_short = trim($_POST['footer_org_short'] ?? '');
     $footer_website_label = trim($_POST['footer_website_label'] ?? '');
@@ -31,33 +28,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $footer_website_url = 'https://' . ltrim($footer_website_url, '/');
     }
 
-    $logoFile = $_FILES['branding_logo'] ?? null;
-    $logoErrorCode = (int)($logoFile['error'] ?? UPLOAD_ERR_NO_FILE);
-    if ($logoErrorCode !== UPLOAD_ERR_NO_FILE) {
-        try {
-            $previousLogoPath = $logo_path;
-            $logoWebPath = branding_logo_store_upload($logoFile);
-            persist_branding_logo_path($pdo, $logoWebPath);
-            $logo_path = $logoWebPath;
-            branding_logo_delete_previous($previousLogoPath);
-        } catch (RuntimeException $e) {
-            error_log('Logo upload failed: ' . $e->getMessage());
-            if (str_starts_with($e->getMessage(), 'Unsupported')) {
-                $logoError = t($t, 'invalid_file_type', 'Invalid file type. Logo was not updated.');
-            } elseif (str_contains($e->getMessage(), 'large')) {
-                $logoError = t($t, 'logo_too_large', 'Logo is too large. Upload a smaller image.');
-            } else {
-                $logoError = t($t, 'logo_upload_failed', 'Logo upload failed. Other changes were saved.');
-            }
-        }
-    }
-
     $fields = [
         'site_name' => $site_name,
         'landing_text' => $landing_text,
         'address' => $address,
         'contact' => $contact,
-        'logo_path' => $logo_path,
+        'logo_path' => null,
         'footer_org_name' => $footer_org_name,
         'footer_org_short' => $footer_org_short,
         'footer_website_label' => $footer_website_label,
@@ -78,11 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stm = $pdo->prepare('UPDATE site_config SET ' . implode(', ', $assignments) . ' WHERE id=1');
     $stm->execute($values);
-    if ($logoError !== null) {
-        $msg = $logoError;
-    } else {
-        $msg = t($t, 'branding_updated', 'Branding updated successfully.');
-    }
+    $msg = t($t, 'branding_updated', 'Branding updated successfully.');
     $cfg = get_site_config($pdo);
 }
 ?>
@@ -103,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t,'branding','Branding & Landing')?></h2>
     <?php if ($msg): ?><div class="md-alert"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
-    <form method="post" enctype="multipart/form-data" action="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>">
+    <form method="post" action="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>">
       <input type="hidden" name="csrf" value="<?=csrf_token()?>">
       <label class="md-field"><span><?=t($t,'site_name','Site Name')?></span><input name="site_name" value="<?=htmlspecialchars($cfg['site_name'] ?? '')?>"></label>
       <label class="md-field"><span><?=t($t,'landing_text','Landing Text')?></span><textarea name="landing_text" rows="3"><?=htmlspecialchars($cfg['landing_text'] ?? '')?></textarea></label>
@@ -121,14 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <label class="md-field"><span><?=t($t,'footer_rights_label','Rights Statement')?></span><input name="footer_rights" value="<?=htmlspecialchars($cfg['footer_rights'] ?? '')?>"></label>
       <div class="md-field">
         <span><?=t($t,'logo','Logo')?></span>
-        <input type="file" name="branding_logo" accept="image/*">
-        <p class="md-hint"><?=t($t,'logo_hint','PNG, JPG, GIF, WebP, or SVG up to 5 MB. Larger images are resized to fit 480×480 px.')?></p>
-        <?php $currentLogoPath = get_branding_logo_path($cfg);
-        if (!empty($currentLogoPath)):
-            $logoSrc = preg_match('#^https?://#i', $currentLogoPath) ? $currentLogoPath : asset_url(ltrim($currentLogoPath, '/'));
-        ?>
-          <div class="md-thumb"><img src="<?=htmlspecialchars($logoSrc, ENT_QUOTES, 'UTF-8')?>" alt="Logo" height="40"></div>
-        <?php endif; ?>
+        <p class="md-hint"><?=t($t,'logo_auto_generated','The system automatically generates a logo based on your brand colors.')?></p>
       </div>
       <button class="md-button md-primary md-elev-2"><?=t($t,'save','Save Changes')?></button>
     </form>

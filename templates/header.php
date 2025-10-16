@@ -6,14 +6,7 @@ $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $user = current_user();
 $role = $user['role'] ?? ($_SESSION['user']['role'] ?? null);
-$logoPath = get_branding_logo_path($cfg);
-if ($logoPath === null) {
-    $logoUrl = asset_url('logo.php');
-} elseif (preg_match('#^https?://#i', $logoPath)) {
-    $logoUrl = $logoPath;
-} else {
-    $logoUrl = asset_url(ltrim($logoPath, '/'));
-}
+$logoUrl = asset_url('logo.php');
 $logoPathSmall = htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8');
 $siteTitle = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
 $availableLocales = available_locales();
