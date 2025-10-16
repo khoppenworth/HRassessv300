@@ -43,7 +43,7 @@
     });
 
     document.addEventListener('click', (event) => {
-      if (topnav.contains(event.target)) {
+      if (topnav.contains(event.target) || (toggle && toggle.contains(event.target))) {
         return;
       }
       closeSubmenus();
