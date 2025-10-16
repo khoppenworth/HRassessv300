@@ -372,6 +372,10 @@ $statusLabels = [
               <input type="hidden" name="id" value="<?=$r['id']?>">
               <div class="md-user-form-grid">
                 <label class="md-field md-field--compact">
+                  <span><?=t($t,'username','Username')?></span>
+                  <input value="<?=htmlspecialchars($r['username'], ENT_QUOTES, 'UTF-8')?>" readonly>
+                </label>
+                <label class="md-field md-field--compact">
                   <span><?=t($t,'new_password_reset','New Password')?></span>
                   <input name="new_password" type="password" autocomplete="new-password" placeholder="<?=htmlspecialchars(t($t,'leave_blank_to_keep','Leave blank to keep current password'), ENT_QUOTES, 'UTF-8')?>">
                 </label>
