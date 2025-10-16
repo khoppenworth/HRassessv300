@@ -13,15 +13,6 @@ $nonce = csp_nonce();
 $downloadLabel = t($t, 'download_openapi_spec', 'Download OpenAPI JSON');
 $loadingText = t($t, 'api_doc_loading', 'Loading API documentation…');
 $viewerFailedText = t($t, 'api_doc_viewer_failed', 'Unable to load the interactive viewer. You can still download the OpenAPI JSON below.');
-$introText = t($t, 'api_documentation_intro', 'Explore the available REST and FHIR endpoints exposed by the platform. Authentication is required to call protected endpoints.');
-$referenceHint = t($t, 'api_doc_reference_hint', 'Need a guided walkthrough? The description pane in the viewer now highlights authentication, response formats, and draft workflows.');
-
-$steps = [
-    t($t, 'api_doc_step_sign_in', 'Sign in as an administrator to establish your session before making API calls.'),
-    t($t, 'api_doc_step_open', 'Open this page to load the live OpenAPI specification and review endpoint details.'),
-    t($t, 'api_doc_step_authorize', 'Use the Authorize button to include your session cookie or copy the sample curl commands to test from a terminal.'),
-    t($t, 'api_doc_step_try_it', 'Select an operation, expand it, and click Try it out to execute a request with the current theme styling applied to all controls.'),
-];
 
 $downloadUrl = htmlspecialchars($openapiUrl, ENT_QUOTES, 'UTF-8');
 $downloadTextHtml = htmlspecialchars($downloadLabel, ENT_QUOTES, 'UTF-8');
@@ -29,8 +20,6 @@ $downloadTextJs = json_encode($downloadLabel, JSON_THROW_ON_ERROR);
 $loadingLabelHtml = htmlspecialchars($loadingText, ENT_QUOTES, 'UTF-8');
 $viewerFailedHtml = htmlspecialchars($viewerFailedText, ENT_QUOTES, 'UTF-8');
 $viewerFailedJs = json_encode($viewerFailedText, JSON_THROW_ON_ERROR);
-$introContent = htmlspecialchars($introText, ENT_QUOTES, 'UTF-8');
-$referenceContent = htmlspecialchars($referenceHint, ENT_QUOTES, 'UTF-8');
 $pageTitle = htmlspecialchars(t($t, 'api_documentation', 'API Documentation'), ENT_QUOTES, 'UTF-8');
 $localeEsc = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
 ?>
@@ -49,33 +38,22 @@ $localeEsc = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
       color: #212121;
     }
     .swagger-shell {
-      display: grid;
-      grid-template-columns: minmax(0, 320px) 1fr;
-      gap: 24px;
       padding: 24px;
       box-sizing: border-box;
+      max-width: 1200px;
+      margin: 0 auto;
     }
-    .swagger-intro {
-      background: #fff;
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    .swagger-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
     }
-    .swagger-intro h1 {
-      margin-top: 0;
-      margin-bottom: 12px;
-      font-size: 24px;
-    }
-    .swagger-intro p {
-      margin: 0 0 12px;
-      line-height: 1.5;
-    }
-    .swagger-intro ol {
-      padding-left: 20px;
-      margin: 0 0 16px;
-    }
-    .swagger-intro li {
-      margin-bottom: 8px;
+    .swagger-header h1 {
+      margin: 0;
+      font-size: 28px;
     }
     .swagger-download-link {
       display: inline-flex;
@@ -109,30 +87,21 @@ $localeEsc = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
       margin: 0 0 16px;
       line-height: 1.5;
     }
-    @media (max-width: 960px) {
-      .swagger-shell {
-        grid-template-columns: 1fr;
+    @media (max-width: 600px) {
+      .swagger-header h1 {
+        font-size: 22px;
       }
     }
   </style>
 </head>
 <body>
   <main class="swagger-shell">
-    <section class="swagger-intro" aria-labelledby="api-docs-title">
+    <header class="swagger-header">
       <h1 id="api-docs-title"><?=$pageTitle?></h1>
-      <p><?=$introContent?></p>
-      <p><?=$referenceContent?></p>
-      <ol>
-        <?php foreach ($steps as $step): ?>
-          <li><?=$step?></li>
-        <?php endforeach; ?>
-      </ol>
-      <p>
-        <a class="swagger-download-link" href="<?=$downloadUrl?>" target="_blank" rel="noopener">
-          <?=$downloadTextHtml?>
-        </a>
-      </p>
-    </section>
+      <a class="swagger-download-link" href="<?=$downloadUrl?>" target="_blank" rel="noopener">
+        <?=$downloadTextHtml?>
+      </a>
+    </header>
     <div id="swagger-ui">
       <div class="swagger-fallback" role="status" aria-live="polite">
         <p><?=$loadingLabelHtml?></p>
