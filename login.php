@@ -53,7 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user'] = $u;
             $_SESSION['lang'] = resolve_locale($u['language'] ?? ($_SESSION['lang'] ?? 'en'));
 
-            if (($u['account_status'] ?? 'active') === 'pending') {
+            if (!empty($u['must_reset_password'])) {
+                $_SESSION['force_password_reset_notice'] = true;
+                header('Location: ' . url_for('profile.php?force_password_reset=1'));
+            } elseif (($u['account_status'] ?? 'active') === 'pending') {
                 $_SESSION['pending_notice'] = true;
                 header('Location: ' . url_for('profile.php?pending=1'));
             } else {

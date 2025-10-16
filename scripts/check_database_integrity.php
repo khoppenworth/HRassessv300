@@ -214,6 +214,7 @@ $expectedSchemas = [
         'role' => ['type' => 'varchar', 'null' => 'NO', 'default' => 'staff'],
         'language' => ['type' => 'varchar', 'null' => 'YES'],
         'account_status' => ['type' => "enum('pending','active','disabled')", 'null' => 'NO', 'default' => 'active'],
+        'must_reset_password' => ['type' => 'tinyint', 'null' => 'NO', 'default' => '0'],
         'next_assessment_date' => ['type' => 'date', 'null' => 'YES'],
         'approved_by' => ['type' => 'int', 'null' => 'YES'],
         'approved_at' => ['type' => 'datetime', 'null' => 'YES'],

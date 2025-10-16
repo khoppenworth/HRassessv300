@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!isset($workFunctionOptions[$workFunction])) { $workFunction = $defaultWorkFunction; }
                 $hash = password_hash($password, PASSWORD_DEFAULT);
                 try {
-                    $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function,account_status,next_assessment_date) VALUES (?,?,?,?,?,?,?,?)");
+                    $stm = $pdo->prepare("INSERT INTO users (username,password,role,full_name,email,work_function,account_status,must_reset_password,next_assessment_date) VALUES (?,?,?,?,?,?,?,?,?)");
                     $stm->execute([
                         $username,
                         $hash,
@@ -75,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_POST['email'] ?? null,
                         $workFunction,
                         $accountStatus,
+                        1,
                         $nextAssessment
                     ]);
                     if ($accountStatus === 'active' && $nextAssessment) {
@@ -150,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $hash = password_hash($newPassword, PASSWORD_DEFAULT);
                     array_unshift($params, $hash);
                     $fields = array_merge(['password = ?'], $fields);
+                    $fields[] = 'must_reset_password = 1';
                     $profileReset = ', profile_completed = 0';
                 }
                 $sql = 'UPDATE users SET ' . implode(', ', $fields) . $profileReset . ' WHERE id = ?';

@@ -167,6 +167,7 @@ ALTER TABLE users
   ADD COLUMN profile_completed TINYINT(1) NOT NULL DEFAULT 0 AFTER work_function,
   ADD COLUMN language VARCHAR(5) NOT NULL DEFAULT 'en' AFTER profile_completed,
   ADD COLUMN account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active' AFTER language,
+  ADD COLUMN must_reset_password TINYINT(1) NOT NULL DEFAULT 0 AFTER account_status,
   ADD COLUMN next_assessment_date DATE NULL AFTER account_status,
   ADD COLUMN first_login_at DATETIME NULL AFTER next_assessment_date,
   ADD COLUMN approved_by INT NULL AFTER first_login_at,

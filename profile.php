@@ -11,8 +11,17 @@ $error = '';
 $workFunctionOptions = work_function_choices($pdo);
 $pendingStatus = ($user['account_status'] ?? 'active') === 'pending';
 $pendingNotice = $pendingStatus;
+$forcePasswordReset = !empty($user['must_reset_password']);
+$forceResetNotice = $forcePasswordReset;
 if (!empty($_SESSION['pending_notice'])) {
     unset($_SESSION['pending_notice']);
+}
+if (!empty($_SESSION['force_password_reset_notice'])) {
+    $forceResetNotice = true;
+    unset($_SESSION['force_password_reset_notice']);
+}
+if (isset($_GET['force_password_reset'])) {
+    $forceResetNotice = true;
 }
 
 $phoneCountries = require __DIR__ . '/lib/phone_countries.php';
@@ -100,6 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = t($t,'invalid_work_function','Select a valid work function.');
     } elseif (strlen($phoneLocalDigits) < 6 || strlen($phoneLocalDigits) > 12) {
         $error = t($t,'invalid_phone','Enter a valid phone number including the country code.');
+    } elseif ($forcePasswordReset && trim((string)$password) === '') {
+        $error = t($t,'password_reset_required','Please set a new password before continuing.');
     } else {
         $fields = [
             'full_name' => $fullName,
@@ -123,7 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = t($t,'password_too_short','Password must be at least 6 characters long.');
             } else {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
-                $pdo->prepare('UPDATE users SET password=? WHERE id=?')->execute([$hash, $user['id']]);
+                $pdo->prepare('UPDATE users SET password=?, must_reset_password=0 WHERE id=?')->execute([$hash, $user['id']]);
+                $forcePasswordReset = false;
             }
         }
         if (!$error) {
@@ -135,6 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             [$phoneCountryValue, $phoneLocalValue] = $splitPhone($user['phone'] ?? '');
             $phoneFlagValue = $phoneFlags[$phoneCountryValue] ?? $phoneCountries[0]['flag'];
             $message = t($t,'profile_updated','Profile updated successfully.');
+            $forceResetNotice = !empty($user['must_reset_password']);
         }
     }
 }
@@ -156,6 +169,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <?php if ($pendingNotice): ?>
         <div class="md-alert warning">
           <?=htmlspecialchars(t($t, 'pending_account_notice', 'Your account is pending supervisor approval. You can update your profile while you wait.'), ENT_QUOTES, 'UTF-8')?>
+        </div>
+      <?php endif; ?>
+      <?php if ($forceResetNotice): ?>
+        <div class="md-alert warning">
+          <?=htmlspecialchars(t($t, 'force_password_reset_notice', 'For security, you must set a new password before continuing.'), ENT_QUOTES, 'UTF-8')?>
         </div>
       <?php endif; ?>
     <form method="post" class="md-form-grid" action="<?=htmlspecialchars(url_for('profile.php'), ENT_QUOTES, 'UTF-8')?>">

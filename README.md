@@ -14,15 +14,18 @@ Performance assessment portal built with PHP and MySQL.
    ```sh
    mysql -u root -p < init.sql
    ```
+   The placeholder admin, supervisor, and staff accounts created by the script remain disabled until you assign new passwords.
 4. (Optional) Load demo content:
    ```sh
    mysql -u root -p < dummy_data.sql
    ```
+   Demo users share the temporary password `DemoUserPass123!` and must choose a new one on their first login.
 5. Seed a default administrator account:
    ```sh
    make seed-admin
    ```
    The command prints the generated password to the console.
+   All seeded accounts are flagged to require a password change at first sign-in.
 6. (Optional) Rebuild the database from scratch, loading migrations, demo data, and an admin user:
    ```sh
    make rebuild

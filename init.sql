@@ -69,6 +69,7 @@ CREATE TABLE users (
   profile_completed TINYINT(1) NOT NULL DEFAULT 0,
   language VARCHAR(5) NOT NULL DEFAULT 'en',
   account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active',
+  must_reset_password TINYINT(1) NOT NULL DEFAULT 0,
   next_assessment_date DATE NULL,
   first_login_at DATETIME NULL,
   approved_by INT NULL,
@@ -291,11 +292,11 @@ INSERT INTO site_config (
   20
 );
 
--- default users (bcrypt hashes should be set during runtime; using demo placeholder hashes)
-INSERT INTO users (username,password,role,full_name,email) VALUES
-('admin', '$2y$12$XN2nF1L1uUah/ESe7CO4f.Dwnx/C8J91JINMz4jXTtLDXPWlzBzGe', 'admin', 'System Admin', 'admin@example.com'),
-('super', '$2y$10$Pj9m0H6b8K2ZyQe7p0k1TOeGq1bqfP3QO3Y6b5g1YQb1J2lL8mJxC', 'supervisor', 'Default Supervisor', 'super@example.com'),
-('staff', '$2y$10$Pj9m0H6b8K2ZyQe7p0k1TOeGq1bqfP3QO3Y6b5g1YQb1J2lL8mJxC', 'staff', 'Sample Staff', 'staff@example.com');
+-- default users are disabled by default; update the passwords and enable accounts after installation
+INSERT INTO users (username,password,role,full_name,email,account_status,must_reset_password) VALUES
+('admin', '__TEMP_DISABLE_admin_da9e140cdeec43d7__', 'admin', 'System Admin', 'admin@example.com', 'disabled', 1),
+('super', '__TEMP_DISABLE_super_58b113836a493e63__', 'supervisor', 'Default Supervisor', 'super@example.com', 'disabled', 1),
+('staff', '__TEMP_DISABLE_staff_47aab2ebd8db15ae__', 'staff', 'Sample Staff', 'staff@example.com', 'disabled', 1);
 
 -- sample questionnaire with weights
 INSERT INTO questionnaire (title, description) VALUES ('Baseline Staff Self-Assessment', 'Initial EPSS self-assessment');
