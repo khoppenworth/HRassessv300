@@ -249,6 +249,15 @@ function auth_required(array $roles = []): void {
             exit;
         }
     }
+    if (!empty($_SESSION['user']['must_reset_password'])) {
+        $allowedScripts = ['profile.php', 'logout.php', 'set_lang.php'];
+        $current = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+        if (!in_array($current, $allowedScripts, true)) {
+            $_SESSION['force_password_reset_notice'] = true;
+            header('Location: ' . url_for('profile.php?force_password_reset=1'));
+            exit;
+        }
+    }
     if ($roles && !in_array($_SESSION['user']['role'], $roles, true)) {
         http_response_code(403); die('Forbidden');
     }
@@ -587,6 +596,7 @@ function ensure_users_schema(PDO $pdo): void
 
     $changes = [
         'account_status' => "ALTER TABLE users ADD COLUMN account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active' AFTER language",
+        'must_reset_password' => "ALTER TABLE users ADD COLUMN must_reset_password TINYINT(1) NOT NULL DEFAULT 0 AFTER account_status",
         'next_assessment_date' => 'ALTER TABLE users ADD COLUMN next_assessment_date DATE NULL AFTER account_status',
         'approved_by' => 'ALTER TABLE users ADD COLUMN approved_by INT NULL AFTER next_assessment_date',
         'approved_at' => 'ALTER TABLE users ADD COLUMN approved_at DATETIME NULL AFTER approved_by',

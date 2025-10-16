@@ -233,6 +233,8 @@
   "other": "ሌላ",
   "password": "የይለፍ ቃል",
   "password_too_short": "Password must be at least 6 characters long.",
+  "password_reset_required": "Please set a new password before continuing.",
+  "force_password_reset_notice": "For security, you must set a new password before continuing.",
   "pending_account_notice": "Your account is pending supervisor approval. You can update your profile while you wait.",
   "pending_accounts": "Pending approvals",
   "pending_reviews": "Pending reviews",
