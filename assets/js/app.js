@@ -6,17 +6,89 @@
   }
   const normalizedBase = appBase.replace(/\/+$/, '') || '';
 
-  const drawer = document.querySelector('[data-drawer]');
+  const topnav = document.querySelector('[data-topnav]');
   const toggle = document.querySelector('[data-drawer-toggle]');
-  if (drawer && toggle) {
-    toggle.addEventListener('click', () => {
-      drawer.classList.toggle('open');
+  let closeTopnavSubmenus = null;
+  if (topnav) {
+    const triggers = topnav.querySelectorAll('[data-topnav-trigger]');
+    const links = topnav.querySelectorAll('.md-topnav-link');
+
+    const closeSubmenus = () => {
+      triggers.forEach((trigger) => {
+        trigger.setAttribute('aria-expanded', 'false');
+        const item = trigger.closest('[data-topnav-item]');
+        if (item) {
+          item.classList.remove('is-open');
+        }
+      });
+    };
+
+    closeTopnavSubmenus = closeSubmenus;
+
+    triggers.forEach((trigger) => {
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        const item = trigger.closest('[data-topnav-item]');
+        if (!item) {
+          return;
+        }
+        const willOpen = !item.classList.contains('is-open');
+        closeSubmenus();
+        if (willOpen) {
+          trigger.setAttribute('aria-expanded', 'true');
+          item.classList.add('is-open');
+        }
+      });
     });
-    drawer.addEventListener('click', (evt) => {
-      if (evt.target.classList.contains('md-drawer-link')) {
-        drawer.classList.remove('open');
+
+    document.addEventListener('click', (event) => {
+      if (topnav.contains(event.target)) {
+        return;
+      }
+      closeSubmenus();
+      if (topnav.classList.contains('is-open')) {
+        topnav.classList.remove('is-open');
+        if (toggle) {
+          toggle.setAttribute('aria-expanded', 'false');
+        }
       }
     });
+
+    topnav.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        closeSubmenus();
+        if (toggle) {
+          toggle.setAttribute('aria-expanded', 'false');
+        }
+        topnav.classList.remove('is-open');
+      }
+    });
+
+    links.forEach((link) => {
+      link.addEventListener('click', () => {
+        closeSubmenus();
+        if (toggle) {
+          toggle.setAttribute('aria-expanded', 'false');
+        }
+        topnav.classList.remove('is-open');
+      });
+    });
+  }
+
+  if (topnav && toggle) {
+    toggle.addEventListener('click', () => {
+      const isOpen = topnav.classList.toggle('is-open');
+      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      if (!isOpen && typeof closeTopnavSubmenus === 'function') {
+        closeTopnavSubmenus();
+      } else if (isOpen && typeof closeTopnavSubmenus === 'function') {
+        closeTopnavSubmenus();
+      }
+    });
+  } else if (toggle) {
+    toggle.hidden = true;
+    toggle.setAttribute('aria-hidden', 'true');
   }
 
   if (!document.querySelector('link[rel="manifest"]')) {

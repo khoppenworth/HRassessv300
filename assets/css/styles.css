@@ -1,5 +1,6 @@
 :root {
   --appbar-height: 64px;
+  --topnav-height: 64px;
 }
 
 * {
@@ -80,6 +81,147 @@ body.md-bg {
   display: flex;
   align-items: center;
   gap: 0.85rem;
+}
+
+.md-topnav {
+  position: sticky;
+  top: var(--appbar-height);
+  z-index: 950;
+  background: var(--app-surface);
+  border-radius: 20px;
+  border: 1px solid var(--app-border);
+  margin: 1.35rem auto 1.75rem;
+  padding: 0.5rem 0.85rem;
+  box-shadow: var(--app-shadow-soft);
+  display: flex;
+  align-items: stretch;
+  min-height: var(--topnav-height);
+}
+
+.md-topnav::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.md-topnav > * {
+  position: relative;
+  z-index: 1;
+}
+
+.md-topnav-list {
+  list-style: none;
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.md-topnav-item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.md-topnav-item.is-active > .md-topnav-trigger {
+  background: var(--app-primary-soft);
+  color: var(--app-primary-dark);
+}
+
+.md-topnav-trigger {
+  border: none;
+  background: transparent;
+  color: var(--app-on-surface-strong);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.65rem 1.1rem;
+  border-radius: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.md-topnav-trigger:hover,
+.md-topnav-trigger:focus-visible {
+  background: var(--app-primary);
+  color: var(--md-on-primary);
+  box-shadow: var(--app-shadow-soft);
+  outline: none;
+}
+
+.md-topnav-chevron {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  margin-left: 0.25rem;
+}
+
+.md-topnav-item.is-open > .md-topnav-trigger .md-topnav-chevron,
+.md-topnav-item:focus-within > .md-topnav-trigger .md-topnav-chevron {
+  transform: rotate(-135deg);
+}
+
+.md-topnav-submenu {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  left: 0;
+  display: none;
+  flex-direction: column;
+  min-width: 220px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.12);
+  padding: 0.5rem 0.35rem;
+  z-index: 980;
+}
+
+.md-topnav-item.is-open > .md-topnav-submenu,
+.md-topnav-item:focus-within > .md-topnav-submenu {
+  display: flex;
+}
+
+@media (hover: hover) {
+  .md-topnav-item:hover > .md-topnav-submenu {
+    display: flex;
+  }
+
+  .md-topnav-item:hover > .md-topnav-trigger .md-topnav-chevron {
+    transform: rotate(-135deg);
+  }
+}
+
+.md-topnav-submenu li {
+  list-style: none;
+}
+
+.md-topnav-link {
+  display: block;
+  padding: 0.55rem 0.85rem;
+  border-radius: 10px;
+  color: var(--app-on-surface-strong);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.md-topnav-link:hover,
+.md-topnav-link:focus-visible,
+.md-topnav-link.active {
+  background: var(--app-primary-soft);
+  color: var(--app-primary-dark);
+  outline: none;
 }
 
 .md-status-indicator {
@@ -276,7 +418,7 @@ body.md-bg {
   margin-left: 0;
   padding: 1.2rem 0;
   transition: margin-left 0.3s ease;
-  min-height: calc(100vh - var(--appbar-height));
+  min-height: calc(100vh - var(--appbar-height) - var(--topnav-height));
 }
 
 .md-section {
@@ -1388,27 +1530,16 @@ body.theme-dark .md-button.md-primary {
 
 @media (min-width: 960px) {
   .md-shell {
-    display: grid;
-    grid-template-columns: 260px 1fr;
-    column-gap: 2rem;
     padding: 1.75rem 2.25rem 2.75rem;
   }
 
-  .md-drawer {
-    position: sticky;
-    top: calc(var(--appbar-height) + 1.5rem);
-    transform: none;
-    height: calc(100vh - var(--appbar-height) - 3rem);
-    box-shadow: 0 22px 46px var(--app-primary-soft);
-    border-radius: 18px;
-    left: auto;
-    bottom: auto;
+  .md-topnav {
+    margin-top: 1.75rem;
   }
 
   .md-main {
-    margin-left: 0;
     padding: 0;
-    min-height: calc(100vh - var(--appbar-height) - 3rem);
+    min-height: calc(100vh - var(--appbar-height) - var(--topnav-height) - 3rem);
   }
 
   .md-appbar-toggle {
@@ -1428,6 +1559,62 @@ body.theme-dark .md-button.md-primary {
 
   .md-footer-links {
     justify-content: flex-end;
+  }
+}
+
+@media (max-width: 900px) {
+  .md-topnav {
+    flex-direction: column;
+    align-items: stretch;
+    margin: 1rem 0 1.25rem;
+    padding: 0.35rem 0.75rem;
+  }
+
+  .md-topnav::before {
+    opacity: 0.95;
+  }
+
+  .md-topnav-list {
+    flex-direction: column;
+    gap: 0.25rem;
+    display: none;
+  }
+
+  .md-topnav.is-open .md-topnav-list {
+    display: flex;
+  }
+
+  .md-topnav-item {
+    width: 100%;
+  }
+
+  .md-topnav-trigger {
+    width: 100%;
+    justify-content: space-between;
+    padding: 0.75rem 0.85rem;
+  }
+
+  .md-topnav-submenu {
+    position: static;
+    display: none;
+    box-shadow: none;
+    border: none;
+    border-radius: 10px;
+    padding: 0.35rem 0 0.75rem;
+    margin: 0 0 0.35rem;
+  }
+
+  .md-topnav-item.is-open > .md-topnav-submenu,
+  .md-topnav-item:focus-within > .md-topnav-submenu {
+    display: flex;
+  }
+
+  .md-topnav-submenu li {
+    width: 100%;
+  }
+
+  .md-topnav-link {
+    width: 100%;
   }
 }
 
