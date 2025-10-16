@@ -7,14 +7,7 @@ $cfg = get_site_config($pdo);
 $availableLocales = available_locales();
 $defaultLocale = $availableLocales[0] ?? 'en';
 
-$logoPath = get_branding_logo_path($cfg);
-if ($logoPath === null) {
-    $logoRenderPath = asset_url('logo.php');
-} elseif (preg_match('#^https?://#i', $logoPath)) {
-    $logoRenderPath = $logoPath;
-} else {
-    $logoRenderPath = asset_url(ltrim($logoPath, '/'));
-}
+$logoRenderPath = asset_url('logo.php');
 
 $logo = htmlspecialchars($logoRenderPath, ENT_QUOTES, 'UTF-8');
 $siteName = htmlspecialchars($cfg['site_name'] ?? 'My Performance', ENT_QUOTES, 'UTF-8');

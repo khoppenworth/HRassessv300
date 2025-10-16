@@ -6,14 +6,7 @@ $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $user = current_user();
 $role = $user['role'] ?? ($_SESSION['user']['role'] ?? null);
-$logoPath = get_branding_logo_path($cfg);
-if ($logoPath === null) {
-    $logoUrl = asset_url('logo.php');
-} elseif (preg_match('#^https?://#i', $logoPath)) {
-    $logoUrl = $logoPath;
-} else {
-    $logoUrl = asset_url(ltrim($logoPath, '/'));
-}
+$logoUrl = asset_url('logo.php');
 $logoPathSmall = htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8');
 $siteTitle = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
 $availableLocales = available_locales();
@@ -51,8 +44,8 @@ $isActiveNav = static function (string ...$keys) use ($drawerKey): bool {
     }
     return false;
 };
-$drawerLinkAttributes = static function (string ...$keys) use ($isActiveNav): string {
-    $class = 'md-drawer-link' . ($isActiveNav(...$keys) ? ' active' : '');
+$topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): string {
+    $class = 'md-topnav-link' . ($isActiveNav(...$keys) ? ' active' : '');
     $aria = $isActiveNav(...$keys) ? ' aria-current="page"' : '';
     return sprintf('class="%s"%s', $class, $aria);
 };
@@ -65,7 +58,7 @@ $drawerLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
   window.APP_AVAILABLE_LOCALES = <?=json_encode($availableLocales, JSON_THROW_ON_ERROR)?>;
 </script>
 <header class="md-appbar md-elev-2">
-  <button class="md-appbar-toggle" aria-label="Toggle navigation" data-drawer-toggle>
+  <button class="md-appbar-toggle" aria-label="Toggle navigation" data-drawer-toggle aria-controls="app-topnav" aria-expanded="false">
     <span></span>
     <span></span>
     <span></span>
@@ -170,40 +163,56 @@ $drawerLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
 </script>
 <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
 <div class="md-shell">
-<aside class="md-drawer" data-drawer>
-  <div class="md-drawer-header">
-    <img src="<?=$logoPathSmall?>" alt="Logo" class="md-logo-sm">
-    <div class="md-drawer-title"><?=$siteTitle?></div>
-  </div>
-  <nav class="md-drawer-nav">
-    <div class="md-drawer-section">
-      <span class="md-drawer-label"><?=t($t, 'my_workspace', 'My Workspace')?></span>
-      <a href="<?=htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('workspace.my_performance')?>><?=t($t, 'my_performance', 'My Performance')?></a>
-      <a href="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('workspace.submit_assessment')?>><?=t($t, 'submit_assessment', 'Submit Assessment')?></a>
-      <a href="<?=htmlspecialchars(url_for('profile.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('workspace.profile')?>><?=t($t, 'profile', 'Profile')?></a>
-    </div>
+<nav id="app-topnav" class="md-topnav md-elev-2" data-topnav aria-label="<?=htmlspecialchars(t($t, 'primary_navigation', 'Primary navigation'), ENT_QUOTES, 'UTF-8')?>">
+  <ul class="md-topnav-list">
+    <?php
+    $workspaceActive = $isActiveNav('workspace.my_performance', 'workspace.submit_assessment', 'workspace.profile');
+    ?>
+    <li class="md-topnav-item<?=$workspaceActive ? ' is-active' : ''?>" data-topnav-item>
+      <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
+        <span><?=t($t, 'my_workspace', 'My Workspace')?></span>
+        <span class="md-topnav-chevron" aria-hidden="true"></span>
+      </button>
+      <ul class="md-topnav-submenu">
+        <li><a href="<?=htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.my_performance')?>><?=t($t, 'my_performance', 'My Performance')?></a></li>
+        <li><a href="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.submit_assessment')?>><?=t($t, 'submit_assessment', 'Submit Assessment')?></a></li>
+        <li><a href="<?=htmlspecialchars(url_for('profile.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.profile')?>><?=t($t, 'profile', 'Profile')?></a></li>
+      </ul>
+    </li>
     <?php if (in_array($role, ['admin', 'supervisor'], true)): ?>
-      <div class="md-drawer-section">
-        <span class="md-drawer-label"><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
-        <a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('team.review_queue')?>><?=t($t, 'review_queue', 'Review Queue')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('team.pending_accounts')?>><?=t($t, 'pending_accounts', 'Pending Approvals')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('team.assignments')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a>
-      </div>
+      <?php $teamActive = $isActiveNav('team.review_queue', 'team.pending_accounts', 'team.assignments'); ?>
+      <li class="md-topnav-item<?=$teamActive ? ' is-active' : ''?>" data-topnav-item>
+        <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
+          <span><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
+          <span class="md-topnav-chevron" aria-hidden="true"></span>
+        </button>
+        <ul class="md-topnav-submenu">
+          <li><a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.review_queue')?>><?=t($t, 'review_queue', 'Review Queue')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.pending_accounts')?>><?=t($t, 'pending_accounts', 'Pending Approvals')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a></li>
+        </ul>
+      </li>
     <?php endif; ?>
     <?php if ($role === 'admin'): ?>
-      <div class="md-drawer-section">
-        <span class="md-drawer-label"><?=t($t, 'admin_navigation', 'Administration')?></span>
-        <a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.dashboard')?>><?=t($t, 'admin_dashboard', 'Admin Dashboard')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.users')?>><?=t($t, 'manage_users', 'Manage Users')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.manage_questionnaires')?>><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.analytics')?>><?=t($t, 'analytics', 'Analytics')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.export')?>><?=t($t, 'export_data', 'Export Data')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.branding')?>><?=t($t, 'branding', 'Branding & Landing')?></a>
-        <a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" <?=$drawerLinkAttributes('admin.settings')?>><?=t($t, 'settings', 'Settings')?></a>
-        <a href="<?=htmlspecialchars(url_for('swagger.php'), ENT_QUOTES, 'UTF-8')?>" class="md-drawer-link" target="_blank" rel="noopener"><?=t($t,'api_documentation','API Documentation')?></a>
-      </div>
+      <?php $adminActive = $isActiveNav('admin.dashboard', 'admin.users', 'admin.manage_questionnaires', 'admin.analytics', 'admin.export', 'admin.branding', 'admin.settings'); ?>
+      <li class="md-topnav-item<?=$adminActive ? ' is-active' : ''?>" data-topnav-item>
+        <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
+          <span><?=t($t, 'admin_navigation', 'Administration')?></span>
+          <span class="md-topnav-chevron" aria-hidden="true"></span>
+        </button>
+        <ul class="md-topnav-submenu">
+          <li><a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.dashboard')?>><?=t($t, 'admin_dashboard', 'Admin Dashboard')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.users')?>><?=t($t, 'manage_users', 'Manage Users')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.manage_questionnaires')?>><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.analytics')?>><?=t($t, 'analytics', 'Analytics')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.export')?>><?=t($t, 'export_data', 'Export Data')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.branding')?>><?=t($t, 'branding', 'Branding & Landing')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.settings')?>><?=t($t, 'settings', 'Settings')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('swagger.php'), ENT_QUOTES, 'UTF-8')?>" class="md-topnav-link" target="_blank" rel="noopener"><?=t($t,'api_documentation','API Documentation')?></a></li>
+        </ul>
+      </li>
     <?php endif; ?>
-  </nav>
-</aside>
+  </ul>
+</nav>
 <main class="md-main">
 
