@@ -44,6 +44,13 @@ $buildManifest = static function (array $cfg): array {
             : tint_color($brand['primary'], 0.92);
     }
 
+    $iconType = site_logo_mime($cfg) ?? 'image/svg+xml';
+    $icon = [
+        'src' => site_logo_url($cfg),
+        'sizes' => '192x192',
+        'type' => $iconType,
+    ];
+
     return [
         'name' => (string)($cfg['site_name'] ?? 'My Performance'),
         'short_name' => (string)($cfg['site_name'] ?? 'Performance'),
@@ -51,13 +58,7 @@ $buildManifest = static function (array $cfg): array {
         'display' => 'standalone',
         'background_color' => $backgroundColor,
         'theme_color' => $themeColor,
-        'icons' => [
-            [
-                'src' => asset_url('logo.php'),
-                'sizes' => '192x192',
-                'type' => 'image/svg+xml',
-            ],
-        ],
+        'icons' => [$icon],
     ];
 };
 
@@ -72,6 +73,13 @@ try {
 $json = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 if ($json === false) {
     error_log('manifest json_encode failure: ' . json_last_error_msg());
+    $defaultCfg = site_config_defaults();
+    $fallbackIcon = [
+        'src' => site_logo_url($defaultCfg),
+        'sizes' => '192x192',
+        'type' => 'image/svg+xml',
+    ];
+
     $fallback = [
         'name' => 'My Performance',
         'short_name' => 'Performance',
@@ -79,13 +87,7 @@ if ($json === false) {
         'display' => 'standalone',
         'background_color' => '#2073bf',
         'theme_color' => '#2073bf',
-        'icons' => [
-            [
-                'src' => asset_url('logo.php'),
-                'sizes' => '192x192',
-                'type' => 'image/svg+xml',
-            ],
-        ],
+        'icons' => [$fallbackIcon],
     ];
     $json = json_encode($fallback, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 }
