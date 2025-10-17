@@ -168,12 +168,12 @@ function seedAdmin(PDO $pdo): string
         $stmt->execute([$username]);
         $existing = $stmt->fetchColumn();
         if ($existing) {
-            $update = $pdo->prepare('UPDATE users SET password = ?, role = "admin", full_name = ?, email = ?, profile_completed = 1, must_reset_password = 1 WHERE id = ?');
-            $update->execute([$hash, $fullName, $email, $existing]);
+            $update = $pdo->prepare('UPDATE users SET password = ?, role = "admin", full_name = ?, email = ?, profile_completed = 1, must_reset_password = 1, account_status = ? WHERE id = ?');
+            $update->execute([$hash, $fullName, $email, 'active', $existing]);
             $userId = (int) $existing;
         } else {
-            $insert = $pdo->prepare('INSERT INTO users (username, password, role, full_name, email, profile_completed, must_reset_password) VALUES (?,?,?,?,?,1,1)');
-            $insert->execute([$username, $hash, 'admin', $fullName, $email]);
+            $insert = $pdo->prepare('INSERT INTO users (username, password, role, full_name, email, account_status, profile_completed, must_reset_password) VALUES (?,?,?,?,?,?,1,1)');
+            $insert->execute([$username, $hash, 'admin', $fullName, $email, 'active']);
             $userId = (int) $pdo->lastInsertId();
         }
         $pdo->commit();
