@@ -50,7 +50,8 @@ CREATE TABLE site_config (
   smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none',
   smtp_from_email VARCHAR(255) NULL,
   smtp_from_name VARCHAR(255) NULL,
-  smtp_timeout INT NULL
+  smtp_timeout INT NULL,
+  upgrade_repo VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE users (
@@ -254,7 +255,8 @@ INSERT INTO site_config (
   smtp_encryption,
   smtp_from_email,
   smtp_from_name,
-  smtp_timeout
+  smtp_timeout,
+  upgrade_repo
 ) VALUES (
   1,
   'My Performance',
@@ -289,7 +291,8 @@ INSERT INTO site_config (
   'none',
   NULL,
   NULL,
-  20
+  20,
+  'khoppenworth/HRassessv300'
 );
 
 -- default users are disabled by default; update the passwords and enable accounts after installation

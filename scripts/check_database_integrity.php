@@ -206,6 +206,7 @@ $expectedSchemas = [
         'smtp_from_name' => ['type' => 'varchar', 'null' => 'YES'],
         'smtp_timeout' => ['type' => 'int', 'null' => 'YES'],
         'enabled_locales' => ['type' => 'text', 'null' => 'YES'],
+        'upgrade_repo' => ['type' => 'varchar', 'null' => 'YES'],
     ],
     'users' => [
         'id' => ['type' => 'int', 'null' => 'NO', 'key' => 'PRI', 'extra' => 'auto_increment'],

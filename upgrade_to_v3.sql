@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS site_config (
   smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none',
   smtp_from_email VARCHAR(255) NULL,
   smtp_from_name VARCHAR(255) NULL,
-  smtp_timeout INT NULL
+  smtp_timeout INT NULL,
+  upgrade_repo VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE site_config
@@ -72,7 +73,8 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none',
   ADD COLUMN IF NOT EXISTS smtp_from_email VARCHAR(255) NULL,
   ADD COLUMN IF NOT EXISTS smtp_from_name VARCHAR(255) NULL,
-  ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL;
+  ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL,
+  ADD COLUMN IF NOT EXISTS upgrade_repo VARCHAR(255) NULL;
 
 INSERT INTO site_config (
   id, site_name, landing_text, address, contact, logo_path,
@@ -81,7 +83,7 @@ INSERT INTO site_config (
   footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret,
   microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant,
   color_theme, brand_color, enabled_locales, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password,
-  smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout
+  smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, upgrade_repo
 ) VALUES (
   1, 'My Performance', NULL, NULL, NULL, NULL,
   'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et',
@@ -89,14 +91,15 @@ INSERT INTO site_config (
   'All rights reserved.', 0, NULL, NULL,
   0, NULL, NULL, 'common',
   'light', '#2073bf', '["en","fr","am"]', 0, NULL, 587, NULL, NULL,
-  'none', NULL, NULL, 20
+  'none', NULL, NULL, 20, 'khoppenworth/HRassessv300'
 ) ON DUPLICATE KEY UPDATE
   site_name = COALESCE(site_config.site_name, VALUES(site_name)),
   brand_color = IFNULL(site_config.brand_color, VALUES(brand_color)),
   color_theme = IFNULL(site_config.color_theme, VALUES(color_theme)),
   enabled_locales = IFNULL(site_config.enabled_locales, VALUES(enabled_locales)),
   smtp_port = IFNULL(site_config.smtp_port, VALUES(smtp_port)),
-  smtp_timeout = IFNULL(site_config.smtp_timeout, VALUES(smtp_timeout));
+  smtp_timeout = IFNULL(site_config.smtp_timeout, VALUES(smtp_timeout)),
+  upgrade_repo = IFNULL(site_config.upgrade_repo, VALUES(upgrade_repo));
 
 -- Ensure users table columns match the application expectations.
 ALTER TABLE users

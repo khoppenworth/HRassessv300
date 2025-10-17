@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS site_config (
   microsoft_oauth_client_secret VARCHAR(255) NULL,
   microsoft_oauth_tenant VARCHAR(255) NULL,
   color_theme VARCHAR(50) NOT NULL DEFAULT 'light',
-  enabled_locales TEXT NULL
+  enabled_locales TEXT NULL,
+  upgrade_repo VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS footer_org_name VARCHAR(255) NULL AFTER logo_path,
@@ -66,7 +67,8 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS smtp_from_email VARCHAR(255) NULL AFTER smtp_encryption,
   ADD COLUMN IF NOT EXISTS smtp_from_name VARCHAR(255) NULL AFTER smtp_from_email,
   ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL AFTER smtp_from_name,
-  ADD COLUMN IF NOT EXISTS enabled_locales TEXT NULL AFTER smtp_timeout;
+  ADD COLUMN IF NOT EXISTS enabled_locales TEXT NULL AFTER smtp_timeout,
+  ADD COLUMN IF NOT EXISTS upgrade_repo VARCHAR(255) NULL AFTER enabled_locales;
 INSERT IGNORE INTO site_config (
   id,
   site_name,
@@ -101,7 +103,8 @@ INSERT IGNORE INTO site_config (
   smtp_from_email,
   smtp_from_name,
   smtp_timeout,
-  enabled_locales
+  enabled_locales,
+  upgrade_repo
 ) VALUES (
   1,
   'My Performance',
@@ -136,7 +139,8 @@ INSERT IGNORE INTO site_config (
   NULL,
   NULL,
   20,
-  '["en","fr","am"]'
+  '["en","fr","am"]',
+  'khoppenworth/HRassessv300'
 );
 
 UPDATE site_config
