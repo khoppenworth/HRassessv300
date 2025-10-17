@@ -9,11 +9,8 @@ function withBase(path) {
   return `${BASE_SCOPE}${path}`;
 }
 
+// Only precache static shell assets that do not contain user-specific data.
 const APP_SHELL_URLS = [
-  withBase('my_performance.php'),
-  withBase('submit_assessment.php'),
-  withBase('profile.php'),
-  withBase('dashboard.php'),
   withBase('offline.html'),
 ];
 
