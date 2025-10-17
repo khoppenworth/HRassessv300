@@ -517,6 +517,40 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
     const questionnaireSelect = form.querySelector('[data-questionnaire-select]');
     const periodSelect = form.querySelector('[data-performance-period-select]');
     const assessmentForm = document.getElementById('assessment-form');
+    const connectivity = (window.AppConnectivity && typeof window.AppConnectivity.subscribe === 'function')
+      ? window.AppConnectivity
+      : null;
+    const isAppOnline = () => {
+      if (connectivity) {
+        try {
+          return connectivity.isOnline();
+        } catch (err) {
+          return navigator.onLine !== false;
+        }
+      }
+      return navigator.onLine !== false;
+    };
+    const observeConnectivity = (handler) => {
+      if (typeof handler !== 'function') {
+        return function () {};
+      }
+      if (connectivity) {
+        return connectivity.subscribe(handler);
+      }
+      const onlineHandler = () => handler({ online: true, forcedOffline: false });
+      const offlineHandler = () => handler({ online: false, forcedOffline: false });
+      window.addEventListener('online', onlineHandler);
+      window.addEventListener('offline', offlineHandler);
+      try {
+        handler({ online: navigator.onLine !== false, forcedOffline: false });
+      } catch (err) {
+        // Ignore handler failures during initial sync.
+      }
+      return function () {
+        window.removeEventListener('online', onlineHandler);
+        window.removeEventListener('offline', offlineHandler);
+      };
+    };
 
     const sendWarmCacheMessage = (urls) => {
       if (!('serviceWorker' in navigator) || !Array.isArray(urls) || urls.length === 0) {
@@ -567,7 +601,7 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
     };
 
     const warmQuestionnaireCaches = () => {
-      if (!navigator.onLine) {
+      if (!isAppOnline()) {
         return;
       }
       const urls = buildQuestionnaireUrls();
@@ -625,7 +659,11 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
       });
     }
 
-    window.addEventListener('online', warmQuestionnaireCaches);
+    observeConnectivity(function (state) {
+      if (state && state.online) {
+        warmQuestionnaireCaches();
+      }
+    });
 
     const storageSupported = (() => {
       try {
@@ -833,14 +871,14 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
         applyValues(storedDraft.data);
         pendingSubmit = Boolean(storedDraft.pendingSubmit);
         if (pendingSubmit) {
-          setStatusMessage(navigator.onLine ? 'reminder' : 'queued', storedDraft.savedAt);
+          setStatusMessage(isAppOnline() ? 'reminder' : 'queued', storedDraft.savedAt);
         } else {
           setStatusMessage('restored', storedDraft.savedAt);
         }
       }
 
       assessmentForm.addEventListener('submit', (event) => {
-        if (!navigator.onLine) {
+        if (!isAppOnline()) {
           event.preventDefault();
           pendingSubmit = true;
           persistDraft();
@@ -854,7 +892,10 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
         }
       });
 
-      window.addEventListener('online', () => {
+      observeConnectivity(function (state) {
+        if (!state || !state.online) {
+          return;
+        }
         const draft = readStoredDraft();
         if (draft && draft.pendingSubmit) {
           pendingSubmit = true;
