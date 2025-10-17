@@ -1,4 +1,4 @@
-const CACHE_NAME = 'my-performance-cache-v4';
+const CACHE_NAME = 'my-performance-cache-v5';
 const BASE_SCOPE = (self.registration && self.registration.scope) ? self.registration.scope.replace(/\/+$/, '') : '';
 const OFFLINE_URL = withBase('offline.html');
 
@@ -14,6 +14,23 @@ const APP_SHELL_URLS = [
   withBase('offline.html'),
 ];
 
+const SENSITIVE_NAV_PATHS = new Set(
+  [
+    'my_performance.php',
+    'submit_assessment.php',
+    'profile.php',
+    'dashboard.php',
+  ]
+    .map((path) => {
+      try {
+        return new URL(withBase(path), self.location.origin).pathname;
+      } catch (err) {
+        return null;
+      }
+    })
+    .filter(Boolean)
+);
+
 const CORE_ASSETS = [
   withBase(''),
   withBase('index.php'),
@@ -27,7 +44,29 @@ const CORE_ASSETS = [
   withBase('logo.php')
 ];
 
-const PRECACHE_URLS = Array.from(new Set([...CORE_ASSETS, ...APP_SHELL_URLS]));
+const PRECACHE_URLS = Array.from(new Set([...CORE_ASSETS, ...APP_SHELL_URLS])).filter((url) => !isSensitivePath(url));
+
+function isSensitivePath(requestOrUrl) {
+  try {
+    if (requestOrUrl instanceof Request) {
+      const parsed = new URL(requestOrUrl.url);
+      return SENSITIVE_NAV_PATHS.has(parsed.pathname);
+    }
+    if (requestOrUrl instanceof URL) {
+      return SENSITIVE_NAV_PATHS.has(requestOrUrl.pathname);
+    }
+    if (typeof requestOrUrl === 'string') {
+      return SENSITIVE_NAV_PATHS.has(new URL(requestOrUrl, self.location.origin).pathname);
+    }
+    if (requestOrUrl && typeof requestOrUrl === 'object' && 'url' in requestOrUrl) {
+      return SENSITIVE_NAV_PATHS.has(new URL(requestOrUrl.url, self.location.origin).pathname);
+    }
+    const parsed = new URL(requestOrUrl, self.location.origin);
+    return SENSITIVE_NAV_PATHS.has(parsed.pathname);
+  } catch (err) {
+    return false;
+  }
+}
 
 function isSameOrigin(url) {
   try {
@@ -43,6 +82,9 @@ function shouldCacheResponse(request, response) {
     return false;
   }
   if (!isSameOrigin(request.url)) {
+    return false;
+  }
+  if (isSensitivePath(request)) {
     return false;
   }
   if (!response.ok || response.status >= 400) {
@@ -113,7 +155,7 @@ async function networkFirst(event) {
   } catch (err) {
     const cache = await caches.open(CACHE_NAME);
     const cached = await cache.match(event.request);
-    if (cached) {
+    if (cached && !isSensitivePath(event.request)) {
       return cached;
     }
     throw err;
@@ -146,7 +188,7 @@ async function handleNavigationRequest(event) {
     return response;
   } catch (err) {
     const cached = await cache.match(event.request);
-    if (cached) {
+    if (cached && !isSensitivePath(event.request)) {
       return cached;
     }
     const rootShell = await cache.match(withBase(''));
@@ -166,6 +208,9 @@ async function precacheStaticAssets() {
   await Promise.all(
     PRECACHE_URLS.map(async (url) => {
       try {
+        if (isSensitivePath(url)) {
+          return;
+        }
         const response = await fetch(url, { cache: 'no-store' });
         if (response && response.ok) {
           await cache.put(url, response.clone());
@@ -198,6 +243,9 @@ async function warmDynamicContent(urls) {
       }
       const request = new Request(absoluteURL.toString(), { credentials: 'include' });
       try {
+        if (isSensitivePath(request)) {
+          return;
+        }
         const response = await fetch(request, { cache: 'no-store', credentials: 'include' });
         if (shouldCacheResponse(request, response)) {
           await cache.put(request, response.clone());
@@ -281,7 +329,7 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(request).then((cached) => {
-      if (cached) {
+      if (cached && !isSensitivePath(request)) {
         return cached;
       }
       return fetch(request).then(async (response) => {
