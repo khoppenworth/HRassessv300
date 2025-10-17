@@ -77,18 +77,22 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
     >
       <?=htmlspecialchars(t($t, 'install_app', 'Install App'), ENT_QUOTES, 'UTF-8')?>
     </button>
-    <div
+    <button
+      type="button"
       class="md-status-indicator"
       data-status-indicator
       data-online-text="<?=htmlspecialchars(t($t, 'status_online', 'Online'), ENT_QUOTES, 'UTF-8')?>"
       data-offline-text="<?=htmlspecialchars(t($t, 'status_offline', 'Offline'), ENT_QUOTES, 'UTF-8')?>"
-      role="status"
+      role="switch"
       aria-live="polite"
       aria-atomic="true"
+      aria-checked="true"
+      data-status="online"
+      title="<?=htmlspecialchars(t($t, 'toggle_offline_mode', 'Toggle offline mode'), ENT_QUOTES, 'UTF-8')?>"
     >
       <span class="md-status-dot" aria-hidden="true"></span>
       <span class="md-status-label"><?=htmlspecialchars(t($t, 'status_online', 'Online'), ENT_QUOTES, 'UTF-8')?></span>
-    </div>
+    </button>
     <button type="button" class="md-appbar-button" id="appbar-reload-btn">
       <?=htmlspecialchars(t($t, 'reload_app', 'Reload App'), ENT_QUOTES, 'UTF-8')?>
     </button>
@@ -102,67 +106,197 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
   </nav>
 </header>
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
-  document.addEventListener('DOMContentLoaded', function () {
-    var indicator = document.querySelector('[data-status-indicator]');
-    if (indicator) {
-      var label = indicator.querySelector('.md-status-label');
-      var onlineText = indicator.getAttribute('data-online-text') || 'Online';
-      var offlineText = indicator.getAttribute('data-offline-text') || 'Offline';
+  (function () {
+    var globalConnectivity = (function (existing) {
+      if (existing && typeof existing === 'object') {
+        return existing;
+      }
 
-      var updateStatus = function () {
-        var isOnline = navigator.onLine;
-        indicator.classList.toggle('is-offline', !isOnline);
-        indicator.setAttribute('data-status', isOnline ? 'online' : 'offline');
-        label.textContent = isOnline ? onlineText : offlineText;
+      var listeners = [];
+      var storageKey = 'hrassess:connectivity:forcedOffline';
+      var forcedOffline = false;
+
+      try {
+        var stored = window.localStorage.getItem(storageKey);
+        forcedOffline = stored === '1';
+      } catch (err) {
+        forcedOffline = false;
+      }
+
+      var computeOnline = function () {
+        return !forcedOffline && navigator.onLine;
       };
 
-      window.addEventListener('online', updateStatus);
-      window.addEventListener('offline', updateStatus);
-      updateStatus();
-    }
-
-    var reloadButton = document.getElementById('appbar-reload-btn');
-    if (reloadButton) {
-      var performReload = function () {
-        window.location.reload();
+      var notify = function () {
+        var state = { online: computeOnline(), forcedOffline: forcedOffline };
+        listeners.slice().forEach(function (listener) {
+          try {
+            listener(state);
+          } catch (err) {
+            // Ignore listener errors to avoid breaking other handlers.
+          }
+        });
+        try {
+          document.dispatchEvent(new CustomEvent('app:connectivity-change', { detail: state }));
+        } catch (err) {
+          // Ignore dispatch errors if CustomEvent is unavailable.
+        }
+        return state;
       };
 
-      reloadButton.addEventListener('click', function () {
-        reloadButton.disabled = true;
-        reloadButton.classList.add('is-loading');
-
-        var cleanupTasks = [];
-
-        if ('caches' in window && typeof caches.keys === 'function') {
-          cleanupTasks.push(
-            caches.keys().then(function (keys) {
-              return Promise.all(keys.map(function (key) {
-                return caches.delete(key);
-              }));
-            })
-          );
+      var persistForcedState = function () {
+        try {
+          window.localStorage.setItem(storageKey, forcedOffline ? '1' : '0');
+        } catch (err) {
+          // Ignore persistence failures (private mode, quota, etc.).
         }
+      };
 
-        if ('serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistrations === 'function') {
-          cleanupTasks.push(
-            navigator.serviceWorker.getRegistrations().then(function (registrations) {
-              return Promise.all(registrations.map(function (registration) {
-                return registration.unregister();
-              }));
-            })
-          );
+      var handleBrowserChange = function () {
+        notify();
+      };
+
+      window.addEventListener('online', handleBrowserChange);
+      window.addEventListener('offline', handleBrowserChange);
+
+      var api = {
+        isOnline: function () {
+          return computeOnline();
+        },
+        isForcedOffline: function () {
+          return forcedOffline;
+        },
+        setForcedOffline: function (value) {
+          var next = Boolean(value);
+          if (next === forcedOffline) {
+            notify();
+            return;
+          }
+          forcedOffline = next;
+          persistForcedState();
+          notify();
+        },
+        toggleForcedOffline: function () {
+          api.setForcedOffline(!forcedOffline);
+        },
+        subscribe: function (listener) {
+          if (typeof listener !== 'function') {
+            return function () {};
+          }
+          if (!listeners.includes(listener)) {
+            listeners.push(listener);
+          }
+          try {
+            listener({ online: computeOnline(), forcedOffline: forcedOffline });
+          } catch (err) {
+            // Ignore listener errors during initial sync.
+          }
+          return function () {
+            listeners = listeners.filter(function (fn) { return fn !== listener; });
+          };
+        },
+        getState: function () {
+          return { online: computeOnline(), forcedOffline: forcedOffline };
         }
+      };
 
-        if (cleanupTasks.length > 0) {
-          Promise.all(cleanupTasks)
-            .catch(function () { /* ignore */ })
-            .finally(performReload);
+      notify();
+
+      return api;
+    })(window.AppConnectivity);
+
+    window.AppConnectivity = globalConnectivity;
+
+    var onReady = function () {
+      var indicator = document.querySelector('[data-status-indicator]');
+      if (indicator) {
+        var label = indicator.querySelector('.md-status-label');
+        var onlineText = indicator.getAttribute('data-online-text') || 'Online';
+        var offlineText = indicator.getAttribute('data-offline-text') || 'Offline';
+
+        var applyState = function (state) {
+          var isOnline = state && typeof state.online === 'boolean' ? state.online : globalConnectivity.isOnline();
+          var forced = state && typeof state.forcedOffline === 'boolean' ? state.forcedOffline : globalConnectivity.isForcedOffline();
+          indicator.classList.toggle('is-offline', !isOnline);
+          indicator.setAttribute('data-status', isOnline ? 'online' : 'offline');
+          indicator.setAttribute('aria-checked', isOnline ? 'true' : 'false');
+          if (forced) {
+            indicator.setAttribute('data-mode', 'manual');
+          } else {
+            indicator.removeAttribute('data-mode');
+          }
+          if (label) {
+            label.textContent = isOnline ? onlineText : offlineText;
+          }
+        };
+
+        if (globalConnectivity && typeof globalConnectivity.subscribe === 'function') {
+          globalConnectivity.subscribe(applyState);
         } else {
-          performReload();
+          var updateStatus = function () {
+            applyState({ online: navigator.onLine, forcedOffline: false });
+          };
+          window.addEventListener('online', updateStatus);
+          window.addEventListener('offline', updateStatus);
+          updateStatus();
         }
-      });
+
+        indicator.addEventListener('click', function () {
+          if (globalConnectivity && typeof globalConnectivity.toggleForcedOffline === 'function') {
+            globalConnectivity.toggleForcedOffline();
+          }
+        });
+      }
+
+      var reloadButton = document.getElementById('appbar-reload-btn');
+      if (reloadButton) {
+        var performReload = function () {
+          window.location.reload();
+        };
+
+        reloadButton.addEventListener('click', function () {
+          reloadButton.disabled = true;
+          reloadButton.classList.add('is-loading');
+
+          var cleanupTasks = [];
+
+          if ('caches' in window && typeof caches.keys === 'function') {
+            cleanupTasks.push(
+              caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (key) {
+                  return caches.delete(key);
+                }));
+              })
+            );
+          }
+
+          if ('serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistrations === 'function') {
+            cleanupTasks.push(
+              navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                return Promise.all(registrations.map(function (registration) {
+                  return registration.unregister();
+                }));
+              })
+            );
+          }
+
+          if (cleanupTasks.length > 0) {
+            Promise.all(cleanupTasks)
+              .catch(function () { /* ignore */ })
+              .finally(performReload);
+          } else {
+            performReload();
+          }
+        });
+      }
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', onReady);
+    } else {
+      onReady();
     }
-  });
+  })();
 </script>
 <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
 <div class="md-shell">

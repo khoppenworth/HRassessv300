@@ -60,9 +60,18 @@ body.md-bg {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
   color: inherit;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  appearance: none;
   font-weight: 600;
   letter-spacing: 0.01em;
   transition: background 0.3s ease, color 0.3s ease;
+}
+
+.md-status-indicator:focus-visible {
+  outline: 2px solid var(--status-info, #2563eb);
+  outline-offset: 2px;
 }
 
 .md-status-dot {

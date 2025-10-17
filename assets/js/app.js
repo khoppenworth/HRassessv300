@@ -499,6 +499,20 @@
   }
   window.addEventListener('resize', scheduleTableEnhancement);
 
+  const connectivity = (window.AppConnectivity && typeof window.AppConnectivity.subscribe === 'function')
+    ? window.AppConnectivity
+    : null;
+  const isAppOnline = () => {
+    if (connectivity) {
+      try {
+        return connectivity.isOnline();
+      } catch (err) {
+        return navigator.onLine !== false;
+      }
+    }
+    return navigator.onLine !== false;
+  };
+
   let offlineBanner = null;
   let offlineHideTimer = null;
   let offlineDismissedWhileOffline = false;
@@ -580,16 +594,28 @@
     }
   };
 
-  window.addEventListener('offline', () => {
-    offlineDismissedWhileOffline = false;
-    showOfflineBanner('offline');
-  });
+  const handleConnectivityUpdate = (state) => {
+    const online = state && typeof state.online === 'boolean' ? state.online : isAppOnline();
+    if (online) {
+      showOfflineBanner('online');
+    } else {
+      offlineDismissedWhileOffline = false;
+      showOfflineBanner('offline');
+    }
+  };
 
-  window.addEventListener('online', () => {
-    showOfflineBanner('online');
-  });
+  if (connectivity) {
+    connectivity.subscribe(handleConnectivityUpdate);
+  } else {
+    window.addEventListener('offline', () => {
+      handleConnectivityUpdate({ online: false, forcedOffline: false });
+    });
+    window.addEventListener('online', () => {
+      handleConnectivityUpdate({ online: true, forcedOffline: false });
+    });
+  }
 
-  if (!navigator.onLine) {
+  if (!isAppOnline()) {
     showOfflineBanner('offline');
   }
 })();
