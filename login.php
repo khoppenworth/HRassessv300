@@ -74,7 +74,8 @@ $logoRenderPath = site_logo_url($cfg);
 $logo = htmlspecialchars($logoRenderPath, ENT_QUOTES, 'UTF-8');
 $logoAlt = htmlspecialchars($cfg['site_name'] ?? 'Logo', ENT_QUOTES, 'UTF-8');
 $siteName = htmlspecialchars($cfg['site_name'] ?? 'My Performance', ENT_QUOTES, 'UTF-8');
-$landingText = htmlspecialchars($cfg['landing_text'] ?? '', ENT_QUOTES, 'UTF-8');
+$landingTextRaw = $cfg['landing_text'] ?? '';
+$landingText = htmlspecialchars($landingTextRaw, ENT_QUOTES, 'UTF-8');
 $address = htmlspecialchars($cfg['address'] ?? '', ENT_QUOTES, 'UTF-8');
 $contact = htmlspecialchars($cfg['contact'] ?? '', ENT_QUOTES, 'UTF-8');
 $bodyClass = htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8');
@@ -82,6 +83,18 @@ $bodyStyle = htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8');
 $baseUrl = htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8');
 $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
 $brandStyle = site_brand_style($cfg);
+$introText = $landingText !== ''
+    ? $landingText
+    : htmlspecialchars(
+        t(
+            $t,
+            'welcome_msg',
+            'Sign in to start your self-assessment and track your performance over time.'
+        ),
+        ENT_QUOTES,
+        'UTF-8'
+    );
+$languageLabel = htmlspecialchars(t($t, 'language_label', 'Language'), ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
 <html lang="<?= $langAttr ?>" data-base-url="<?= $baseUrl ?>">
@@ -100,68 +113,72 @@ $brandStyle = site_brand_style($cfg);
 <body class="<?= $bodyClass ?>" style="<?= $bodyStyle ?>">
   <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
   <div class="md-container">
-    <div class="md-card md-elev-3 md-login">
-      <div class="md-card-media">
-        <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="md-logo">
-        <h1 class="md-title"><?= $siteName ?></h1>
-      </div>
+    <div class="md-card md-elev-3 md-login md-login--split">
+      <div class="md-login-grid">
+        <section class="md-login-panel md-login-panel--brand">
+          <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="md-logo">
+          <h1 class="md-title"><?= $siteName ?></h1>
+          <?php if ($introText !== ''): ?>
+            <p class="md-login-tagline"><?= $introText ?></p>
+          <?php endif; ?>
+        </section>
+        <section class="md-login-panel md-login-panel--form">
+          <?php if ($err !== ''): ?>
+            <div class="md-alert error"><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
+          <?php endif; ?>
 
-      <?php if ($landingText !== ''): ?>
-        <p class="md-subtitle"><?= $landingText ?></p>
-      <?php else: ?>
-        <p class="md-subtitle"><?= t($t, 'welcome_msg', 'Sign in to start your self-assessment and track your performance over time.') ?></p>
-      <?php endif; ?>
+          <form method="post" class="md-form md-login-form" action="<?= htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+            <label class="md-field">
+              <span><?= t($t, 'username', 'Username') ?></span>
+              <input name="username" autocomplete="username" required>
+            </label>
+            <label class="md-field">
+              <span><?= t($t, 'password', 'Password') ?></span>
+              <input type="password" name="password" autocomplete="current-password" required>
+            </label>
+            <div class="md-form-actions md-form-actions--center md-login-actions">
+              <button class="md-button md-primary md-elev-2" type="submit">
+                <?= t($t, 'sign_in', 'Sign In') ?>
+              </button>
+            </div>
+          </form>
 
-      <form method="post" class="md-form" action="<?= htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8') ?>">
-        <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-        <label class="md-field">
-          <span><?= t($t, 'username', 'Username') ?></span>
-          <input name="username" required>
-        </label>
-        <label class="md-field">
-          <span><?= t($t, 'password', 'Password') ?></span>
-          <input type="password" name="password" required>
-        </label>
-        <?php if ($err !== ''): ?>
-          <div class="md-alert"><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
-        <?php endif; ?>
-        <div class="md-form-actions md-form-actions--center md-login-actions">
-          <button class="md-button md-primary md-elev-2" type="submit">
-            <?= t($t, 'sign_in', 'Sign In') ?>
-          </button>
-        </div>
-      </form>
+          <?php if (!empty($oauthProviders)): ?>
+            <div class="md-login-divider"><span><?= htmlspecialchars(t($t, 'or_continue_with', 'or continue with'), ENT_QUOTES, 'UTF-8') ?></span></div>
+            <div class="md-sso-buttons">
+              <?php foreach ($oauthProviders as $provider => $label): ?>
+                <a
+                  class="md-button md-elev-1 md-sso-btn <?= htmlspecialchars($provider, ENT_QUOTES, 'UTF-8') ?>"
+                  href="<?= htmlspecialchars(url_for('oauth.php?provider=' . $provider), ENT_QUOTES, 'UTF-8') ?>"
+                ><?= $label ?></a>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
 
-      <?php if (!empty($oauthProviders)): ?>
-        <div class="md-divider"></div>
-        <div class="md-sso-buttons">
-          <?php foreach ($oauthProviders as $provider => $label): ?>
-            <a
-              class="md-button md-elev-1 md-sso-btn <?= htmlspecialchars($provider, ENT_QUOTES, 'UTF-8') ?>"
-              href="<?= htmlspecialchars(url_for('oauth.php?provider=' . $provider), ENT_QUOTES, 'UTF-8') ?>"
-            ><?= $label ?></a>
-          <?php endforeach; ?>
-        </div>
-      <?php endif; ?>
-
-      <div class="md-meta">
-        <?php if ($address !== ''): ?>
-          <div class="md-small"><strong><?= t($t, 'address_label', 'Address') ?>:</strong> <?= $address ?></div>
-        <?php endif; ?>
-        <?php if ($contact !== ''): ?>
-          <div class="md-small"><strong><?= t($t, 'contact_label', 'Contact') ?>:</strong> <?= $contact ?></div>
-        <?php endif; ?>
-        <div class="md-small lang-switch">
-          <?php
-          $links = [];
-          foreach ($availableLocales as $loc) {
-              $url = htmlspecialchars(url_for('set_lang.php?lang=' . $loc), ENT_QUOTES, 'UTF-8');
-              $label = htmlspecialchars(strtoupper($loc), ENT_QUOTES, 'UTF-8');
-              $links[] = "<a href='" . $url . "'>" . $label . "</a>";
-          }
-          echo implode(' · ', $links);
-          ?>
-        </div>
+          <div class="md-login-footer">
+            <?php if ($address !== ''): ?>
+              <div class="md-login-footer-item">
+                <span class="md-login-footer-label"><?= t($t, 'address_label', 'Address') ?></span>
+                <span class="md-login-footer-value"><?= $address ?></span>
+              </div>
+            <?php endif; ?>
+            <?php if ($contact !== ''): ?>
+              <div class="md-login-footer-item">
+                <span class="md-login-footer-label"><?= t($t, 'contact_label', 'Contact') ?></span>
+                <span class="md-login-footer-value"><?= $contact ?></span>
+              </div>
+            <?php endif; ?>
+            <div class="md-login-footer-item">
+              <span class="md-login-footer-label"><?= $languageLabel ?></span>
+              <nav class="md-login-footer-value md-login-footer-locale lang-switch" aria-label="<?= $languageLabel ?>">
+                <?php foreach ($availableLocales as $loc): ?>
+                  <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=' . $loc), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(strtoupper($loc), ENT_QUOTES, 'UTF-8') ?></a>
+                <?php endforeach; ?>
+              </nav>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
