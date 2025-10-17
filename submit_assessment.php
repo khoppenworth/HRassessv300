@@ -461,7 +461,18 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
   <?php if ($qid && empty($availablePeriods)): ?>
     <p><?=t($t,'all_periods_used','You have already submitted for every period available for this questionnaire.')?></p>
   <?php elseif ($qid): ?>
-  <form method="post" action="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" id="assessment-form" class="md-assessment-form">
+  <form
+    method="post"
+    action="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>"
+    id="assessment-form"
+    class="md-assessment-form"
+    data-offline-draft="true"
+    data-offline-saved-label="<?=htmlspecialchars(t($t, 'offline_draft_saved', 'Offline copy saved at %s.'), ENT_QUOTES, 'UTF-8')?>"
+    data-offline-restored-label="<?=htmlspecialchars(t($t, 'offline_draft_restored', 'Restored offline responses from %s.'), ENT_QUOTES, 'UTF-8')?>"
+    data-offline-queued-label="<?=htmlspecialchars(t($t, 'offline_draft_queued', 'You are offline. We saved your responses locally. Reconnect and submit to sync.'), ENT_QUOTES, 'UTF-8')?>"
+    data-offline-reminder-label="<?=htmlspecialchars(t($t, 'offline_draft_reminder', 'Back online. Submit to upload your saved responses.'), ENT_QUOTES, 'UTF-8')?>"
+    data-offline-error-label="<?=htmlspecialchars(t($t, 'offline_draft_error', 'We could not save an offline copy of your responses.'), ENT_QUOTES, 'UTF-8')?>"
+  >
     <input type="hidden" name="csrf" value="<?=csrf_token()?>">
     <input type="hidden" name="qid" value="<?=$qid?>">
     <input type="hidden" name="performance_period_id" value="<?=$periodId?>">
@@ -507,6 +518,66 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
     }
     const questionnaireSelect = form.querySelector('[data-questionnaire-select]');
     const periodSelect = form.querySelector('[data-performance-period-select]');
+    const assessmentForm = document.getElementById('assessment-form');
+
+    const sendWarmCacheMessage = (urls) => {
+      if (!('serviceWorker' in navigator) || !Array.isArray(urls) || urls.length === 0) {
+        return;
+      }
+      navigator.serviceWorker.ready
+        .then((registration) => {
+          if (registration && registration.active) {
+            registration.active.postMessage({ type: 'WARM_ROUTE_CACHE', urls });
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    const buildQuestionnaireUrls = () => {
+      if (!questionnaireSelect) {
+        return [];
+      }
+      const action = form.getAttribute('action') || window.location.href;
+      let baseUrl;
+      try {
+        baseUrl = new URL(action, window.location.origin);
+      } catch (err) {
+        return [];
+      }
+      const urls = new Set();
+      const periodValues = periodSelect
+        ? Array.from(periodSelect.options)
+            .filter((option) => !option.disabled && option.value !== '')
+            .map((option) => option.value)
+        : [];
+      Array.from(questionnaireSelect.options)
+        .filter((option) => option.value && option.value !== '')
+        .forEach((option) => {
+          const qid = option.value;
+          const base = new URL(baseUrl.toString());
+          base.searchParams.set('qid', qid);
+          base.searchParams.delete('performance_period_id');
+          urls.add(base.toString());
+          periodValues.forEach((pid) => {
+            const periodUrl = new URL(baseUrl.toString());
+            periodUrl.searchParams.set('qid', qid);
+            periodUrl.searchParams.set('performance_period_id', pid);
+            urls.add(periodUrl.toString());
+          });
+        });
+      return Array.from(urls);
+    };
+
+    const warmQuestionnaireCaches = () => {
+      if (!navigator.onLine) {
+        return;
+      }
+      const urls = buildQuestionnaireUrls();
+      if (urls.length === 0) {
+        return;
+      }
+      sendWarmCacheMessage(urls);
+    };
 
     const updateLocation = () => {
       const currentUrl = new URL(window.location.href);
@@ -537,18 +608,260 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
       window.location.assign(currentUrl.toString());
     };
 
+    warmQuestionnaireCaches();
+
     if (questionnaireSelect) {
       questionnaireSelect.addEventListener('change', () => {
         if (periodSelect) {
           periodSelect.selectedIndex = -1;
         }
+        warmQuestionnaireCaches();
         updateLocation();
       });
     }
 
     if (periodSelect) {
       periodSelect.addEventListener('change', () => {
+        warmQuestionnaireCaches();
         updateLocation();
+      });
+    }
+
+    window.addEventListener('online', warmQuestionnaireCaches);
+
+    const storageSupported = (() => {
+      try {
+        const testKey = '__hrassess_offline__';
+        window.localStorage.setItem(testKey, '1');
+        window.localStorage.removeItem(testKey);
+        return true;
+      } catch (err) {
+        return false;
+      }
+    })();
+
+    if (assessmentForm && storageSupported) {
+      const qidField = assessmentForm.querySelector('input[name="qid"]');
+      const periodField = assessmentForm.querySelector('input[name="performance_period_id"]');
+      const offlineLabels = {
+        saved: assessmentForm.getAttribute('data-offline-saved-label') || 'Offline copy saved at %s.',
+        restored: assessmentForm.getAttribute('data-offline-restored-label') || 'Restored offline responses from %s.',
+        queued: assessmentForm.getAttribute('data-offline-queued-label') || 'You are offline. We saved your responses locally. Reconnect and submit to sync.',
+        reminder: assessmentForm.getAttribute('data-offline-reminder-label') || 'Back online. Submit to upload your saved responses.',
+        error: assessmentForm.getAttribute('data-offline-error-label') || 'We could not save an offline copy of your responses.',
+      };
+      const storagePrefix = 'hrassess:assessment';
+      let pendingSubmit = false;
+
+      const getStorageKey = () => {
+        const qid = qidField && qidField.value ? qidField.value : 'unknown';
+        const period = periodField && periodField.value ? periodField.value : 'default';
+        return `${storagePrefix}:${qid}:${period}`;
+      };
+
+      const offlineStatus = document.createElement('div');
+      offlineStatus.className = 'md-offline-draft';
+      offlineStatus.setAttribute('role', 'status');
+      offlineStatus.setAttribute('aria-live', 'polite');
+      offlineStatus.hidden = true;
+      const actionRow = assessmentForm.querySelector('.md-form-actions');
+      if (actionRow && actionRow.parentNode) {
+        actionRow.parentNode.insertBefore(offlineStatus, actionRow);
+      } else {
+        assessmentForm.appendChild(offlineStatus);
+      }
+
+      const formatTimestamp = (value) => {
+        if (!value) {
+          return '';
+        }
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          return '';
+        }
+        try {
+          return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+        } catch (err) {
+          return date.toLocaleString();
+        }
+      };
+
+      const setStatusMessage = (state, timestamp) => {
+        let template = '';
+        switch (state) {
+          case 'saved':
+            template = offlineLabels.saved;
+            break;
+          case 'restored':
+            template = offlineLabels.restored;
+            break;
+          case 'queued':
+            template = offlineLabels.queued;
+            break;
+          case 'reminder':
+            template = offlineLabels.reminder;
+            break;
+          case 'error':
+            template = offlineLabels.error;
+            break;
+          default:
+            template = '';
+        }
+        if (!template) {
+          offlineStatus.dataset.state = '';
+          offlineStatus.textContent = '';
+          offlineStatus.hidden = true;
+          return;
+        }
+        let message = template;
+        if (message.includes('%s') && timestamp) {
+          message = message.replace('%s', formatTimestamp(timestamp));
+        }
+        offlineStatus.dataset.state = state;
+        offlineStatus.textContent = message;
+        offlineStatus.hidden = false;
+      };
+
+      const readStoredDraft = () => {
+        try {
+          const raw = window.localStorage.getItem(getStorageKey());
+          if (!raw) {
+            return null;
+          }
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== 'object') {
+            return null;
+          }
+          return parsed;
+        } catch (err) {
+          return null;
+        }
+      };
+
+      const clearDraft = () => {
+        try {
+          window.localStorage.removeItem(getStorageKey());
+        } catch (err) {
+          // Ignore storage failures
+        }
+      };
+
+      const applyValues = (data) => {
+        if (!data || typeof data !== 'object') {
+          return;
+        }
+        Object.keys(data).forEach((name) => {
+          if (name === 'csrf') {
+            return;
+          }
+          const fields = Array.from(assessmentForm.elements).filter((field) => field.name === name);
+          if (!fields.length) {
+            return;
+          }
+          const rawValue = data[name];
+          const values = Array.isArray(rawValue) ? rawValue.map((value) => String(value)) : [String(rawValue)];
+          fields.forEach((field) => {
+            if (field.type === 'checkbox' || field.type === 'radio') {
+              field.checked = values.includes(field.value);
+            } else if (field.tagName === 'SELECT' && field.multiple) {
+              Array.from(field.options).forEach((option) => {
+                option.selected = values.includes(option.value);
+              });
+            } else if (field.tagName === 'SELECT') {
+              const value = values.length ? values[values.length - 1] : '';
+              field.value = value;
+            } else {
+              const value = values.length ? values[values.length - 1] : '';
+              field.value = value;
+            }
+          });
+        });
+      };
+
+      const persistDraft = () => {
+        try {
+          const formData = new FormData(assessmentForm);
+          const payload = {};
+          formData.forEach((value, key) => {
+            if (key === 'csrf') {
+              return;
+            }
+            if (Object.prototype.hasOwnProperty.call(payload, key)) {
+              const existing = payload[key];
+              if (Array.isArray(existing)) {
+                existing.push(value);
+              } else {
+                payload[key] = [existing, value];
+              }
+            } else {
+              payload[key] = value;
+            }
+          });
+          const record = {
+            data: payload,
+            savedAt: Date.now(),
+            pendingSubmit,
+          };
+          window.localStorage.setItem(getStorageKey(), JSON.stringify(record));
+          setStatusMessage(pendingSubmit ? 'queued' : 'saved', record.savedAt);
+        } catch (err) {
+          setStatusMessage('error');
+        }
+      };
+
+      const scheduleSave = (() => {
+        let timer = null;
+        return () => {
+          if (timer) {
+            clearTimeout(timer);
+          }
+          timer = setTimeout(() => {
+            timer = null;
+            persistDraft();
+          }, 400);
+        };
+      })();
+
+      assessmentForm.addEventListener('input', scheduleSave);
+      assessmentForm.addEventListener('change', scheduleSave);
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('saved') === 'draft') {
+        clearDraft();
+      }
+
+      const storedDraft = readStoredDraft();
+      if (storedDraft && storedDraft.data) {
+        applyValues(storedDraft.data);
+        pendingSubmit = Boolean(storedDraft.pendingSubmit);
+        if (pendingSubmit) {
+          setStatusMessage(navigator.onLine ? 'reminder' : 'queued', storedDraft.savedAt);
+        } else {
+          setStatusMessage('restored', storedDraft.savedAt);
+        }
+      }
+
+      assessmentForm.addEventListener('submit', (event) => {
+        if (!navigator.onLine) {
+          event.preventDefault();
+          pendingSubmit = true;
+          persistDraft();
+        } else {
+          pendingSubmit = false;
+          persistDraft();
+          clearDraft();
+          offlineStatus.dataset.state = '';
+          offlineStatus.textContent = '';
+          offlineStatus.hidden = true;
+        }
+      });
+
+      window.addEventListener('online', () => {
+        const draft = readStoredDraft();
+        if (draft && draft.pendingSubmit) {
+          pendingSubmit = true;
+          setStatusMessage('reminder', draft.savedAt);
+        }
       });
     }
   })();
