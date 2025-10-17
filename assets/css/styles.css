@@ -1309,6 +1309,50 @@ body.theme-dark .md-offline-banner__dismiss:focus {
   background: rgba(15, 23, 42, 0.5);
 }
 
+.md-offline-draft {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(29, 78, 216, 0.2);
+  background: rgba(29, 78, 216, 0.08);
+  color: #1f2937;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+body.theme-dark .md-offline-draft {
+  border-color: rgba(96, 165, 250, 0.25);
+  background: rgba(30, 64, 175, 0.25);
+  color: #e5edff;
+}
+
+.md-offline-draft[data-state="queued"],
+.md-offline-draft[data-state="reminder"] {
+  border-color: rgba(217, 119, 6, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+}
+
+body.theme-dark .md-offline-draft[data-state="queued"],
+body.theme-dark .md-offline-draft[data-state="reminder"] {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(217, 119, 6, 0.25);
+  color: #fde68a;
+}
+
+.md-offline-draft[data-state="error"] {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(248, 113, 113, 0.15);
+  color: #7f1d1d;
+}
+
+body.theme-dark .md-offline-draft[data-state="error"] {
+  border-color: rgba(252, 165, 165, 0.5);
+  background: rgba(239, 68, 68, 0.22);
+  color: #fecaca;
+}
+
 .md-draft-alert {
   margin-top: 1rem;
 }

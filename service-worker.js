@@ -1,4 +1,4 @@
-const CACHE_NAME = 'my-performance-cache-v3';
+const CACHE_NAME = 'my-performance-cache-v4';
 const BASE_SCOPE = (self.registration && self.registration.scope) ? self.registration.scope.replace(/\/+$/, '') : '';
 const OFFLINE_URL = withBase('offline.html');
 
@@ -9,14 +9,28 @@ function withBase(path) {
   return `${BASE_SCOPE}${path}`;
 }
 
-const PRECACHE_URLS = [
+const APP_SHELL_URLS = [
+  withBase('my_performance.php'),
+  withBase('submit_assessment.php'),
+  withBase('profile.php'),
+  withBase('dashboard.php'),
+  withBase('offline.html'),
+];
+
+const CORE_ASSETS = [
   withBase(''),
   withBase('index.php'),
   OFFLINE_URL,
   withBase('assets/css/material.css'),
   withBase('assets/css/styles.css'),
-  withBase('assets/js/app.js')
+  withBase('assets/css/questionnaire-builder.css'),
+  withBase('assets/js/app.js'),
+  withBase('assets/js/phone-input.js'),
+  withBase('assets/js/questionnaire-builder.js'),
+  withBase('logo.php')
 ];
+
+const PRECACHE_URLS = Array.from(new Set([...CORE_ASSETS, ...APP_SHELL_URLS]));
 
 function isSameOrigin(url) {
   try {
@@ -166,6 +180,38 @@ async function precacheStaticAssets() {
   );
 }
 
+async function warmDynamicContent(urls) {
+  if (!Array.isArray(urls) || urls.length === 0) {
+    return;
+  }
+  const cache = await caches.open(CACHE_NAME);
+  await Promise.all(
+    urls.map(async (url) => {
+      if (typeof url !== 'string' || url.trim() === '') {
+        return;
+      }
+      let absoluteURL;
+      try {
+        absoluteURL = new URL(url, self.location.origin);
+      } catch (err) {
+        return;
+      }
+      if (!isSameOrigin(absoluteURL)) {
+        return;
+      }
+      const request = new Request(absoluteURL.toString(), { credentials: 'include' });
+      try {
+        const response = await fetch(request, { cache: 'no-store', credentials: 'include' });
+        if (shouldCacheResponse(request, response)) {
+          await cache.put(request, response.clone());
+        }
+      } catch (err) {
+        // Ignore network failures during warmup
+      }
+    })
+  );
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(precacheStaticAssets());
   self.skipWaiting();
@@ -184,6 +230,16 @@ self.addEventListener('activate', (event) => {
     }
   })());
   self.clients.claim();
+});
+
+self.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || typeof data !== 'object') {
+    return;
+  }
+  if (data.type === 'WARM_ROUTE_CACHE' && Array.isArray(data.urls) && data.urls.length > 0) {
+    event.waitUntil(warmDynamicContent(data.urls));
+  }
 });
 
 self.addEventListener('fetch', (event) => {
