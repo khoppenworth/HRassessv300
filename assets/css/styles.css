@@ -27,6 +27,23 @@ body.md-bg {
   color: inherit;
 }
 
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.md-lock-scroll {
+  overflow: hidden;
+  touch-action: none;
+}
+
+button,
+.md-appbar-link,
+.md-appbar-button,
+.md-topnav-trigger,
+.md-topnav-link {
+  touch-action: manipulation;
+}
+
 .md-appbar {
   display: flex;
   align-items: center;
@@ -360,6 +377,48 @@ body.md-bg {
   position: relative;
   width: 100%;
   padding: 1.35rem 1.35rem 2.5rem;
+}
+
+.md-topnav-backdrop {
+  position: fixed;
+  inset: var(--appbar-height) 0 0;
+  background: rgba(15, 23, 42, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 940;
+  touch-action: none;
+}
+
+html.has-js .md-topnav-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (pointer: coarse) {
+  .md-appbar-button,
+  .md-appbar-link,
+  .md-appbar-toggle,
+  .md-topnav-trigger,
+  .md-topnav-link {
+    min-height: 48px;
+  }
+
+  .md-appbar-button {
+    padding: 0.75rem 1.25rem;
+  }
+
+  .md-topnav-trigger {
+    padding: 1rem 1.1rem;
+  }
+
+  .md-topnav-link {
+    padding: 1rem 1.1rem;
+  }
+
+  .md-status-indicator {
+    padding: 0.45rem 0.9rem;
+  }
 }
 
 .md-drawer {
@@ -1653,26 +1712,32 @@ body.theme-dark .md-button.md-primary {
   }
 }
 
+@media (min-width: 901px) {
+  .md-topnav-backdrop {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
+  .md-shell {
+    padding: 1.1rem 1rem 2.2rem;
+  }
+
   .md-topnav {
     flex-direction: column;
     align-items: stretch;
-    margin: 1rem 0 1.25rem;
-    padding: 0.35rem 0.75rem;
+    margin: 0;
+    padding: 0.75rem 0.75rem 1.25rem;
+    border-radius: 18px;
   }
 
   .md-topnav::before {
-    opacity: 0.95;
+    opacity: 0.92;
   }
 
   .md-topnav-list {
     flex-direction: column;
-    gap: 0.25rem;
-    display: none;
-  }
-
-  .md-topnav.is-open .md-topnav-list {
-    display: flex;
+    gap: 0.45rem;
   }
 
   .md-topnav-item {
@@ -1682,7 +1747,8 @@ body.theme-dark .md-button.md-primary {
   .md-topnav-trigger {
     width: 100%;
     justify-content: space-between;
-    padding: 0.75rem 0.85rem;
+    padding: 0.85rem 1rem;
+    font-size: 1rem;
   }
 
   .md-topnav-submenu {
@@ -1690,9 +1756,9 @@ body.theme-dark .md-button.md-primary {
     display: none;
     box-shadow: none;
     border: none;
-    border-radius: 10px;
-    padding: 0.35rem 0 0.75rem;
-    margin: 0 0 0.35rem;
+    border-radius: 12px;
+    padding: 0.45rem 0 0.85rem;
+    margin: 0;
   }
 
   .md-topnav-item.is-open > .md-topnav-submenu,
@@ -1700,12 +1766,54 @@ body.theme-dark .md-button.md-primary {
     display: flex;
   }
 
-  .md-topnav-submenu li {
+  .md-topnav-submenu li,
+  .md-topnav-link {
     width: 100%;
   }
 
   .md-topnav-link {
-    width: 100%;
+    padding: 0.85rem 1rem;
+    font-size: 0.95rem;
+  }
+
+  html.has-js .md-topnav {
+    position: fixed;
+    top: var(--appbar-height);
+    left: 0;
+    bottom: 0;
+    width: min(86vw, 320px);
+    max-width: 320px;
+    margin: 0;
+    border-radius: 0 20px 20px 0;
+    border: none;
+    box-shadow: 18px 0 48px rgba(15, 23, 42, 0.18);
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+    padding: 1.1rem 1rem 2rem;
+    background: var(--app-surface);
+    gap: 0.75rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transition: transform 0.28s ease, opacity 0.28s ease;
+  }
+
+  html.has-js .md-topnav::before {
+    display: none;
+  }
+
+  html.has-js .md-topnav.is-open {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  html.has-js .md-topnav-list {
+    gap: 0.6rem;
+  }
+
+  html.has-js .md-topnav-backdrop {
+    display: block;
   }
 }
 

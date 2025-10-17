@@ -218,5 +218,6 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
     <?php endif; ?>
   </ul>
 </nav>
+<div class="md-topnav-backdrop" data-topnav-backdrop aria-hidden="true" hidden></div>
 <main class="md-main">
 
