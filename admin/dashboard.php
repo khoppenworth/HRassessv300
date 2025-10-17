@@ -57,8 +57,168 @@ $runSqlScript = static function (PDO $pdo, string $path): void {
     }
 };
 
-$resolveUpgradeRepo = static function (array $cfg): string {
-    $configured = trim((string)($cfg['upgrade_repo'] ?? ''));
+$extractGithubSlug = static function (string $value): ?string {
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    $withoutGit = preg_replace('/\.git$/i', '', $trimmed);
+    if ($withoutGit !== null) {
+        $trimmed = $withoutGit;
+    }
+
+    if (preg_match('#^https?://#i', $trimmed)) {
+        $parsed = parse_url($trimmed);
+        if ($parsed === false) {
+            return null;
+        }
+        $path = $parsed['path'] ?? '';
+        $trimmed = trim((string)$path, '/');
+    } elseif (stripos($trimmed, 'github.com/') === 0) {
+        $trimmed = substr($trimmed, strlen('github.com/'));
+        $trimmed = trim((string)$trimmed, '/');
+    } else {
+        $trimmed = trim($trimmed, '/');
+    }
+
+    if ($trimmed === '') {
+        return null;
+    }
+
+    $segments = explode('/', $trimmed);
+    if (count($segments) < 2) {
+        return null;
+    }
+
+    $owner = $segments[0];
+    $repo = $segments[1];
+
+    if (!preg_match('/^[A-Za-z0-9._-]+$/', $owner) || !preg_match('/^[A-Za-z0-9._-]+$/', $repo)) {
+        return null;
+    }
+
+    return $owner . '/' . $repo;
+};
+
+$normalizeUpgradeRepo = static function (string $value) use ($extractGithubSlug): string {
+    $slug = $extractGithubSlug($value);
+    if ($slug !== null) {
+        return $slug;
+    }
+
+    return trim($value);
+};
+
+$buildRepoUrlForScript = static function (string $value) use ($extractGithubSlug): string {
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    if (preg_match('#^https?://#i', $trimmed)) {
+        return $trimmed;
+    }
+
+    if (stripos($trimmed, 'github.com/') === 0) {
+        return 'https://' . ltrim($trimmed, '/');
+    }
+
+    $slug = $extractGithubSlug($trimmed);
+    if ($slug !== null) {
+        return 'https://github.com/' . $slug . '.git';
+    }
+
+    return $trimmed;
+};
+
+$listUpgradeBackups = static function (): array {
+    $backupDir = base_path('backups');
+    if (!is_dir($backupDir)) {
+        return [];
+    }
+
+    $manifests = glob($backupDir . DIRECTORY_SEPARATOR . 'upgrade-*.json');
+    if ($manifests === false) {
+        return [];
+    }
+
+    $backups = [];
+    foreach ($manifests as $manifestPath) {
+        $contents = @file_get_contents($manifestPath);
+        if ($contents === false) {
+            continue;
+        }
+        $data = json_decode($contents, true);
+        if (!is_array($data) || empty($data['timestamp'])) {
+            continue;
+        }
+        $timestamp = (string)$data['timestamp'];
+        $backups[] = [
+            'timestamp' => $timestamp,
+            'status' => (string)($data['status'] ?? 'unknown'),
+            'ref' => (string)($data['ref'] ?? ''),
+            'repo' => (string)($data['repo'] ?? ''),
+            'started_at' => isset($data['started_at']) ? (string)$data['started_at'] : null,
+            'completed_at' => isset($data['completed_at']) ? (string)$data['completed_at'] : null,
+            'manifest_path' => $manifestPath,
+        ];
+    }
+
+    usort($backups, static function (array $a, array $b): int {
+        return strcmp($b['timestamp'], $a['timestamp']);
+    });
+
+    return $backups;
+};
+
+$runSystemUpgradeCommand = static function (array $arguments): array {
+    $phpBinary = PHP_BINARY ?: 'php';
+    $scriptPath = base_path('scripts/system_upgrade.php');
+    if (!is_file($scriptPath)) {
+        throw new RuntimeException('Upgrade script not found at ' . $scriptPath);
+    }
+
+    $command = array_merge([$phpBinary, $scriptPath], $arguments);
+    $descriptorSpec = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $process = @proc_open($command, $descriptorSpec, $pipes, base_path(''));
+    if (!is_resource($process)) {
+        throw new RuntimeException('Failed to start the upgrade process.');
+    }
+
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    $exitCode = proc_close($process);
+
+    return [
+        'exit_code' => is_int($exitCode) ? $exitCode : 1,
+        'stdout' => $stdout !== false ? $stdout : '',
+        'stderr' => $stderr !== false ? $stderr : '',
+        'command' => $command,
+    ];
+};
+
+$formatCommandForDisplay = static function (array $command): string {
+    if ($command === []) {
+        return '';
+    }
+
+    return implode(' ', array_map(static function ($segment): string {
+        return escapeshellarg((string)$segment);
+    }, $command));
+};
+
+$resolveUpgradeRepo = static function (array $cfg) use ($normalizeUpgradeRepo): string {
+    $configured = $normalizeUpgradeRepo((string)($cfg['upgrade_repo'] ?? ''));
     if ($configured !== '') {
         return trim($configured, " \/");
     }
@@ -68,11 +228,11 @@ $resolveUpgradeRepo = static function (array $cfg): string {
         if ($composerRaw !== false) {
             $decoded = json_decode($composerRaw, true);
             if (is_array($decoded) && !empty($decoded['name']) && is_string($decoded['name'])) {
-                return trim(str_replace('\\', '/', $decoded['name']));
+                return $normalizeUpgradeRepo(str_replace('\\', '/', $decoded['name']));
             }
         }
     }
-    return 'hrassess/hrassessv300';
+    return 'khoppenworth/HRassessv300';
 };
 
 $fetchLatestRelease = static function (string $repo, ?string $token = null): ?array {
@@ -139,7 +299,10 @@ $upgradeDefaults = [
     'upgrade_repo' => $upgradeRepo,
 ];
 $upgradeState = array_replace($upgradeDefaults, $_SESSION['admin_upgrade_state'] ?? []);
-$upgradeState['upgrade_repo'] = $upgradeRepo;
+$upgradeState['upgrade_repo'] = $normalizeUpgradeRepo((string)($upgradeState['upgrade_repo'] ?? $upgradeRepo));
+if ($upgradeState['upgrade_repo'] === '') {
+    $upgradeState['upgrade_repo'] = $upgradeRepo;
+}
 $flashMessage = $_SESSION['admin_dashboard_flash'] ?? '';
 $flashType = $_SESSION['admin_dashboard_flash_type'] ?? 'info';
 unset($_SESSION['admin_dashboard_flash'], $_SESSION['admin_dashboard_flash_type']);
@@ -150,6 +313,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $flashType = 'info';
 
     switch ($action) {
+        case 'update_upgrade_repo':
+            $inputRepo = trim((string)($_POST['upgrade_repo'] ?? ''));
+            $normalizedRepo = $normalizeUpgradeRepo($inputRepo);
+            if ($normalizedRepo === '' || strpos($normalizedRepo, '/') === false) {
+                $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid GitHub owner/repository slug.');
+                $flashType = 'error';
+                break;
+            }
+            try {
+                $stmt = $pdo->prepare('UPDATE site_config SET upgrade_repo=? WHERE id=1');
+                $stmt->execute([$normalizedRepo]);
+                $cfg = get_site_config($pdo);
+                $upgradeRepo = $resolveUpgradeRepo($cfg);
+                $upgradeState['upgrade_repo'] = $normalizeUpgradeRepo($upgradeRepo);
+                $upgradeState['available_version'] = null;
+                $upgradeState['available_version_label'] = null;
+                $upgradeState['available_version_url'] = null;
+                $flashMessage = t($t, 'upgrade_repo_saved', 'Upgrade source saved.');
+                $flashType = 'success';
+            } catch (Throwable $saveError) {
+                error_log('Admin upgrade repo save failed: ' . $saveError->getMessage());
+                $flashMessage = t($t, 'upgrade_repo_save_failed', 'Unable to save the upgrade source. Please try again.');
+                $flashType = 'error';
+            }
+            break;
+
         case 'check_upgrade':
             $upgradeState['last_check'] = time();
             try {
@@ -381,6 +570,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($archiveSize === false || $archiveSize <= 0) {
                     throw new RuntimeException('The generated backup archive is empty.');
                 }
+                $backupGenerated = true;
             } catch (Throwable $backupError) {
                 if (isset($zip) && $zip instanceof ZipArchive) {
                     $zip->close();
@@ -420,38 +610,124 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
 
         case 'install_upgrade':
-            if (empty($upgradeState['backup_ready'])) {
-                $flashMessage = t($t, 'backup_required_before_upgrade', 'Download a fresh backup before installing the upgrade.');
-                $flashType = 'warning';
+            $repoForUpgrade = $normalizeUpgradeRepo($upgradeState['upgrade_repo'] ?? $upgradeRepo);
+            if ($repoForUpgrade === '' || strpos($repoForUpgrade, '/') === false) {
+                $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid GitHub owner/repository slug.');
+                $flashType = 'error';
                 break;
             }
-            if (empty($upgradeState['available_version'])) {
-                $flashMessage = t($t, 'no_upgrade_found', 'No upgrade package is currently available.');
-                $flashType = 'info';
+            $repoUrl = $buildRepoUrlForScript($repoForUpgrade);
+            if ($repoUrl === '') {
+                $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid GitHub owner/repository slug.');
+                $flashType = 'error';
                 break;
+            }
+            $arguments = ['--action=upgrade', '--repo=' . $repoUrl, '--latest-release'];
+            $commandForLog = array_merge([PHP_BINARY ?: 'php', base_path('scripts/system_upgrade.php')], $arguments);
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(0);
             }
             try {
-                $migrationPath = base_path('migration.sql');
-                $runSqlScript($pdo, $migrationPath);
-                ensure_users_schema($pdo);
-                $upgradeState['current_version'] = $upgradeState['available_version'];
-                $upgradeState['available_version'] = null;
-                $upgradeState['available_version_label'] = null;
-                $upgradeState['available_version_url'] = null;
-                $upgradeState['backup_ready'] = false;
-                $flashMessage = t(
-                    $t,
-                    'upgrade_complete',
-                    'Upgrade installed successfully. Database patches have been applied.'
-                );
-                $flashType = 'success';
+                $result = $runSystemUpgradeCommand($arguments);
+                $_SESSION['admin_upgrade_log'] = [
+                    'type' => 'upgrade',
+                    'timestamp' => time(),
+                    'command' => $formatCommandForDisplay($result['command']),
+                    'stdout' => trim((string)$result['stdout']),
+                    'stderr' => trim((string)$result['stderr']),
+                    'exit_code' => $result['exit_code'],
+                ];
+                if ((int)$result['exit_code'] === 0) {
+                    if (!empty($upgradeState['available_version'])) {
+                        $upgradeState['current_version'] = $upgradeState['available_version'];
+                    }
+                    $upgradeState['available_version'] = null;
+                    $upgradeState['available_version_label'] = null;
+                    $upgradeState['available_version_url'] = null;
+                    $upgradeState['backup_ready'] = false;
+                    $flashMessage = t($t, 'upgrade_command_success', 'Upgrade command completed successfully. Review the logs for details.');
+                    $flashType = 'success';
+                } else {
+                    $flashMessage = t($t, 'upgrade_command_failed', 'The upgrade command returned a non-zero exit code. Review the log for details.');
+                    $flashType = 'error';
+                }
             } catch (Throwable $upgradeError) {
                 error_log('Admin upgrade failed: ' . $upgradeError->getMessage());
+                $_SESSION['admin_upgrade_log'] = [
+                    'type' => 'upgrade',
+                    'timestamp' => time(),
+                    'command' => $formatCommandForDisplay($commandForLog),
+                    'stdout' => '',
+                    'stderr' => $upgradeError->getMessage(),
+                    'exit_code' => -1,
+                ];
                 $flashMessage = t(
                     $t,
                     'upgrade_failed',
                     'The upgrade could not be completed. Review the logs and database permissions, then try again.'
                 );
+                $flashType = 'error';
+            }
+            break;
+
+        case 'restore_backup':
+            $backupId = trim((string)($_POST['backup_id'] ?? ''));
+            $restoreDb = isset($_POST['restore_db']);
+            if ($backupId === '') {
+                $flashMessage = t($t, 'restore_backup_invalid', 'Select a backup before attempting a restore.');
+                $flashType = 'error';
+                break;
+            }
+            if (!preg_match('/^[0-9]{8}_[0-9]{6}$/', $backupId)) {
+                $flashMessage = t($t, 'restore_backup_invalid', 'Select a backup before attempting a restore.');
+                $flashType = 'error';
+                break;
+            }
+            $manifestPath = base_path('backups/upgrade-' . $backupId . '.json');
+            if (!is_file($manifestPath)) {
+                $flashMessage = t($t, 'restore_backup_missing', 'The selected backup metadata could not be found on the server.');
+                $flashType = 'error';
+                break;
+            }
+            $arguments = ['--action=downgrade', '--backup-id=' . $backupId];
+            if ($restoreDb) {
+                $arguments[] = '--restore-db';
+            }
+            $restoreCommandForLog = array_merge([PHP_BINARY ?: 'php', base_path('scripts/system_upgrade.php')], $arguments);
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(0);
+            }
+            try {
+                $result = $runSystemUpgradeCommand($arguments);
+                $_SESSION['admin_upgrade_log'] = [
+                    'type' => 'restore',
+                    'timestamp' => time(),
+                    'command' => $formatCommandForDisplay($result['command']),
+                    'stdout' => trim((string)$result['stdout']),
+                    'stderr' => trim((string)$result['stderr']),
+                    'exit_code' => $result['exit_code'],
+                ];
+                if ((int)$result['exit_code'] === 0) {
+                    $upgradeState['available_version'] = null;
+                    $upgradeState['available_version_label'] = null;
+                    $upgradeState['available_version_url'] = null;
+                    $flashMessage = t($t, 'restore_backup_success', 'Backup restoration completed successfully.');
+                    $flashType = 'success';
+                } else {
+                    $flashMessage = t($t, 'restore_backup_failed', 'The restore command failed. Review the log for details.');
+                    $flashType = 'error';
+                }
+            } catch (Throwable $restoreError) {
+                error_log('Admin restore failed: ' . $restoreError->getMessage());
+                $_SESSION['admin_upgrade_log'] = [
+                    'type' => 'restore',
+                    'timestamp' => time(),
+                    'command' => $formatCommandForDisplay($restoreCommandForLog),
+                    'stdout' => '',
+                    'stderr' => $restoreError->getMessage(),
+                    'exit_code' => -1,
+                ];
+                $flashMessage = t($t, 'restore_backup_failed', 'The restore command failed. Review the log for details.');
                 $flashType = 'error';
             }
             break;
@@ -470,6 +746,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $_SESSION['admin_upgrade_state'] = $upgradeState;
+
+$upgradeLog = $_SESSION['admin_upgrade_log'] ?? null;
+unset($_SESSION['admin_upgrade_log']);
+
+$upgradeBackups = $listUpgradeBackups();
 
 $users = $fetchCount($pdo, 'SELECT COUNT(*) c FROM users');
 $activeUsers = $fetchCount($pdo, "SELECT COUNT(*) c FROM users WHERE account_status='active'");
@@ -507,6 +788,14 @@ $lastCheckDisplay = !empty($upgradeState['last_check']) ? date('M j, Y g:i a', (
 $lastBackupDisplay = !empty($upgradeState['last_backup_at']) ? date('M j, Y g:i a', (int)$upgradeState['last_backup_at']) : null;
 $backupDownloadUrl = !empty($upgradeState['last_backup_path']) ? asset_url($upgradeState['last_backup_path']) : null;
 $upgradeRepoDisplay = $upgradeState['upgrade_repo'] ?? $upgradeRepo;
+$upgradeRepoLink = '';
+$repoSlugForLink = $extractGithubSlug($upgradeRepoDisplay);
+if ($repoSlugForLink !== null) {
+    $upgradeRepoLink = 'https://github.com/' . $repoSlugForLink;
+} elseif (is_string($upgradeRepoDisplay) && preg_match('#^https?://#i', (string)$upgradeRepoDisplay)) {
+    $upgradeRepoLink = (string)$upgradeRepoDisplay;
+}
+$selectedBackupId = $upgradeBackups[0]['timestamp'] ?? '';
 ?>
 <!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head>
 <meta charset="utf-8"><title><?=htmlspecialchars(t($t,'admin_dashboard','Admin Dashboard'), ENT_QUOTES, 'UTF-8')?></title>
@@ -569,9 +858,13 @@ $upgradeRepoDisplay = $upgradeState['upgrade_repo'] ?? $upgradeRepo;
         <?php if ($upgradeRepoDisplay): ?>
           <div class="md-upgrade-meta">
             <?=t($t,'release_source','Release source')?>:
-            <a href="<?=htmlspecialchars('https://github.com/' . ltrim($upgradeRepoDisplay, '/'), ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener">
+            <?php if ($upgradeRepoLink): ?>
+              <a href="<?=htmlspecialchars($upgradeRepoLink, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener">
+                <?=htmlspecialchars($upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>
+              </a>
+            <?php else: ?>
               <?=htmlspecialchars($upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>
-            </a>
+            <?php endif; ?>
           </div>
         <?php endif; ?>
         <?php if ($lastCheckDisplay): ?>
@@ -586,6 +879,16 @@ $upgradeRepoDisplay = $upgradeState['upgrade_repo'] ?? $upgradeRepo;
           </div>
         <?php endif; ?>
     </div>
+    <form method="post" class="md-upgrade-config">
+      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+      <input type="hidden" name="action" value="update_upgrade_repo">
+      <label class="md-field">
+        <span><?=t($t,'upgrade_repo_label','Release source')?></span>
+        <input type="text" name="upgrade_repo" value="<?=htmlspecialchars((string)$upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>" placeholder="owner/repository">
+      </label>
+      <p class="md-upgrade-meta"><?=t($t,'upgrade_repo_hint','Specify the GitHub owner/repository slug used to check for releases (for example, khoppenworth/HRassessv300).')?></p>
+      <button type="submit" class="md-button md-outline md-compact"><?=t($t,'save_upgrade_source','Save source')?></button>
+    </form>
     <div class="md-upgrade-actions">
       <form method="post">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
@@ -600,10 +903,82 @@ $upgradeRepoDisplay = $upgradeState['upgrade_repo'] ?? $upgradeRepo;
       <form method="post">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="action" value="install_upgrade">
-        <button type="submit" class="md-button md-primary md-elev-2" <?=(!$availableVersion || !$backupReady) ? 'disabled' : ''?>><?=t($t,'install_upgrade','Install Upgrade')?></button>
+        <button type="submit" class="md-button md-primary md-elev-2" <?=($upgradeRepoDisplay === '' ? 'disabled' : '')?>><?=t($t,'install_upgrade','Install Upgrade')?></button>
       </form>
     </div>
-    <p class="md-upgrade-meta"><?=t($t,'upgrade_hint','Ensure a recent backup has been downloaded before applying upgrades.')?></p>
+    <p class="md-upgrade-meta"><?=t($t,'upgrade_hint_script','The upgrade script automatically creates backups before applying changes. Download manual backups whenever you need an extra copy.')?></p>
+    <?php if ($upgradeLog): ?>
+      <div class="md-upgrade-log">
+        <h3 class="md-subhead"><?=t($t,'upgrade_log_heading','Recent upgrade activity')?></h3>
+        <p class="md-upgrade-meta"><?=t($t,'upgrade_log_hint','Results from the most recent upgrade or restore command.')?></p>
+        <?php if (!empty($upgradeLog['timestamp'])): ?>
+          <div class="md-upgrade-meta"><?=t($t,'upgrade_log_timestamp','Run at:')?> <?=htmlspecialchars(date('M j, Y g:i a', (int)$upgradeLog['timestamp']), ENT_QUOTES, 'UTF-8')?></div>
+        <?php endif; ?>
+        <?php if (!empty($upgradeLog['command'])): ?>
+          <div class="md-upgrade-meta"><strong><?=t($t,'upgrade_command_label','Executed command')?>:</strong> <code><?=htmlspecialchars($upgradeLog['command'], ENT_QUOTES, 'UTF-8')?></code></div>
+        <?php endif; ?>
+        <div class="md-upgrade-meta"><strong><?=t($t,'upgrade_exit_code_label','Exit code')?>:</strong> <span class="md-status-badge <?=((int)($upgradeLog['exit_code'] ?? 1) === 0) ? 'success' : 'error'?>"><?=htmlspecialchars((string)($upgradeLog['exit_code'] ?? '—'), ENT_QUOTES, 'UTF-8')?></span></div>
+        <?php if (!empty($upgradeLog['stdout'])): ?>
+          <div class="md-upgrade-log-block">
+            <strong><?=t($t,'upgrade_stdout_label','Output')?>:</strong>
+            <pre class="md-code-block"><?=htmlspecialchars($upgradeLog['stdout'], ENT_QUOTES, 'UTF-8')?></pre>
+          </div>
+        <?php endif; ?>
+        <?php if (!empty($upgradeLog['stderr'])): ?>
+          <div class="md-upgrade-log-block">
+            <strong><?=t($t,'upgrade_stderr_label','Errors')?>:</strong>
+            <pre class="md-code-block"><?=htmlspecialchars($upgradeLog['stderr'], ENT_QUOTES, 'UTF-8')?></pre>
+          </div>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+    <div class="md-upgrade-backups">
+      <h3 class="md-subhead"><?=t($t,'upgrade_recent_backups','Upgrade backups')?></h3>
+      <?php if ($upgradeBackups): ?>
+        <form method="post" class="md-upgrade-restore-form">
+          <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+          <input type="hidden" name="action" value="restore_backup">
+          <label class="md-field">
+            <span><?=t($t,'restore_backup_label','Select backup')?></span>
+            <select name="backup_id">
+              <?php foreach ($upgradeBackups as $backupMeta): ?>
+                <?php
+                  $optionLabel = $backupMeta['timestamp'];
+                  if (!empty($backupMeta['status'])) {
+                      $optionLabel .= ' · ' . ucfirst($backupMeta['status']);
+                  }
+                  if (!empty($backupMeta['ref'])) {
+                      $optionLabel .= ' · ' . $backupMeta['ref'];
+                  }
+                ?>
+                <option value="<?=htmlspecialchars($backupMeta['timestamp'], ENT_QUOTES, 'UTF-8')?>" <?=$backupMeta['timestamp'] === $selectedBackupId ? 'selected' : ''?>><?=htmlspecialchars($optionLabel, ENT_QUOTES, 'UTF-8')?></option>
+              <?php endforeach; ?>
+            </select>
+          </label>
+          <div class="md-control">
+            <label>
+              <input type="checkbox" name="restore_db" value="1">
+              <span><?=t($t,'restore_database','Restore database')?></span>
+            </label>
+          </div>
+          <p class="md-upgrade-meta"><?=t($t,'restore_database_hint','Also restore the database from the selected backup.')?></p>
+          <button type="submit" class="md-button md-outline md-elev-1"><?=t($t,'restore_backup','Restore backup')?></button>
+        </form>
+        <ul class="md-upgrade-meta-list">
+          <?php foreach (array_slice($upgradeBackups, 0, 5) as $backupMeta): ?>
+            <li>
+              <strong><?=htmlspecialchars($backupMeta['timestamp'], ENT_QUOTES, 'UTF-8')?></strong>
+              <span>· <?=htmlspecialchars(ucfirst($backupMeta['status']), ENT_QUOTES, 'UTF-8')?></span>
+              <?php if (!empty($backupMeta['ref'])): ?>
+                <span>· <?=htmlspecialchars($backupMeta['ref'], ENT_QUOTES, 'UTF-8')?></span>
+              <?php endif; ?>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      <?php else: ?>
+        <p class="md-upgrade-meta"><?=t($t,'no_backups_available','No upgrade backups are available yet.')?></p>
+      <?php endif; ?>
+    </div>
   </div>
 
   <div class="md-dashboard-grid">
