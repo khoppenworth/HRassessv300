@@ -18,7 +18,6 @@ $scriptName = ltrim((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $navKeyMap = [
     'my_performance.php' => 'workspace.my_performance',
     'submit_assessment.php' => 'workspace.submit_assessment',
-    'profile.php' => 'workspace.profile',
     'admin/supervisor_review.php' => 'team.review_queue',
     'admin/pending_accounts.php' => 'team.pending_accounts',
     'admin/questionnaire_assignments.php' => 'team.assignments',
@@ -170,7 +169,7 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
 <nav id="app-topnav" class="md-topnav md-elev-2" data-topnav aria-label="<?=htmlspecialchars(t($t, 'primary_navigation', 'Primary navigation'), ENT_QUOTES, 'UTF-8')?>">
   <ul class="md-topnav-list">
     <?php
-    $workspaceActive = $isActiveNav('workspace.my_performance', 'workspace.submit_assessment', 'workspace.profile');
+    $workspaceActive = $isActiveNav('workspace.my_performance', 'workspace.submit_assessment');
     ?>
     <li class="md-topnav-item<?=$workspaceActive ? ' is-active' : ''?>" data-topnav-item>
       <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
@@ -180,7 +179,6 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
       <ul class="md-topnav-submenu">
         <li><a href="<?=htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.my_performance')?>><?=t($t, 'my_performance', 'My Performance')?></a></li>
         <li><a href="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.submit_assessment')?>><?=t($t, 'submit_assessment', 'Submit Assessment')?></a></li>
-        <li><a href="<?=htmlspecialchars(url_for('profile.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.profile')?>><?=t($t, 'profile', 'Profile')?></a></li>
       </ul>
     </li>
     <?php if (in_array($role, ['admin', 'supervisor'], true)): ?>
