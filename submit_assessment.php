@@ -13,15 +13,11 @@ $user = current_user();
 try {
     if ($user['role'] === 'staff') {
         $stmt = $pdo->prepare(
-            "(SELECT DISTINCT q.id, q.title FROM questionnaire q " .
-            "JOIN questionnaire_work_function qw ON qw.questionnaire_id = q.id WHERE qw.work_function = :wf) " .
-            "UNION " .
-            "(SELECT DISTINCT q.id, q.title FROM questionnaire q " .
-            "JOIN questionnaire_assignment qa ON qa.questionnaire_id = q.id WHERE qa.staff_id = :sid) " .
-            "ORDER BY title"
+            "SELECT DISTINCT q.id, q.title FROM questionnaire_assignment qa " .
+            "JOIN questionnaire q ON q.id = qa.questionnaire_id " .
+            "WHERE qa.staff_id = :sid ORDER BY q.title"
         );
         $stmt->execute([
-            'wf' => $user['work_function'],
             'sid' => $user['id'],
         ]);
         $q = $stmt->fetchAll();
@@ -52,7 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $periodId = (int)($_POST['performance_period_id'] ?? 0);
     $action = $_POST['action'] ?? 'submit_final';
     $isDraftSave = ($action === 'save_draft');
-    if (!$periodId) {
+    if ($user['role'] === 'staff' && !in_array($qid, $availableQuestionnaireIds, true)) {
+        $err = t($t, 'invalid_questionnaire_selection', 'The selected questionnaire is not available.');
+    } elseif (!$periodId) {
         $err = t($t,'select_period','Please select a performance period.');
     } else {
         $existingStmt = $pdo->prepare('SELECT * FROM questionnaire_response WHERE user_id=? AND questionnaire_id=? AND performance_period_id=?');
