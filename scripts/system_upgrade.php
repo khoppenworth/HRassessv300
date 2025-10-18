@@ -2,20 +2,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * System upgrade script for HRassess v300.
- *
- * This script can upgrade or downgrade the application by fetching
- * a release/branch/tag from a GitHub repository. Before any upgrade
- * runs the current application directory and database are backed up.
- *
- * Usage examples:
- *  php scripts/system_upgrade.php --action=upgrade --repo=https://github.com/example/HRassessv300.git --ref=v3.1.0
- *  php scripts/system_upgrade.php --action=upgrade --repo=https://github.com/example/HRassessv300.git --latest-release
- *  php scripts/system_upgrade.php --action=downgrade --backup-id=20240211_101112 --restore-db
- *  php scripts/system_upgrade.php --action=list-backups
- */
-
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "This script can only be executed from the command line." . PHP_EOL);
     exit(1);
@@ -86,6 +72,8 @@ switch ($action) {
  */
 function handleUpgrade(array $options, string $appPath, string $backupDir, array $preservePaths): void
 {
+    ensureZipArchiveAvailable();
+
     $repo = (string)($options['repo'] ?? '');
     $latestRelease = isset($options['latest-release']);
     $ref = (string)($options['ref'] ?? '');
@@ -104,8 +92,6 @@ function handleUpgrade(array $options, string $appPath, string $backupDir, array
 
     info('Starting upgrade process at ' . $timestamp);
 
-    ensureCommandAvailable('git');
-    ensureCommandAvailable('tar');
     ensureCommandAvailable('mysqldump');
     ensureCommandAvailable('mysql');
 
@@ -116,36 +102,49 @@ function handleUpgrade(array $options, string $appPath, string $backupDir, array
     $resolvedRef = resolveTargetReference($repo, $ref, $latestRelease);
     info(sprintf('Using repository %s at reference %s', $repo, $resolvedRef));
 
-    info('Backing up current application files...');
-    $appBackup = backupApplicationDirectory($appPath, $backupDir, $timestamp);
-    info('Application backup created at ' . $appBackup);
-
-    info('Backing up application database...');
-    $dbBackup = backupDatabase($dbConfig, $backupDir, $timestamp);
-    info('Database backup created at ' . $dbBackup);
-
     $manifest = [
+        'id' => $timestamp,
         'timestamp' => $timestamp,
         'repo' => $repo,
         'ref' => $resolvedRef,
+        'status' => 'pending',
         'started_at' => date(DATE_ATOM),
-        'app_backup' => $appBackup,
-        'db_backup' => $dbBackup,
-        'status' => 'in-progress',
+        'preserve' => $preservePaths,
     ];
 
     $manifestPath = writeBackupManifest($backupDir, $manifest);
 
-    $tempDir = createTempDirectory($backupDir, 'upgrade_');
-
     try {
-        cloneRepository($repo, $resolvedRef, $tempDir);
-        applyUpgrade($tempDir, $appPath, $preservePaths);
+        info('Creating application snapshot...');
+        $snapshot = createApplicationSnapshot($appPath, $backupDir, $timestamp, $preservePaths);
+        $manifest['app_snapshot'] = $snapshot;
+        writeBackupManifest($backupDir, $manifest, $manifestPath);
+        info('Snapshot stored at ' . $snapshot);
+
+        info('Backing up application database...');
+        $dbBackup = backupDatabase($dbConfig, $backupDir, $timestamp);
+        $manifest['db_backup'] = $dbBackup;
+        writeBackupManifest($backupDir, $manifest, $manifestPath);
+        info('Database backup created at ' . $dbBackup);
+
+        $workDir = createTempDirectory($backupDir, 'release_');
+        try {
+            info('Fetching release package...');
+            $package = fetchReleasePackage($repo, $resolvedRef, $workDir);
+            $manifest['package'] = $package;
+            writeBackupManifest($backupDir, $manifest, $manifestPath);
+            info(sprintf('Release extracted to %s', $package['path']));
+
+            info('Deploying new release...');
+            installRelease($package['path'], $appPath, $preservePaths);
+            info('Release deployed successfully.');
+        } finally {
+            cleanupDirectory($workDir);
+        }
 
         $manifest['status'] = 'success';
         $manifest['completed_at'] = date(DATE_ATOM);
         writeBackupManifest($backupDir, $manifest, $manifestPath);
-
         info('Upgrade completed successfully.');
     } catch (Throwable $e) {
         $manifest['status'] = 'failed';
@@ -157,19 +156,21 @@ function handleUpgrade(array $options, string $appPath, string $backupDir, array
         fwrite(STDERR, 'Attempting to restore the previous state from backups...' . PHP_EOL);
 
         try {
-            restoreApplicationFromBackup($appPath, $appBackup, $preservePaths);
-            restoreDatabaseFromBackup($dbConfig, $dbBackup);
-            info('Restoration complete. The system has been rolled back to the previous state.');
+            if (isset($manifest['app_snapshot']) && is_string($manifest['app_snapshot'])) {
+                restoreApplicationSnapshot($appPath, $manifest['app_snapshot'], $preservePaths);
+                info('Application files restored from snapshot.');
+            }
+            if (isset($manifest['db_backup']) && is_string($manifest['db_backup'])) {
+                restoreDatabaseFromBackup($dbConfig, $manifest['db_backup']);
+                info('Database restored from ' . $manifest['db_backup']);
+            }
         } catch (Throwable $restoreException) {
             fwrite(STDERR, 'Automatic restoration failed: ' . $restoreException->getMessage() . PHP_EOL);
             fwrite(STDERR, 'Please restore manually using the backups listed in ' . $backupDir . PHP_EOL);
         }
 
-        cleanupDirectory($tempDir);
         exit(1);
     }
-
-    cleanupDirectory($tempDir);
 }
 
 /**
@@ -180,6 +181,8 @@ function handleUpgrade(array $options, string $appPath, string $backupDir, array
  */
 function handleDowngrade(array $options, string $appPath, string $backupDir, array $preservePaths): void
 {
+    ensureZipArchiveAvailable();
+
     $backupId = (string)($options['backup-id'] ?? '');
     $restoreDb = isset($options['restore-db']);
 
@@ -192,14 +195,22 @@ function handleDowngrade(array $options, string $appPath, string $backupDir, arr
         exit(1);
     }
 
-    info('Preparing to restore application from backup ' . $manifest['timestamp']);
+    $timestamp = (string)($manifest['timestamp'] ?? 'unknown');
+    info('Preparing to restore application snapshot from upgrade ' . $timestamp);
 
-    if (!isset($manifest['app_backup']) || !is_string($manifest['app_backup'])) {
-        throw new RuntimeException('Backup manifest is missing the app_backup path.');
+    $snapshot = null;
+    if (isset($manifest['app_snapshot']) && is_string($manifest['app_snapshot'])) {
+        $snapshot = $manifest['app_snapshot'];
+    } elseif (isset($manifest['app_backup']) && is_string($manifest['app_backup'])) {
+        $snapshot = $manifest['app_backup'];
     }
 
-    restoreApplicationFromBackup($appPath, $manifest['app_backup'], $preservePaths);
-    info('Application files restored from ' . $manifest['app_backup']);
+    if ($snapshot === null) {
+        throw new RuntimeException('Backup manifest does not include an application snapshot.');
+    }
+
+    restoreApplicationSnapshot($appPath, $snapshot, $preservePaths);
+    info('Application files restored from ' . $snapshot);
 
     if ($restoreDb) {
         if (!isset($manifest['db_backup']) || !is_string($manifest['db_backup'])) {
@@ -344,6 +355,10 @@ function fetchLatestReleaseTag(string $repo): string
 
 function extractGitHubSlug(string $repo): ?string
 {
+    if (preg_match('/^[\w.-]+\/[\w.-]+$/', $repo) === 1) {
+        return $repo;
+    }
+
     $parsed = parse_url($repo);
     if ($parsed === false || !isset($parsed['host']) || stripos($parsed['host'], 'github.com') === false) {
         return null;
@@ -371,6 +386,7 @@ function extractGitHubSlug(string $repo): ?string
 
 function inferRepositoryFromGit(string $appPath): string
 {
+    ensureCommandAvailable('git');
     $output = runShellCommand('git -C ' . escapeshellarg($appPath) . ' remote get-url origin');
     $remote = trim($output['stdout']);
     if ($remote === '') {
@@ -381,14 +397,73 @@ function inferRepositoryFromGit(string $appPath): string
 }
 
 /**
- * @param string $repo
- * @param string $ref
- * @param string $tempDir
+ * @return array{type: string, path: string, source: string}
  */
-function cloneRepository(string $repo, string $ref, string $tempDir): void
+function fetchReleasePackage(string $repo, string $ref, string $workDir): array
 {
-    $target = $tempDir . DIRECTORY_SEPARATOR . 'repository';
-    info('Cloning repository to ' . $target);
+    $slug = extractGitHubSlug($repo);
+    if ($slug !== null) {
+        return downloadGitHubArchive($slug, $ref, $workDir);
+    }
+
+    return cloneRepositoryToDirectory($repo, $ref, $workDir);
+}
+
+/**
+ * @return array{type: string, path: string, source: string}
+ */
+function downloadGitHubArchive(string $slug, string $ref, string $workDir): array
+{
+    $url = sprintf('https://codeload.github.com/%s/zip/%s', $slug, rawurlencode($ref));
+    $archivePath = $workDir . DIRECTORY_SEPARATOR . str_replace('/', '_', $slug . '-' . $ref) . '.zip';
+    downloadFile($url, $archivePath);
+
+    $zip = new ZipArchive();
+    if ($zip->open($archivePath) !== true) {
+        throw new RuntimeException('Unable to open downloaded archive: ' . $archivePath);
+    }
+
+    $extractPath = $workDir . DIRECTORY_SEPARATOR . 'extracted';
+    ensureDirectory($extractPath);
+
+    if (!$zip->extractTo($extractPath)) {
+        $zip->close();
+        throw new RuntimeException('Failed to extract archive ' . $archivePath);
+    }
+
+    $rootPath = null;
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = $zip->getNameIndex($i);
+        if ($name === false) {
+            continue;
+        }
+        $name = trim($name, '/');
+        if ($name === '') {
+            continue;
+        }
+        $rootPath = $extractPath . DIRECTORY_SEPARATOR . explode('/', $name)[0];
+        break;
+    }
+    $zip->close();
+
+    if ($rootPath === null || !is_dir($rootPath)) {
+        throw new RuntimeException('Unable to determine extracted archive root directory.');
+    }
+
+    return [
+        'type' => 'github-archive',
+        'path' => $rootPath,
+        'source' => $url,
+    ];
+}
+
+/**
+ * @return array{type: string, path: string, source: string}
+ */
+function cloneRepositoryToDirectory(string $repo, string $ref, string $workDir): array
+{
+    ensureCommandAvailable('git');
+    $target = $workDir . DIRECTORY_SEPARATOR . 'repository';
     $cmd = sprintf(
         'git clone --depth 1 --branch %s %s %s',
         escapeshellarg($ref),
@@ -396,34 +471,68 @@ function cloneRepository(string $repo, string $ref, string $tempDir): void
         escapeshellarg($target)
     );
     runShellCommand($cmd);
+
+    $gitDir = $target . DIRECTORY_SEPARATOR . '.git';
+    if (is_dir($gitDir)) {
+        deletePath($gitDir);
+    }
+
+    return [
+        'type' => 'git-clone',
+        'path' => $target,
+        'source' => $repo . '#' . $ref,
+    ];
 }
 
-/**
- * @param string $sourceBase
- * @param string $appPath
- * @param string[] $preservePaths
- */
-function applyUpgrade(string $sourceBase, string $appPath, array $preservePaths): void
+function downloadFile(string $url, string $destination): void
 {
-    $source = $sourceBase . DIRECTORY_SEPARATOR . 'repository';
-    if (!is_dir($source)) {
-        throw new RuntimeException('Cloned repository not found at ' . $source);
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'header' => [
+                'User-Agent: HRassessv300-upgrader',
+                'Accept: application/octet-stream',
+            ],
+            'timeout' => 60,
+        ],
+    ]);
+
+    $read = @fopen($url, 'rb', false, $context);
+    if ($read === false) {
+        throw new RuntimeException('Unable to download archive from ' . $url);
+    }
+
+    $write = @fopen($destination, 'wb');
+    if ($write === false) {
+        fclose($read);
+        throw new RuntimeException('Unable to write archive to ' . $destination);
+    }
+
+    $bytes = stream_copy_to_stream($read, $write);
+    fclose($read);
+    fclose($write);
+
+    if ($bytes === false || $bytes === 0) {
+        throw new RuntimeException('Downloaded archive is empty: ' . $url);
+    }
+}
+
+function installRelease(string $sourceDir, string $appPath, array $preservePaths, bool $purgeFirst = true): void
+{
+    if ($purgeFirst) {
+        purgeApplicationDirectory($appPath, $preservePaths);
     }
 
     $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        new RecursiveDirectoryIterator($sourceDir, FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::SELF_FIRST
     );
 
     foreach ($iterator as $item) {
-        $relative = substr($item->getPathname(), strlen($source) + 1);
+        $relative = substr($item->getPathname(), strlen($sourceDir) + 1);
         if (shouldSkipPath($relative, $preservePaths)) {
             continue;
         }
-        if ($relative === '.git' || str_starts_with($relative, '.git' . DIRECTORY_SEPARATOR)) {
-            continue;
-        }
-
         $target = $appPath . DIRECTORY_SEPARATOR . $relative;
 
         if ($item->isDir()) {
@@ -441,6 +550,27 @@ function applyUpgrade(string $sourceBase, string $appPath, array $preservePaths)
         if (!copy($item->getPathname(), $target)) {
             throw new RuntimeException('Failed to copy file to ' . $target);
         }
+
+        $perms = $item->getPerms();
+        @chmod($target, $perms & 0777);
+    }
+}
+
+function purgeApplicationDirectory(string $appPath, array $preservePaths): void
+{
+    $items = scandir($appPath);
+    if ($items === false) {
+        throw new RuntimeException('Unable to list directory: ' . $appPath);
+    }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+        if (shouldSkipPath($item, $preservePaths)) {
+            continue;
+        }
+        deletePath($appPath . DIRECTORY_SEPARATOR . $item);
     }
 }
 
@@ -480,29 +610,101 @@ function ensureDirectory(string $path): void
     }
 }
 
-/**
- * @param string $appPath
- * @param string $backupDir
- * @param string $timestamp
- */
-function backupApplicationDirectory(string $appPath, string $backupDir, string $timestamp): string
+function createApplicationSnapshot(string $appPath, string $backupDir, string $timestamp, array $preservePaths): string
 {
-    $archive = $backupDir . DIRECTORY_SEPARATOR . 'app-' . $timestamp . '.tar.gz';
-    $cmd = sprintf(
-        'tar -czf %s --exclude=./backups --exclude=./.git -C %s .',
-        escapeshellarg($archive),
-        escapeshellarg($appPath)
+    $archive = $backupDir . DIRECTORY_SEPARATOR . 'app-' . $timestamp . '.zip';
+    $zip = new ZipArchive();
+    if ($zip->open($archive, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException('Unable to create snapshot archive: ' . $archive);
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($appPath, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
     );
-    runShellCommand($cmd);
+
+    foreach ($iterator as $item) {
+        $relative = substr($item->getPathname(), strlen($appPath) + 1);
+        if (shouldSkipPath($relative, $preservePaths)) {
+            continue;
+        }
+
+        $normalized = normalizeRelativePath($relative);
+        if ($normalized === '') {
+            continue;
+        }
+
+        if ($item->isDir()) {
+            if ($zip->locateName($normalized) === false && $zip->addEmptyDir($normalized) !== true) {
+                throw new RuntimeException('Unable to add directory to snapshot: ' . $normalized);
+            }
+        } else {
+            if ($zip->addFile($item->getPathname(), $normalized) !== true) {
+                throw new RuntimeException('Unable to add file to snapshot: ' . $item->getPathname());
+            }
+        }
+    }
+
+    $zip->close();
 
     return $archive;
 }
 
-/**
- * @param array{host: string, database: string, user: string, password: string, port: int|null} $dbConfig
- * @param string $backupDir
- * @param string $timestamp
- */
+function restoreApplicationSnapshot(string $appPath, string $snapshotPath, array $preservePaths): void
+{
+    if (!file_exists($snapshotPath)) {
+        throw new RuntimeException('Snapshot file not found: ' . $snapshotPath);
+    }
+
+    purgeApplicationDirectory($appPath, $preservePaths);
+
+    if (preg_match('/\.zip$/', $snapshotPath) === 1) {
+        restoreFromZipSnapshot($appPath, $snapshotPath);
+        return;
+    }
+
+    if (preg_match('/\.tar\.gz$/', $snapshotPath) === 1) {
+        restoreFromTarSnapshot($appPath, $snapshotPath);
+        return;
+    }
+
+    throw new RuntimeException('Unsupported snapshot format: ' . $snapshotPath);
+}
+
+function restoreFromZipSnapshot(string $appPath, string $snapshotPath): void
+{
+    $zip = new ZipArchive();
+    if ($zip->open($snapshotPath) !== true) {
+        throw new RuntimeException('Unable to open snapshot archive: ' . $snapshotPath);
+    }
+
+    $extractDir = createTempDirectory($appPath, 'snapshot_');
+    try {
+        if (!$zip->extractTo($extractDir)) {
+            throw new RuntimeException('Failed to extract snapshot archive: ' . $snapshotPath);
+        }
+    } finally {
+        $zip->close();
+    }
+
+    installRelease($extractDir, $appPath, [], false);
+    cleanupDirectory($extractDir);
+}
+
+function restoreFromTarSnapshot(string $appPath, string $snapshotPath): void
+{
+    ensureCommandAvailable('tar');
+    $extractDir = createTempDirectory($appPath, 'snapshot_');
+    $cmd = sprintf(
+        'tar -xzf %s -C %s',
+        escapeshellarg($snapshotPath),
+        escapeshellarg($extractDir)
+    );
+    runShellCommand($cmd);
+    installRelease($extractDir, $appPath, [], false);
+    cleanupDirectory($extractDir);
+}
+
 function backupDatabase(array $dbConfig, string $backupDir, string $timestamp): string
 {
     $file = $backupDir . DIRECTORY_SEPARATOR . 'db-' . $timestamp . '.sql';
@@ -524,10 +726,6 @@ function backupDatabase(array $dbConfig, string $backupDir, string $timestamp): 
     return $file;
 }
 
-/**
- * @param array{host: string, database: string, user: string, password: string, port: int|null} $dbConfig
- * @param string $backupFile
- */
 function restoreDatabaseFromBackup(array $dbConfig, string $backupFile): void
 {
     if (!is_file($backupFile)) {
@@ -548,47 +746,6 @@ function restoreDatabaseFromBackup(array $dbConfig, string $backupFile): void
         escapeshellarg($backupFile)
     );
     runShellCommand($cmd);
-}
-
-/**
- * @param string $appPath
- * @param string $archivePath
- * @param string[] $preservePaths
- */
-function restoreApplicationFromBackup(string $appPath, string $archivePath, array $preservePaths): void
-{
-    if (!is_file($archivePath)) {
-        throw new RuntimeException('Application backup archive not found: ' . $archivePath);
-    }
-
-    cleanApplicationDirectory($appPath, $preservePaths);
-
-    $cmd = sprintf(
-        'tar -xzf %s -C %s',
-        escapeshellarg($archivePath),
-        escapeshellarg($appPath)
-    );
-    runShellCommand($cmd);
-}
-
-function cleanApplicationDirectory(string $appPath, array $preservePaths): void
-{
-    $items = scandir($appPath);
-    if ($items === false) {
-        throw new RuntimeException('Unable to list directory: ' . $appPath);
-    }
-
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') {
-            continue;
-        }
-        if (shouldSkipPath($item, $preservePaths)) {
-            continue;
-        }
-
-        $fullPath = $appPath . DIRECTORY_SEPARATOR . $item;
-        deletePath($fullPath);
-    }
 }
 
 function deletePath(string $path): void
@@ -752,3 +909,9 @@ function cleanupDirectory(string $directory): void
     rmdir($directory);
 }
 
+function ensureZipArchiveAvailable(): void
+{
+    if (!class_exists('ZipArchive')) {
+        throw new RuntimeException('The PHP zip extension is required. Install ext-zip before running upgrades.');
+    }
+}
