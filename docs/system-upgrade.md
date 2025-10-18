@@ -1,12 +1,15 @@
 # System upgrade utility
 
 The `scripts/system_upgrade.php` CLI script automates application and database
-upgrades by pulling code from a GitHub repository and creating safe backups.
+upgrades by downloading release archives, capturing snapshots, and staging
+deployments in a repeatable fashion.
 
 ## Prerequisites
 
 * PHP 8.1+
-* `git`, `tar`, `mysqldump`, and `mysql` binaries available in `PATH`
+* PHP `zip` extension (`ext-zip`)
+* `git`, `mysqldump`, and `mysql` binaries available in `PATH`
+* `tar` binary (only required when restoring backups created with HRassess v3.0 or earlier)
 * Network access to the GitHub repository that hosts your releases
 
 ## Usage
@@ -42,14 +45,17 @@ php scripts/system_upgrade.php --action=list-backups
 
 ## Backup layout
 
-Each upgrade creates the following files in the backup directory:
+Each upgrade captures the pre-upgrade state and stores it in the backup
+directory:
 
-* `app-<timestamp>.tar.gz` – archive of the application files
-* `db-<timestamp>.sql` – SQL dump of the database
-* `upgrade-<timestamp>.json` – manifest describing the upgrade metadata
+* `app-<timestamp>.zip` – snapshot of the application files before the upgrade
+  (excludes preserved paths)
+* `db-<timestamp>.sql` – SQL dump of the database before the upgrade
+* `upgrade-<timestamp>.json` – manifest describing release metadata, snapshot
+  paths, and deployment status
 
-If an upgrade fails, the script automatically restores the previous state
-using these backups and marks the manifest status as `failed`.
+If an upgrade fails, the script automatically restores the previous state using
+the snapshot and database dump before marking the manifest status as `failed`.
 
 ## Customising preserved paths
 
