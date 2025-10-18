@@ -127,7 +127,21 @@ $languageLabel = htmlspecialchars(t($t, 'language_label', 'Language'), ENT_QUOTE
             <div class="md-alert error"><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
           <?php endif; ?>
 
-          <form method="post" class="md-form md-login-form" action="<?= htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8') ?>">
+          <form
+            method="post"
+            class="md-form md-login-form"
+            action="<?= htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-redirect="<?= htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-unavailable="<?= htmlspecialchars(t($t, 'offline_login_unavailable', 'Offline login is not available yet. Connect to the internet and sign in once to enable offline access.'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-invalid="<?= htmlspecialchars(t($t, 'offline_login_invalid', 'Offline sign-in failed. Double-check your username and password.'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-error="<?= htmlspecialchars(t($t, 'offline_login_error', 'We could not complete offline sign-in. Try again when you have a connection.'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-warm-routes="<?= htmlspecialchars(implode(',', [
+              url_for('my_performance.php'),
+              url_for('submit_assessment.php'),
+              url_for('profile.php'),
+              url_for('dashboard.php'),
+            ]), ENT_QUOTES, 'UTF-8') ?>"
+          >
             <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
             <label class="md-field">
               <span><?= t($t, 'username', 'Username') ?></span>
@@ -189,5 +203,6 @@ $languageLabel = htmlspecialchars(t($t, 'language_label', 'Language'), ENT_QUOTE
     window.APP_AVAILABLE_LOCALES = <?= json_encode($availableLocales, JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="<?= asset_url('assets/js/app.js') ?>"></script>
+  <script src="<?= asset_url('assets/js/login.js') ?>" defer></script>
 </body>
 </html>

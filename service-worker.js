@@ -20,6 +20,7 @@ const APP_SHELL_URLS = [
 const CORE_ASSETS = [
   withBase(''),
   withBase('index.php'),
+  withBase('login.php'),
   OFFLINE_URL,
   withBase('assets/css/material.css'),
   withBase('assets/css/styles.css'),
