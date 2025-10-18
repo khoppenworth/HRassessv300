@@ -373,6 +373,13 @@
   "upgrade_hint": "Ensure a recent backup has been downloaded before applying upgrades.",
   "upgrade_hint_script": "The upgrade script automatically creates backups before applying changes. Download manual backups whenever you need an extra copy.",
   "upgrade_latest": "You are already on the latest version.",
+  "upgrade_command_success": "Upgrade command completed successfully. Review the logs for details.",
+  "upgrade_command_failed": "The upgrade command returned a non-zero exit code. Review the log for details.",
+  "upgrade_repo_label": "Release source",
+  "upgrade_repo_hint": "Specify the GitHub owner/repository slug or Git URL used to check for releases (for example, khoppenworth/HRassessv300).",
+  "upgrade_repo_saved": "Upgrade source saved.",
+  "upgrade_repo_save_failed": "Unable to save the upgrade source. Please try again.",
+  "upgrade_repo_invalid": "Enter a valid release source such as owner/repository or a Git URL.",
   "upgrade_log_heading": "Recent upgrade activity",
   "upgrade_log_hint": "Results from the most recent upgrade or restore command.",
   "upgrade_log_timestamp": "Run at:",
@@ -406,5 +413,6 @@
   "work_function_heatmap_alt": "Horizontal bar chart comparing work function averages using heatmap colours.",
   "work_function_performance": "Work Function Performance",
   "yes": "Yes",
-  "your_trend": "Your Score Trend"
+  "your_trend": "Your Score Trend",
+  "upgrade_repo_cleared": "Release source cleared. The default repository will be used."
 }

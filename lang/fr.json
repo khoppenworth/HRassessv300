@@ -373,6 +373,13 @@
   "upgrade_hint": "Ensure a recent backup has been downloaded before applying upgrades.",
   "upgrade_hint_script": "Le script de mise à jour crée automatiquement des sauvegardes avant d'appliquer les modifications. Téléchargez des sauvegardes manuelles lorsque vous avez besoin d'une copie supplémentaire.",
   "upgrade_latest": "You are already on the latest version.",
+  "upgrade_command_success": "La commande de mise à jour s'est terminée avec succès. Consultez les journaux pour plus de détails.",
+  "upgrade_command_failed": "La commande de mise à jour a retourné un code de sortie non nul. Consultez le journal pour plus de détails.",
+  "upgrade_repo_label": "Source de diffusion",
+  "upgrade_repo_hint": "Indiquez le propriétaire/dépôt GitHub ou l’URL Git utilisée pour rechercher les versions (par exemple, khoppenworth/HRassessv300).",
+  "upgrade_repo_saved": "Source de mise à jour enregistrée.",
+  "upgrade_repo_save_failed": "Impossible d'enregistrer la source de mise à jour. Réessayez.",
+  "upgrade_repo_invalid": "Saisissez une source de publication valide, par exemple propriétaire/dépôt ou une URL Git.",
   "upgrade_log_heading": "Activité de mise à jour récente",
   "upgrade_log_hint": "Résultats de la commande de mise à jour ou de restauration la plus récente.",
   "upgrade_log_timestamp": "Exécuté le :",
@@ -406,5 +413,6 @@
   "work_function_heatmap_alt": "Horizontal bar chart comparing work function averages using heatmap colours.",
   "work_function_performance": "Work Function Performance",
   "yes": "Yes",
-  "your_trend": "Your Score Trend"
+  "your_trend": "Your Score Trend",
+  "upgrade_repo_cleared": "Source de publication supprimée. Le dépôt par défaut sera utilisé."
 }

@@ -102,12 +102,22 @@ $extractGithubSlug = static function (string $value): ?string {
 };
 
 $normalizeUpgradeRepo = static function (string $value) use ($extractGithubSlug): string {
-    $slug = $extractGithubSlug($value);
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    $condensed = preg_replace('/\s+/', '', $trimmed);
+    if (!is_string($condensed) || $condensed === '') {
+        $condensed = $trimmed;
+    }
+
+    $slug = $extractGithubSlug($condensed);
     if ($slug !== null) {
         return $slug;
     }
 
-    return trim($value);
+    return $condensed;
 };
 
 $buildRepoUrlForScript = static function (string $value) use ($extractGithubSlug): string {
@@ -314,10 +324,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     switch ($action) {
         case 'update_upgrade_repo':
-            $inputRepo = trim((string)($_POST['upgrade_repo'] ?? ''));
+            $rawRepo = (string)($_POST['upgrade_repo'] ?? '');
+            $inputRepo = trim($rawRepo);
             $normalizedRepo = $normalizeUpgradeRepo($inputRepo);
-            if ($normalizedRepo === '' || strpos($normalizedRepo, '/') === false) {
-                $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid GitHub owner/repository slug.');
+            if ($normalizedRepo === '') {
+                try {
+                    $stmt = $pdo->prepare('UPDATE site_config SET upgrade_repo=NULL WHERE id=1');
+                    $stmt->execute();
+                    $cfg = get_site_config($pdo);
+                    $upgradeRepo = $resolveUpgradeRepo($cfg);
+                    $upgradeState['upgrade_repo'] = $normalizeUpgradeRepo($upgradeRepo);
+                    $upgradeState['available_version'] = null;
+                    $upgradeState['available_version_label'] = null;
+                    $upgradeState['available_version_url'] = null;
+                    $flashMessage = t($t, 'upgrade_repo_cleared', 'Release source cleared. The default repository will be used.');
+                    $flashType = 'success';
+                } catch (Throwable $saveError) {
+                    error_log('Admin upgrade repo save failed: ' . $saveError->getMessage());
+                    $flashMessage = t($t, 'upgrade_repo_save_failed', 'Unable to save the upgrade source. Please try again.');
+                    $flashType = 'error';
+                }
+                break;
+            }
+            if (strpos($normalizedRepo, '/') === false && stripos($normalizedRepo, '://') === false) {
+                $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid release source such as owner/repository or a Git URL.');
                 $flashType = 'error';
                 break;
             }
