@@ -464,6 +464,17 @@ if ($flash === 'submitted') {
     ], $chartDataFlags)?>;
     const radarData = <?=json_encode($sectionBreakdowns, $chartDataFlags)?>;
     const rootStyles = getComputedStyle(document.documentElement);
+    const baseUrlAttr = document.documentElement.getAttribute('data-base-url') || '';
+    const fallbackChartSrc = (function () {
+      const trimmed = baseUrlAttr.replace(/\/+$/u, '');
+      const assetPath = 'assets/adminlte/plugins/chart.js/Chart.min.js';
+      if (!trimmed) {
+        return assetPath;
+      }
+      return `${trimmed}/${assetPath}`;
+    })();
+
+    let chartLoaderPromise = null;
 
     const cssVar = (name, fallback) => {
       const value = rootStyles.getPropertyValue(name);
@@ -498,6 +509,33 @@ if ($flash === 'submitted') {
     const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
     const mix = (start, end, ratio) => Math.round(start + (end - start) * ratio);
 
+    const ensureChartLibrary = () => {
+      if (window.Chart) {
+        return Promise.resolve(window.Chart);
+      }
+      if (chartLoaderPromise) {
+        return chartLoaderPromise;
+      }
+      chartLoaderPromise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = fallbackChartSrc;
+        script.async = true;
+        script.onload = () => resolve(window.Chart || null);
+        script.onerror = () => resolve(null);
+        document.head.appendChild(script);
+      });
+      return chartLoaderPromise;
+    };
+
+    const parseMajorVersion = (chartLib) => {
+      if (!chartLib || !chartLib.version) {
+        return 0;
+      }
+      const parts = String(chartLib.version).split('.');
+      const major = parseInt(parts[0], 10);
+      return Number.isNaN(major) ? 0 : major;
+    };
+
     function heatColor(score, alpha = 0.85) {
       if (typeof score !== 'number' || Number.isNaN(score)) {
         score = 0;
@@ -522,7 +560,19 @@ if ($flash === 'submitted') {
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
-    function renderTimeline() {
+    function resolveSegmentScore(context, scores) {
+      const forward = scores[context.p1DataIndex];
+      if (typeof forward === 'number') {
+        return forward;
+      }
+      const backward = scores[context.p0DataIndex];
+      if (typeof backward === 'number') {
+        return backward;
+      }
+      return 0;
+    }
+
+    function renderTimeline(chartLib) {
       const labels = Array.isArray(timelineData.labels) ? timelineData.labels : [];
       const scores = Array.isArray(timelineData.scores) ? timelineData.scores : [];
       if (!labels.length) {
@@ -540,79 +590,112 @@ if ($flash === 'submitted') {
       gradient.addColorStop(0, 'rgba(46, 125, 50, 0.25)');
       gradient.addColorStop(1, 'rgba(211, 47, 47, 0.05)');
 
-      new Chart(canvas, {
+      const dataset = {
+        data: scores,
+        fill: true,
+        backgroundColor: gradient,
+        borderColor: 'rgba(25, 89, 147, 0.85)',
+        borderWidth: 3,
+        pointBackgroundColor: scores.map((score) => heatColor(score, 1)),
+        pointBorderColor: cssVar('--app-surface', '--brand-bg') || '#ffffff',
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointHoverBorderWidth: 2,
+      };
+
+      const major = parseMajorVersion(chartLib);
+      const isModern = major >= 3;
+      if (isModern) {
+        dataset.segment = {
+          borderColor: (ctx) => heatColor(resolveSegmentScore(ctx, scores), 0.9),
+        };
+      }
+
+      const tooltipFormatterModern = (context) => {
+        const value = typeof context.parsed.y === 'number' ? context.parsed.y.toFixed(1) : context.parsed.y;
+        return `${context.label}: ${value}%`;
+      };
+      const tooltipFormatterLegacy = (tooltipItem) => {
+        const value = typeof tooltipItem.yLabel === 'number' ? tooltipItem.yLabel.toFixed(1) : tooltipItem.yLabel;
+        const label = tooltipItem.label || '';
+        return `${label}: ${value}%`;
+      };
+
+      const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        elements: {
+          line: { tension: 0.35 },
+        },
+      };
+
+      if (isModern) {
+        options.interaction = { intersect: false, mode: 'nearest' };
+        options.plugins = {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: tooltipFormatterModern,
+            },
+          },
+        };
+        options.scales = {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: (value) => `${value}%`,
+            },
+            grid: { color: 'rgba(17, 56, 94, 0.08)' },
+          },
+          x: {
+            ticks: { maxRotation: 45, minRotation: 0, autoSkip: true },
+            grid: { display: false },
+          },
+        };
+      } else {
+        options.legend = { display: false };
+        options.tooltips = {
+          callbacks: {
+            label: tooltipFormatterLegacy,
+          },
+          mode: 'nearest',
+          intersect: false,
+        };
+        options.scales = {
+          yAxes: [{
+            ticks: {
+              beginAtZero: true,
+              max: 100,
+              callback: (value) => `${value}%`,
+            },
+            gridLines: { color: 'rgba(17, 56, 94, 0.08)' },
+          }],
+          xAxes: [{
+            ticks: { maxRotation: 45, minRotation: 0, autoSkip: true },
+            gridLines: { display: false },
+          }],
+        };
+      }
+
+      new chartLib(canvas, {
         type: 'line',
         data: {
           labels,
-          datasets: [{
-            data: scores,
-            fill: true,
-            backgroundColor: gradient,
-            borderColor: 'rgba(25, 89, 147, 0.85)',
-            borderWidth: 3,
-            pointBackgroundColor: scores.map((score) => heatColor(score, 1)),
-            pointBorderColor: cssVar('--app-surface', '--brand-bg') || '#ffffff',
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            pointHoverBorderWidth: 2,
-            segment: {
-              borderColor: (ctx) => heatColor(resolveSegmentScore(ctx, scores), 0.9),
-            },
-          }],
+          datasets: [dataset],
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { intersect: false, mode: 'nearest' },
-          elements: {
-            line: { tension: 0.35 },
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: (context) => {
-                  const value = typeof context.parsed.y === 'number' ? context.parsed.y.toFixed(1) : context.parsed.y;
-                  return `${context.label}: ${value}%`;
-                },
-              },
-            },
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 100,
-              ticks: {
-                callback: (value) => `${value}%`,
-              },
-              grid: { color: 'rgba(17, 56, 94, 0.08)' },
-            },
-            x: {
-              ticks: { maxRotation: 45, minRotation: 0, autoSkip: true },
-              grid: { display: false },
-            },
-          },
-        },
+        options,
       });
     }
 
-    function resolveSegmentScore(context, scores) {
-      const forward = scores[context.p1DataIndex];
-      if (typeof forward === 'number') {
-        return forward;
-      }
-      const backward = scores[context.p0DataIndex];
-      if (typeof backward === 'number') {
-        return backward;
-      }
-      return 0;
-    }
-
-    function renderRadars() {
+    function renderRadars(chartLib) {
       if (!radarData) {
         return;
       }
       let paletteIndex = 0;
+      const major = parseMajorVersion(chartLib);
+      const isModern = major >= 3;
+
       Object.keys(radarData).forEach((qid) => {
         const canvas = document.getElementById(`radar-chart-${qid}`);
         if (!canvas) {
@@ -626,7 +709,64 @@ if ($flash === 'submitted') {
         const values = dataset.sections.map((section) => Number(section.score) || 0);
         const colors = radarPalette[paletteIndex % radarPalette.length];
         paletteIndex += 1;
-        new Chart(canvas, {
+
+        const radarOptions = {
+          responsive: true,
+          maintainAspectRatio: false,
+        };
+
+        if (isModern) {
+          radarOptions.plugins = {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  const raw = context.parsed && typeof context.parsed.r === 'number' ? context.parsed.r : context.parsed;
+                  const rounded = typeof raw === 'number' ? raw.toFixed(1) : raw;
+                  return `${context.label}: ${rounded}%`;
+                },
+              },
+            },
+          };
+          radarOptions.scales = {
+            r: {
+              suggestedMin: 0,
+              suggestedMax: 100,
+              ticks: {
+                stepSize: 20,
+                showLabelBackdrop: false,
+                callback: (value) => `${value}%`,
+              },
+              grid: { color: 'rgba(32, 115, 191, 0.15)' },
+              angleLines: { color: 'rgba(32, 115, 191, 0.2)' },
+            },
+          };
+        } else {
+          radarOptions.legend = { display: false };
+          radarOptions.tooltips = {
+            callbacks: {
+              label: (tooltipItem) => {
+                const value = typeof tooltipItem.yLabel === 'number' ? tooltipItem.yLabel.toFixed(1) : tooltipItem.yLabel;
+                const label = tooltipItem.label || '';
+                return `${label}: ${value}%`;
+              },
+            },
+          };
+          radarOptions.scale = {
+            ticks: {
+              beginAtZero: true,
+              min: 0,
+              max: 100,
+              stepSize: 20,
+              showLabelBackdrop: false,
+              callback: (value) => `${value}%`,
+            },
+            gridLines: { color: 'rgba(32, 115, 191, 0.15)' },
+            angleLines: { color: 'rgba(32, 115, 191, 0.2)' },
+          };
+        }
+
+        new chartLib(canvas, {
           type: 'radar',
           data: {
             labels,
@@ -643,45 +783,19 @@ if ($flash === 'submitted') {
               pointHoverRadius: 5,
             }],
           },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                callbacks: {
-                  label: (context) => {
-                    const raw = context.parsed && typeof context.parsed.r === 'number' ? context.parsed.r : context.parsed;
-                    const rounded = typeof raw === 'number' ? raw.toFixed(1) : raw;
-                    return `${context.label}: ${rounded}%`;
-                  },
-                },
-              },
-            },
-            scales: {
-              r: {
-                suggestedMin: 0,
-                suggestedMax: 100,
-                ticks: {
-                  stepSize: 20,
-                  showLabelBackdrop: false,
-                  callback: (value) => `${value}%`,
-                },
-                grid: { color: 'rgba(32, 115, 191, 0.15)' },
-                angleLines: { color: 'rgba(32, 115, 191, 0.2)' },
-              },
-            },
-          },
+          options: radarOptions,
         });
       });
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      if (!window.Chart) {
-        return;
-      }
-      renderTimeline();
-      renderRadars();
+      ensureChartLibrary().then((chartLib) => {
+        if (!chartLib) {
+          return;
+        }
+        renderTimeline(chartLib);
+        renderRadars(chartLib);
+      });
     });
   })();
 </script>
