@@ -594,6 +594,102 @@
     }
   };
 
+  const offlineStorageKeys = {
+    credentials: 'hrassess:offlineCredentials',
+    pending: 'hrassess:offlineCredentials:pending',
+    session: 'hrassess:offlineSession'
+  };
+
+  const hasOfflineStorage = (() => {
+    try {
+      const testKey = '__hrassess_offline_sync__';
+      window.localStorage.setItem(testKey, '1');
+      window.localStorage.removeItem(testKey);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  })();
+
+  const readOfflineJSON = (key, fallback) => {
+    if (!hasOfflineStorage) {
+      return fallback;
+    }
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) {
+        return fallback;
+      }
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    } catch (err) {
+      return fallback;
+    }
+    return fallback;
+  };
+
+  const writeOfflineJSON = (key, value) => {
+    if (!hasOfflineStorage) {
+      return false;
+    }
+    try {
+      if (value === null || typeof value === 'undefined') {
+        window.localStorage.removeItem(key);
+      } else {
+        window.localStorage.setItem(key, JSON.stringify(value));
+      }
+      return true;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  const syncOfflineCredentials = () => {
+    if (!hasOfflineStorage) {
+      return;
+    }
+    const user = window.APP_USER;
+    if (!user || !user.username) {
+      writeOfflineJSON(offlineStorageKeys.session, null);
+      return;
+    }
+    const username = String(user.username || '');
+    if (username === '') {
+      writeOfflineJSON(offlineStorageKeys.session, null);
+      return;
+    }
+
+    const pending = readOfflineJSON(offlineStorageKeys.pending, null);
+    if (
+      pending
+      && typeof pending === 'object'
+      && pending.username === username
+      && pending.hash
+      && pending.salt
+    ) {
+      const credentials = readOfflineJSON(offlineStorageKeys.credentials, {});
+      credentials[username] = {
+        hash: pending.hash,
+        salt: pending.salt,
+        updatedAt: Date.now()
+      };
+      writeOfflineJSON(offlineStorageKeys.credentials, credentials);
+      writeOfflineJSON(offlineStorageKeys.pending, null);
+    }
+
+    const session = {
+      username,
+      fullName: typeof user.full_name === 'string' && user.full_name !== '' ? user.full_name : null,
+      updatedAt: Date.now()
+    };
+    writeOfflineJSON(offlineStorageKeys.session, session);
+  };
+
+  syncOfflineCredentials();
+  window.addEventListener('pageshow', syncOfflineCredentials);
+
   const handleConnectivityUpdate = (state) => {
     const online = state && typeof state.online === 'boolean' ? state.online : isAppOnline();
     if (online) {

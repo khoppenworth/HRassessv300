@@ -56,6 +56,11 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
   window.APP_DEFAULT_LOCALE = <?=json_encode($defaultLocale, JSON_THROW_ON_ERROR)?>;
   window.APP_AVAILABLE_LOCALES = <?=json_encode($availableLocales, JSON_THROW_ON_ERROR)?>;
+  window.APP_USER = <?=json_encode([
+      'username' => $user['username'] ?? null,
+      'full_name' => $user['full_name'] ?? null,
+      'role' => $role,
+  ], JSON_THROW_ON_ERROR)?>;
 </script>
 <header class="md-appbar md-elev-2">
   <button class="md-appbar-toggle" aria-label="Toggle navigation" data-drawer-toggle aria-controls="app-topnav" aria-expanded="false">
