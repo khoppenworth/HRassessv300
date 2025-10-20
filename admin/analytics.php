@@ -1018,6 +1018,36 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       responses: <?=json_encode(t($t, 'count', 'Responses'), $chartJsonFlags)?>,
     };
 
+    const baseUrlAttr = document.documentElement.getAttribute('data-base-url') || '';
+    const fallbackChartSrc = (function () {
+      const trimmed = baseUrlAttr.replace(/\/+$/u, '');
+      const assetPath = 'assets/adminlte/plugins/chart.js/Chart.min.js';
+      if (!trimmed) {
+        return assetPath;
+      }
+      return `${trimmed}/${assetPath}`;
+    })();
+
+    let chartLoaderPromise = null;
+
+    const ensureChartLibrary = () => {
+      if (window.Chart) {
+        return Promise.resolve(window.Chart);
+      }
+      if (chartLoaderPromise) {
+        return chartLoaderPromise;
+      }
+      chartLoaderPromise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = fallbackChartSrc;
+        script.async = true;
+        script.onload = () => resolve(window.Chart || null);
+        script.onerror = () => resolve(null);
+        document.head.appendChild(script);
+      });
+      return chartLoaderPromise;
+    };
+
     const heatStops = [
       { stop: 0, color: [211, 47, 47] },
       { stop: 0.5, color: [249, 168, 37] },
@@ -1051,7 +1081,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
-    function renderHeatmap(targetId, dataset, options = {}) {
+    function renderHeatmap(chartLib, targetId, dataset, options = {}) {
       if (!dataset || !Array.isArray(dataset.labels) || !dataset.labels.length) {
         return;
       }
@@ -1067,7 +1097,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       const colors = scores.map((score) => heatColor(score, 0.8));
       const borderColors = scores.map((score) => heatColor(score, 1));
       const counts = dataset.counts || [];
-      new Chart(canvas, {
+      new chartLib(canvas, {
         type: 'bar',
         data: {
           labels: dataset.labels,
@@ -1117,15 +1147,17 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      if (!window.Chart) {
-        return;
-      }
-      if (questionnaireHeatmap.labels && questionnaireHeatmap.labels.length) {
-        renderHeatmap('questionnaire-performance-heatmap', questionnaireHeatmap, { indexAxis: 'y' });
-      }
-      if (workFunctionHeatmap.labels && workFunctionHeatmap.labels.length) {
-        renderHeatmap('work-function-heatmap', workFunctionHeatmap, { indexAxis: 'y' });
-      }
+      ensureChartLibrary().then((chartLib) => {
+        if (!chartLib) {
+          return;
+        }
+        if (questionnaireHeatmap.labels && questionnaireHeatmap.labels.length) {
+          renderHeatmap(chartLib, 'questionnaire-performance-heatmap', questionnaireHeatmap, { indexAxis: 'y' });
+        }
+        if (workFunctionHeatmap.labels && workFunctionHeatmap.labels.length) {
+          renderHeatmap(chartLib, 'work-function-heatmap', workFunctionHeatmap, { indexAxis: 'y' });
+        }
+      });
     });
   })();
 </script>
