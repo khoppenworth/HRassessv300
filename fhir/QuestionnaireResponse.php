@@ -51,7 +51,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $items_meta->execute([$qid]);
     $meta = [];
     foreach ($items_meta as $m) { $meta[$m['linkId']] = $m; }
-    $score_sum = 0; $weight_sum = 0;
+    $score_sum = 0.0; $max_points = 0.0;
+    $nonScorableTypes = ['display', 'group', 'section'];
 
     foreach (($data['item'] ?? []) as $it) {
       $lid = $it['linkId'] ?? '';
@@ -59,15 +60,113 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
       $ans = json_encode($ansArr);
       $pdo->prepare("INSERT INTO questionnaire_response_item (response_id, linkId, answer) VALUES (?,?,?)")->execute([$rid, $lid, $ans]);
 
-      $w = isset($meta[$lid]) ? (float)$meta[$lid]['weight'] : 0.0;
-      $weight_sum += $w;
-      // Scoring rule: true boolean OR non-empty string → full weight
-      foreach ($ansArr as $a) {
-        if (isset($a['valueBoolean']) && $a['valueBoolean']===true) { $score_sum += $w; break; }
-        if (isset($a['valueString']) && trim((string)$a['valueString'])!=='') { $score_sum += $w; break; }
+      $metaRow = $meta[$lid] ?? null;
+      $type = is_array($metaRow) ? (string)($metaRow['type'] ?? '') : '';
+      $weight = is_array($metaRow) ? (float)$metaRow['weight'] : 0.0;
+      $isScorable = !in_array($type, $nonScorableTypes, true);
+      $effectiveWeight = $weight > 0 ? $weight : 1.0;
+      if (!$isScorable) {
+        $effectiveWeight = 0.0;
+      }
+      $achievedPoints = 0.0;
+
+      if (!is_array($ansArr)) { $ansArr = []; }
+
+      if ($type === 'boolean') {
+        foreach ($ansArr as $a) {
+          if (isset($a['valueBoolean'])) {
+            if (filter_var($a['valueBoolean'], FILTER_VALIDATE_BOOLEAN)) {
+              $achievedPoints = $effectiveWeight;
+            }
+            break;
+          }
+          if (isset($a['valueString'])) {
+            $val = strtolower(trim((string)$a['valueString']));
+            if (in_array($val, ['true','1','yes','on'], true)) {
+              $achievedPoints = $effectiveWeight;
+            }
+            break;
+          }
+        }
+      } elseif ($type === 'likert') {
+        $scoreValue = null;
+        foreach ($ansArr as $a) {
+          if (isset($a['valueInteger']) && is_numeric($a['valueInteger'])) {
+            $scoreValue = (float)$a['valueInteger'];
+            break;
+          }
+          if (isset($a['valueDecimal']) && is_numeric($a['valueDecimal'])) {
+            $scoreValue = (float)$a['valueDecimal'];
+            break;
+          }
+          if (isset($a['valueString'])) {
+            $str = trim((string)$a['valueString']);
+            if (preg_match('/^([1-5])/', $str, $matches)) {
+              $scoreValue = (float)$matches[1];
+              break;
+            }
+            if (is_numeric($str)) {
+              $scoreValue = (float)$str;
+              break;
+            }
+          }
+        }
+        if ($scoreValue !== null) {
+          $scoreValue = max(0.0, min(5.0, $scoreValue));
+          $achievedPoints = $effectiveWeight * ($scoreValue / 5.0);
+        }
+      } elseif ($type === 'choice') {
+        $hasSelection = false;
+        foreach ($ansArr as $a) {
+          if (isset($a['valueString']) && trim((string)$a['valueString']) !== '') {
+            $hasSelection = true;
+            break;
+          }
+          if (isset($a['valueCoding'])) {
+            $coding = $a['valueCoding'];
+            if (is_array($coding)) {
+              $code = isset($coding['code']) ? trim((string)$coding['code']) : '';
+              $display = isset($coding['display']) ? trim((string)$coding['display']) : '';
+              if ($code !== '' || $display !== '') {
+                $hasSelection = true;
+                break;
+              }
+            }
+          }
+        }
+        if ($hasSelection) {
+          $achievedPoints = $effectiveWeight;
+        }
+      } else {
+        foreach ($ansArr as $a) {
+          if (isset($a['valueBoolean'])) {
+            if (filter_var($a['valueBoolean'], FILTER_VALIDATE_BOOLEAN)) {
+              $achievedPoints = $effectiveWeight;
+            }
+            break;
+          }
+          if (isset($a['valueString']) && trim((string)$a['valueString']) !== '') {
+            $achievedPoints = $effectiveWeight;
+            break;
+          }
+          if (isset($a['valueInteger']) && $a['valueInteger'] !== '') {
+            $achievedPoints = $effectiveWeight;
+            break;
+          }
+          if (isset($a['valueDecimal']) && $a['valueDecimal'] !== '') {
+            $achievedPoints = $effectiveWeight;
+            break;
+          }
+        }
+      }
+
+      if ($isScorable) {
+        $max_points += $effectiveWeight;
+        $score_sum += max(0.0, min($effectiveWeight, $achievedPoints));
       }
     }
-    $pct = $weight_sum > 0 ? (int)round(($score_sum / $weight_sum) * 100) : null;
+    $pctRaw = $max_points > 0 ? ($score_sum / $max_points) * 100 : 0.0;
+    $pct = (int)round(max(0.0, min(100.0, $pctRaw)));
     $pdo->prepare("UPDATE questionnaire_response SET score=? WHERE id=?")->execute([$pct, $rid]);
     $pdo->commit();
     echo json_encode(["id"=>$rid, "status"=>"created"]);
