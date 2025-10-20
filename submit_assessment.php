@@ -92,13 +92,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $score_sum = 0.0;
-            $weight_sum = 0.0;
+            $max_points = 0.0;
+            $nonScorableTypes = ['display', 'group', 'section'];
 
             $missingRequired = [];
             foreach ($items as $it) {
                 $name = 'item_' . $it['linkId'];
                 $weight = (float)$it['weight_percent'];
-                $achieved = 0.0;
+                $type = (string)($it['type'] ?? '');
+                $isScorable = !in_array($type, $nonScorableTypes, true);
+                $effectiveWeight = $weight > 0 ? $weight : 1.0;
+                if (!$isScorable) {
+                    $effectiveWeight = 0.0;
+                }
+                $achievedPoints = 0.0;
                 $a = json_encode([]);
                 $isRequired = !empty($it['is_required']);
                 $questionTitle = trim((string)($it['text'] ?? ''));
@@ -107,13 +114,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $hasResponse = false;
 
-                if ($it['type'] === 'boolean') {
+                if ($type === 'boolean') {
                     $hasResponse = array_key_exists($name, $_POST);
                     $ans = $_POST[$name] ?? '';
                     $val = ($ans === '1' || $ans === 'true' || $ans === 'on') ? 'true' : 'false';
-                    $achieved = ($val === 'true') ? $weight : 0.0;
+                    if ($val === 'true') {
+                        $achievedPoints = $effectiveWeight;
+                    }
                     $a = json_encode([['valueBoolean' => $val === 'true']]);
-                } elseif ($it['type'] === 'likert') {
+                } elseif ($type === 'likert') {
                     $raw = $_POST[$name] ?? '';
                     if (is_array($raw)) {
                         $raw = reset($raw);
@@ -135,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
                     if ($scoreValue !== null) {
-                        $achieved = $weight > 0 ? ($weight * $scoreValue / 5.0) : 0.0;
+                        $achievedPoints = $effectiveWeight * ($scoreValue / 5.0);
                     }
                     if ($selected !== '') {
                         $hasResponse = true;
@@ -146,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $answerEntry['valueString'] = $selected;
                         $a = json_encode([$answerEntry]);
                     }
-                } elseif ($it['type'] === 'choice') {
+                } elseif ($type === 'choice') {
                     $allowMultiple = !empty($it['allow_multiple']);
                     $raw = $_POST[$name] ?? ($allowMultiple ? [] : '');
                     $selected = $allowMultiple ? (array)$raw : [$raw];
@@ -165,7 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($values) {
                         $hasResponse = true;
                     }
-                    $achieved = $values ? $weight : 0.0;
+                    if ($values) {
+                        $achievedPoints = $effectiveWeight;
+                    }
                     $a = json_encode(array_map(static fn($val) => ['valueString' => $val], $values));
                 } else {
                     $ans = $_POST[$name] ?? '';
@@ -173,7 +184,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($txt !== '') {
                         $hasResponse = true;
                     }
-                    $achieved = $txt !== '' ? $weight : 0.0;
+                    if ($txt !== '') {
+                        $achievedPoints = $effectiveWeight;
+                    }
                     $a = json_encode([['valueString' => $txt]]);
                 }
 
@@ -184,9 +197,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ins = $pdo->prepare('INSERT INTO questionnaire_response_item (response_id, linkId, answer) VALUES (?,?,?)');
                 $ins->execute([$responseId, $it['linkId'], $a]);
 
-                if (!$isDraftSave) {
-                    $score_sum += $achieved;
-                    $weight_sum += $weight;
+                if (!$isDraftSave && $isScorable) {
+                    $max_points += $effectiveWeight;
+                    $score_sum += max(0.0, min($effectiveWeight, $achievedPoints));
                 }
             }
             if (!$isDraftSave && $missingRequired) {
@@ -201,7 +214,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($isDraftSave) {
                     $pdo->prepare('UPDATE questionnaire_response SET score=NULL WHERE id=?')->execute([$responseId]);
                 } else {
-                    $pct = $weight_sum > 0 ? (int)round(($score_sum / $weight_sum) * 100) : null;
+                    $pctRaw = $max_points > 0 ? ($score_sum / $max_points) * 100 : 0.0;
+                    $pct = (int)round(max(0.0, min(100.0, $pctRaw)));
                     $pdo->prepare('UPDATE questionnaire_response SET score=? WHERE id=?')->execute([$pct, $responseId]);
                 }
                 $pdo->commit();
