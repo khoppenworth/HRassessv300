@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/upgrade.php';
 auth_required(['admin']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
@@ -57,246 +58,9 @@ $runSqlScript = static function (PDO $pdo, string $path): void {
     }
 };
 
-$extractGithubSlug = static function (string $value): ?string {
-    $trimmed = trim($value);
-    if ($trimmed === '') {
-        return null;
-    }
 
-    $withoutGit = preg_replace('/\.git$/i', '', $trimmed);
-    if ($withoutGit !== null) {
-        $trimmed = $withoutGit;
-    }
-
-    if (preg_match('#^https?://#i', $trimmed)) {
-        $parsed = parse_url($trimmed);
-        if ($parsed === false) {
-            return null;
-        }
-        $path = $parsed['path'] ?? '';
-        $trimmed = trim((string)$path, '/');
-    } elseif (stripos($trimmed, 'github.com/') === 0) {
-        $trimmed = substr($trimmed, strlen('github.com/'));
-        $trimmed = trim((string)$trimmed, '/');
-    } else {
-        $trimmed = trim($trimmed, '/');
-    }
-
-    if ($trimmed === '') {
-        return null;
-    }
-
-    $segments = explode('/', $trimmed);
-    if (count($segments) < 2) {
-        return null;
-    }
-
-    $owner = $segments[0];
-    $repo = $segments[1];
-
-    if (!preg_match('/^[A-Za-z0-9._-]+$/', $owner) || !preg_match('/^[A-Za-z0-9._-]+$/', $repo)) {
-        return null;
-    }
-
-    return $owner . '/' . $repo;
-};
-
-$normalizeUpgradeRepo = static function (string $value) use ($extractGithubSlug): string {
-    $trimmed = trim($value);
-    if ($trimmed === '') {
-        return '';
-    }
-
-    $condensed = preg_replace('/\s+/', '', $trimmed);
-    if (!is_string($condensed) || $condensed === '') {
-        $condensed = $trimmed;
-    }
-
-    $slug = $extractGithubSlug($condensed);
-    if ($slug !== null) {
-        return $slug;
-    }
-
-    return $condensed;
-};
-
-$buildRepoUrlForScript = static function (string $value) use ($extractGithubSlug): string {
-    $trimmed = trim($value);
-    if ($trimmed === '') {
-        return '';
-    }
-
-    if (preg_match('#^https?://#i', $trimmed)) {
-        return $trimmed;
-    }
-
-    if (stripos($trimmed, 'github.com/') === 0) {
-        return 'https://' . ltrim($trimmed, '/');
-    }
-
-    $slug = $extractGithubSlug($trimmed);
-    if ($slug !== null) {
-        return 'https://github.com/' . $slug . '.git';
-    }
-
-    return $trimmed;
-};
-
-$listUpgradeBackups = static function (): array {
-    $backupDir = base_path('backups');
-    if (!is_dir($backupDir)) {
-        return [];
-    }
-
-    $manifests = glob($backupDir . DIRECTORY_SEPARATOR . 'upgrade-*.json');
-    if ($manifests === false) {
-        return [];
-    }
-
-    $backups = [];
-    foreach ($manifests as $manifestPath) {
-        $contents = @file_get_contents($manifestPath);
-        if ($contents === false) {
-            continue;
-        }
-        $data = json_decode($contents, true);
-        if (!is_array($data) || empty($data['timestamp'])) {
-            continue;
-        }
-        $timestamp = (string)$data['timestamp'];
-        $backups[] = [
-            'timestamp' => $timestamp,
-            'status' => (string)($data['status'] ?? 'unknown'),
-            'ref' => (string)($data['ref'] ?? ''),
-            'repo' => (string)($data['repo'] ?? ''),
-            'started_at' => isset($data['started_at']) ? (string)$data['started_at'] : null,
-            'completed_at' => isset($data['completed_at']) ? (string)$data['completed_at'] : null,
-            'manifest_path' => $manifestPath,
-        ];
-    }
-
-    usort($backups, static function (array $a, array $b): int {
-        return strcmp($b['timestamp'], $a['timestamp']);
-    });
-
-    return $backups;
-};
-
-$runSystemUpgradeCommand = static function (array $arguments): array {
-    $phpBinary = PHP_BINARY ?: 'php';
-    $scriptPath = base_path('scripts/system_upgrade.php');
-    if (!is_file($scriptPath)) {
-        throw new RuntimeException('Upgrade script not found at ' . $scriptPath);
-    }
-
-    $command = array_merge([$phpBinary, $scriptPath], $arguments);
-    $descriptorSpec = [
-        0 => ['pipe', 'r'],
-        1 => ['pipe', 'w'],
-        2 => ['pipe', 'w'],
-    ];
-
-    $process = @proc_open($command, $descriptorSpec, $pipes, base_path(''));
-    if (!is_resource($process)) {
-        throw new RuntimeException('Failed to start the upgrade process.');
-    }
-
-    fclose($pipes[0]);
-    $stdout = stream_get_contents($pipes[1]);
-    $stderr = stream_get_contents($pipes[2]);
-    fclose($pipes[1]);
-    fclose($pipes[2]);
-
-    $exitCode = proc_close($process);
-
-    return [
-        'exit_code' => is_int($exitCode) ? $exitCode : 1,
-        'stdout' => $stdout !== false ? $stdout : '',
-        'stderr' => $stderr !== false ? $stderr : '',
-        'command' => $command,
-    ];
-};
-
-$formatCommandForDisplay = static function (array $command): string {
-    if ($command === []) {
-        return '';
-    }
-
-    return implode(' ', array_map(static function ($segment): string {
-        return escapeshellarg((string)$segment);
-    }, $command));
-};
-
-$resolveUpgradeRepo = static function (array $cfg) use ($normalizeUpgradeRepo): string {
-    $configured = $normalizeUpgradeRepo((string)($cfg['upgrade_repo'] ?? ''));
-    if ($configured !== '') {
-        return trim($configured, " \/");
-    }
-    $composerPath = base_path('composer.json');
-    if (is_file($composerPath)) {
-        $composerRaw = file_get_contents($composerPath);
-        if ($composerRaw !== false) {
-            $decoded = json_decode($composerRaw, true);
-            if (is_array($decoded) && !empty($decoded['name']) && is_string($decoded['name'])) {
-                return $normalizeUpgradeRepo(str_replace('\\', '/', $decoded['name']));
-            }
-        }
-    }
-    return 'khoppenworth/HRassessv300';
-};
-
-$fetchLatestRelease = static function (string $repo, ?string $token = null): ?array {
-    $slug = trim($repo);
-    if ($slug === '') {
-        return null;
-    }
-    $slug = preg_replace('#^https?://github\\.com/#i', '', $slug);
-    $slug = trim((string)$slug, '/');
-    if ($slug === '') {
-        return null;
-    }
-    $url = 'https://api.github.com/repos/' . $slug . '/releases/latest';
-    $handle = curl_init($url);
-    if ($handle === false) {
-        throw new RuntimeException('Unable to initialise GitHub release request.');
-    }
-    $headers = [
-        'User-Agent: HRassessUpgrade/1.0',
-        'Accept: application/vnd.github+json',
-    ];
-    if ($token) {
-        $headers[] = 'Authorization: Bearer ' . $token;
-    }
-    curl_setopt_array($handle, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT => 20,
-        CURLOPT_HTTPHEADER => $headers,
-    ]);
-    $response = curl_exec($handle);
-    if ($response === false) {
-        $error = curl_error($handle);
-        curl_close($handle);
-        throw new RuntimeException('GitHub release lookup failed: ' . ($error !== '' ? $error : 'unknown error'));
-    }
-    $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-    curl_close($handle);
-    if ($status >= 400) {
-        throw new RuntimeException('GitHub release lookup returned HTTP ' . $status);
-    }
-    $decoded = json_decode($response, true);
-    if (!is_array($decoded) || empty($decoded['tag_name'])) {
-        throw new RuntimeException('GitHub response did not include a tag_name field.');
-    }
-    return [
-        'tag' => (string)$decoded['tag_name'],
-        'name' => isset($decoded['name']) && $decoded['name'] !== '' ? (string)$decoded['name'] : (string)$decoded['tag_name'],
-        'url' => isset($decoded['html_url']) ? (string)$decoded['html_url'] : null,
-    ];
-};
-
-$currentVersion = '3.0.0';
-$upgradeRepo = $resolveUpgradeRepo($cfg);
+$currentVersion = upgrade_current_version();
+$upgradeRepo = upgrade_effective_source($cfg);
 $upgradeDefaults = [
     'current_version' => $currentVersion,
     'available_version' => null,
@@ -309,7 +73,7 @@ $upgradeDefaults = [
     'upgrade_repo' => $upgradeRepo,
 ];
 $upgradeState = array_replace($upgradeDefaults, $_SESSION['admin_upgrade_state'] ?? []);
-$upgradeState['upgrade_repo'] = $normalizeUpgradeRepo((string)($upgradeState['upgrade_repo'] ?? $upgradeRepo));
+$upgradeState['upgrade_repo'] = upgrade_normalize_source((string)($upgradeState['upgrade_repo'] ?? $upgradeRepo));
 if ($upgradeState['upgrade_repo'] === '') {
     $upgradeState['upgrade_repo'] = $upgradeRepo;
 }
@@ -325,15 +89,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     switch ($action) {
         case 'update_upgrade_repo':
             $rawRepo = (string)($_POST['upgrade_repo'] ?? '');
-            $inputRepo = trim($rawRepo);
-            $normalizedRepo = $normalizeUpgradeRepo($inputRepo);
+            $normalizedRepo = upgrade_normalize_source($rawRepo);
             if ($normalizedRepo === '') {
                 try {
-                    $stmt = $pdo->prepare('INSERT INTO site_config (id, upgrade_repo) VALUES (1, NULL) ON DUPLICATE KEY UPDATE upgrade_repo=VALUES(upgrade_repo)');
-                    $stmt->execute();
+                    upgrade_save_source($pdo, null);
                     $cfg = get_site_config($pdo);
-                    $upgradeRepo = $resolveUpgradeRepo($cfg);
-                    $upgradeState['upgrade_repo'] = $normalizeUpgradeRepo($upgradeRepo);
+                    $upgradeRepo = upgrade_effective_source($cfg);
+                    $upgradeState['upgrade_repo'] = $upgradeRepo;
                     $upgradeState['available_version'] = null;
                     $upgradeState['available_version_label'] = null;
                     $upgradeState['available_version_url'] = null;
@@ -346,17 +108,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 break;
             }
-            if (strpos($normalizedRepo, '/') === false && stripos($normalizedRepo, '://') === false) {
+            if (!upgrade_is_valid_source($normalizedRepo)) {
                 $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid release source such as owner/repository or a Git URL.');
                 $flashType = 'error';
                 break;
             }
             try {
-                $stmt = $pdo->prepare('INSERT INTO site_config (id, upgrade_repo) VALUES (1, ?) ON DUPLICATE KEY UPDATE upgrade_repo=VALUES(upgrade_repo)');
-                $stmt->execute([$normalizedRepo]);
+                upgrade_save_source($pdo, $normalizedRepo);
                 $cfg = get_site_config($pdo);
-                $upgradeRepo = $resolveUpgradeRepo($cfg);
-                $upgradeState['upgrade_repo'] = $normalizeUpgradeRepo($upgradeRepo);
+                $upgradeRepo = upgrade_effective_source($cfg);
+                $upgradeState['upgrade_repo'] = $normalizedRepo;
                 $upgradeState['available_version'] = null;
                 $upgradeState['available_version_label'] = null;
                 $upgradeState['available_version_url'] = null;
@@ -373,8 +134,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upgradeState['last_check'] = time();
             try {
                 $token = trim((string)($cfg['github_token'] ?? getenv('GITHUB_TOKEN') ?? ''));
-                $release = $fetchLatestRelease($upgradeState['upgrade_repo'] ?? $upgradeRepo, $token !== '' ? $token : null);
-                if ($release) {
+                $release = upgrade_fetch_latest_release($upgradeState['upgrade_repo'] ?? $upgradeRepo, $token !== '' ? $token : null);
+                if ($release === null) {
+                    $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid release source such as owner/repository or a Git URL.');
+                    $flashType = 'error';
+                } else {
                     $availableVersion = $release['tag'];
                     $availableLabel = $release['name'];
                     $availableUrl = $release['url'];
@@ -395,9 +159,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $flashMessage = t($t, 'upgrade_latest', 'You are already on the latest version.');
                         $flashType = 'success';
                     }
-                } else {
-                    $flashMessage = t($t, 'upgrade_check_no_release', 'No GitHub releases were found for the configured repository.');
-                    $flashType = 'warning';
                 }
             } catch (Throwable $upgradeCheckError) {
                 error_log('Admin upgrade check failed: ' . $upgradeCheckError->getMessage());
@@ -407,262 +168,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
 
         case 'download_backups':
-            if (!class_exists('ZipArchive')) {
-                $flashMessage = t($t, 'backup_extension_missing', 'The ZipArchive extension is required to generate backups.');
-                $flashType = 'error';
-                break;
-            }
-
-            $backupDir = base_path('assets/backups');
-            if (!is_dir($backupDir) && !mkdir($backupDir, 0755, true) && !is_dir($backupDir)) {
-                $flashMessage = t($t, 'backup_directory_failed', 'Unable to prepare the backup directory.');
-                $flashType = 'error';
-                break;
-            }
-
-            $timestamp = date('Ymd_His');
-            $filename = 'system-backup-' . $timestamp . '.zip';
-            $fullPath = $backupDir . '/' . $filename;
-            $tempFiles = [];
-            $backupGenerated = false;
-
-            $archiveSize = 0;
             try {
-                $zip = new ZipArchive();
-                if ($zip->open($fullPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-                    throw new RuntimeException('Unable to create backup archive.');
-                }
+                $backup = upgrade_create_manual_backup($pdo);
+                $upgradeState['backup_ready'] = true;
+                $upgradeState['last_backup_at'] = time();
+                $upgradeState['last_backup_path'] = $backup['relative_path'];
 
-                $summaryLines = [
-                    'System backup created on ' . date('c'),
-                    'Users: ' . $fetchCount($pdo, 'SELECT COUNT(*) c FROM users'),
-                    'Assessments: ' . $fetchCount($pdo, 'SELECT COUNT(*) c FROM questionnaire_response'),
-                    'Draft responses: ' . $fetchCount($pdo, "SELECT COUNT(*) c FROM questionnaire_response WHERE status='draft'"),
-                ];
-                $zip->addFromString('summary.txt', implode("\n", $summaryLines) . "\n");
+                $_SESSION['admin_upgrade_state'] = $upgradeState;
+                $_SESSION['admin_dashboard_flash'] = t($t, 'backup_ready_message', 'System backup archive created successfully.');
+                $_SESSION['admin_dashboard_flash_type'] = 'success';
 
-                $addJson = static function (ZipArchive $archive, string $name, array $data): void {
-                    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                    if ($json === false) {
-                        throw new RuntimeException('Failed to encode backup data for ' . $name);
-                    }
-                    $archive->addFromString($name, $json . "\n");
-                };
-
-                $configStmt = $pdo->query('SELECT * FROM site_config ORDER BY id');
-                $configRows = $configStmt ? $configStmt->fetchAll(PDO::FETCH_ASSOC) : [];
-                $addJson($zip, 'data/site_config.json', $configRows);
-
-                $usersStmt = $pdo->query('SELECT id, username, role, full_name, email, work_function, account_status, next_assessment_date, first_login_at, created_at FROM users ORDER BY id');
-                $users = [];
-                foreach ($usersStmt ? $usersStmt->fetchAll(PDO::FETCH_ASSOC) : [] as $row) {
-                    unset($row['password']);
-                    $users[] = $row;
-                }
-                $addJson($zip, 'data/users.json', $users);
-
-                $questionnairesStmt = $pdo->query('SELECT id, title, description, created_at FROM questionnaire ORDER BY id');
-                $addJson($zip, 'data/questionnaires.json', $questionnairesStmt ? $questionnairesStmt->fetchAll(PDO::FETCH_ASSOC) : []);
-
-                $itemsStmt = $pdo->query('SELECT id, questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple FROM questionnaire_item ORDER BY questionnaire_id, order_index');
-                $addJson($zip, 'data/questionnaire_items.json', $itemsStmt ? $itemsStmt->fetchAll(PDO::FETCH_ASSOC) : []);
-
-                $responsesStmt = $pdo->query('SELECT id, user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at FROM questionnaire_response ORDER BY id');
-                $addJson($zip, 'data/questionnaire_responses.json', $responsesStmt ? $responsesStmt->fetchAll(PDO::FETCH_ASSOC) : []);
-
-                $responseItemsStmt = $pdo->query('SELECT response_id, linkId, answer FROM questionnaire_response_item ORDER BY response_id, id');
-                $addJson($zip, 'data/questionnaire_response_items.json', $responseItemsStmt ? $responseItemsStmt->fetchAll(PDO::FETCH_ASSOC) : []);
-
-                $databaseDump = '-- Database backup generated ' . date('c') . "\n";
-                try {
-                    $tablesStmt = $pdo->query('SHOW TABLES');
-                    $tables = $tablesStmt ? $tablesStmt->fetchAll(PDO::FETCH_COLUMN) : [];
-                    if ($tables) {
-                        $dumpLines = [];
-                        $dumpLines[] = '-- Database backup generated ' . date('c');
-                        foreach ($tables as $tableName) {
-                            $table = (string)$tableName;
-                            if ($table === '') {
-                                continue;
-                            }
-                            $safeTable = str_replace('`', '``', $table);
-                            $dumpLines[] = '';
-                            $dumpLines[] = 'DROP TABLE IF EXISTS `' . $safeTable . '`;';
-                            $createStmt = $pdo->query('SHOW CREATE TABLE `' . $safeTable . '`');
-                            $createRow = $createStmt ? $createStmt->fetch(PDO::FETCH_ASSOC) : null;
-                            if ($createRow) {
-                                $createSql = $createRow['Create Table'] ?? ($createRow['Create View'] ?? null);
-                                if ($createSql) {
-                                    $dumpLines[] = $createSql . ';';
-                                }
-                            }
-                            $dataStmt = $pdo->query('SELECT * FROM `' . $safeTable . '`');
-                            if ($dataStmt) {
-                                while ($row = $dataStmt->fetch(PDO::FETCH_ASSOC)) {
-                                    $columns = array_map(static function ($column) {
-                                        return '`' . str_replace('`', '``', (string)$column) . '`';
-                                    }, array_keys($row));
-                                    $values = array_map(static function ($value) use ($pdo) {
-                                        if ($value === null) {
-                                            return 'NULL';
-                                        }
-                                        return $pdo->quote((string)$value);
-                                    }, array_values($row));
-                                    $dumpLines[] = sprintf(
-                                        'INSERT INTO `%s` (%s) VALUES (%s);',
-                                        $safeTable,
-                                        implode(', ', $columns),
-                                        implode(', ', $values)
-                                    );
-                                }
-                            }
-                        }
-                        $databaseDump = implode("\n", $dumpLines) . "\n";
-                    } else {
-                        $databaseDump .= "-- No tables were found in the database at the time of backup.\n";
-                    }
-                } catch (Throwable $dumpError) {
-                    error_log('Database backup export failed: ' . $dumpError->getMessage());
-                    $databaseDump .= "-- Failed to export database. Check server logs for details.\n";
-                }
-                $zip->addFromString('database/backup.sql', $databaseDump);
-
-                $uploadsDir = base_path('assets/uploads');
-                if (is_dir($uploadsDir)) {
-                    $iterator = new RecursiveIteratorIterator(
-                        new RecursiveDirectoryIterator($uploadsDir, FilesystemIterator::SKIP_DOTS)
-                    );
-                    foreach ($iterator as $fileInfo) {
-                        if ($fileInfo->isFile()) {
-                            $relative = substr($fileInfo->getPathname(), strlen($uploadsDir) + 1);
-                            $relative = str_replace('\\', '/', $relative);
-                            $zip->addFile($fileInfo->getPathname(), 'uploads/' . $relative);
-                        }
-                    }
-                }
-
-                try {
-                    $appRoot = base_path('');
-                    $tempArchive = tempnam(sys_get_temp_dir(), 'appzip_');
-                    if ($tempArchive === false) {
-                        throw new RuntimeException('Unable to create temporary archive for application backup.');
-                    }
-                    $appArchivePath = $tempArchive . '.zip';
-                    if (!@rename($tempArchive, $appArchivePath)) {
-                        @unlink($tempArchive);
-                        throw new RuntimeException('Unable to prepare archive path for application backup.');
-                    }
-                    $tempFiles[] = $appArchivePath;
-                    $appZip = new ZipArchive();
-                    if ($appZip->open($appArchivePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-                        throw new RuntimeException('Unable to create application archive.');
-                    }
-                    $iterator = new RecursiveIteratorIterator(
-                        new RecursiveDirectoryIterator($appRoot, FilesystemIterator::SKIP_DOTS),
-                        RecursiveIteratorIterator::SELF_FIRST
-                    );
-                    foreach ($iterator as $fileInfo) {
-                        if (!$fileInfo->isFile()) {
-                            continue;
-                        }
-                        $pathName = $fileInfo->getPathname();
-                        if (strpos($pathName, $backupDir) === 0) {
-                            continue;
-                        }
-                        $relative = substr($pathName, strlen($appRoot) + 1);
-                        if ($relative === false) {
-                            continue;
-                        }
-                        $relative = str_replace('\\', '/', $relative);
-                        if ($relative === '' || strpos($relative, '.git/') === 0) {
-                            continue;
-                        }
-                        if (strpos($relative, 'assets/backups/') === 0 || strpos($relative, 'backups/') === 0) {
-                            continue;
-                        }
-                        $appZip->addFile($pathName, $relative);
-                    }
-                    $appZip->close();
-                    $zip->addFile($appArchivePath, 'application.zip');
-                } catch (Throwable $archiveError) {
-                    if (isset($appZip) && $appZip instanceof ZipArchive) {
-                        $appZip->close();
-                    }
-                    error_log('Application archive export failed: ' . $archiveError->getMessage());
-                }
-
-                $closeResult = $zip->close();
-                if ($closeResult !== true) {
-                    throw new RuntimeException('Failed to finalise the backup archive.');
-                }
-                clearstatcache(true, $fullPath);
-                $archiveSize = filesize($fullPath);
-                if ($archiveSize === false || $archiveSize <= 0) {
-                    throw new RuntimeException('The generated backup archive is empty.');
-                }
-                $backupGenerated = true;
+                upgrade_stream_download($backup['absolute_path'], $backup['filename'], $backup['size']);
+                exit;
             } catch (Throwable $backupError) {
-                if (isset($zip) && $zip instanceof ZipArchive) {
-                    $zip->close();
-                }
-                if (is_file($fullPath)) {
-                    @unlink($fullPath);
-                }
                 error_log('Admin backup failed: ' . $backupError->getMessage());
                 $flashMessage = t($t, 'backup_failed', 'Unable to generate the backup archive.');
                 $flashType = 'error';
             }
-
-            foreach ($tempFiles as $tempFile) {
-                if (is_string($tempFile) && is_file($tempFile)) {
-                    @unlink($tempFile);
-                }
-            }
-
-            if (!$backupGenerated) {
-                break;
-            }
-
-            $upgradeState['backup_ready'] = true;
-            $upgradeState['last_backup_at'] = time();
-            $upgradeState['last_backup_path'] = 'assets/backups/' . $filename;
-
-            $_SESSION['admin_upgrade_state'] = $upgradeState;
-            $_SESSION['admin_dashboard_flash'] = t($t, 'backup_ready_message', 'System backup archive created successfully.');
-            $_SESSION['admin_dashboard_flash_type'] = 'success';
-
-            session_write_close();
-            header('Content-Type: application/zip');
-            header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
-            header('Content-Length: ' . (string)$archiveSize);
-            header('Cache-Control: private, max-age=0');
-            readfile($fullPath);
-            exit;
+            break;
 
         case 'install_upgrade':
-            $repoForUpgrade = $normalizeUpgradeRepo($upgradeState['upgrade_repo'] ?? $upgradeRepo);
-            if ($repoForUpgrade === '' || strpos($repoForUpgrade, '/') === false) {
-                $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid GitHub owner/repository slug.');
+            $repoForUpgrade = upgrade_normalize_source($upgradeState['upgrade_repo'] ?? $upgradeRepo);
+            if ($repoForUpgrade === '' || !upgrade_is_valid_source($repoForUpgrade)) {
+                $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid release source such as owner/repository or a Git URL.');
                 $flashType = 'error';
                 break;
             }
-            $repoUrl = $buildRepoUrlForScript($repoForUpgrade);
-            if ($repoUrl === '') {
-                $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid GitHub owner/repository slug.');
+            $repoArg = upgrade_repository_argument($repoForUpgrade);
+            if ($repoArg === '') {
+                $flashMessage = t($t, 'upgrade_repo_invalid', 'Enter a valid release source such as owner/repository or a Git URL.');
                 $flashType = 'error';
                 break;
             }
-            $arguments = ['--action=upgrade', '--repo=' . $repoUrl, '--latest-release'];
+            $arguments = ['--action=upgrade', '--repo=' . $repoArg, '--latest-release'];
             $commandForLog = array_merge([PHP_BINARY ?: 'php', base_path('scripts/system_upgrade.php')], $arguments);
             if (function_exists('set_time_limit')) {
                 @set_time_limit(0);
             }
             try {
-                $result = $runSystemUpgradeCommand($arguments);
+                $result = upgrade_run_cli($arguments);
                 $_SESSION['admin_upgrade_log'] = [
                     'type' => 'upgrade',
                     'timestamp' => time(),
-                    'command' => $formatCommandForDisplay($result['command']),
+                    'command' => upgrade_format_command($result['command']),
                     'stdout' => trim((string)$result['stdout']),
                     'stderr' => trim((string)$result['stderr']),
                     'exit_code' => $result['exit_code'],
@@ -686,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['admin_upgrade_log'] = [
                     'type' => 'upgrade',
                     'timestamp' => time(),
-                    'command' => $formatCommandForDisplay($commandForLog),
+                    'command' => upgrade_format_command($commandForLog),
                     'stdout' => '',
                     'stderr' => $upgradeError->getMessage(),
                     'exit_code' => -1,
@@ -728,11 +276,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 @set_time_limit(0);
             }
             try {
-                $result = $runSystemUpgradeCommand($arguments);
+                $result = upgrade_run_cli($arguments);
                 $_SESSION['admin_upgrade_log'] = [
                     'type' => 'restore',
                     'timestamp' => time(),
-                    'command' => $formatCommandForDisplay($result['command']),
+                    'command' => upgrade_format_command($result['command']),
                     'stdout' => trim((string)$result['stdout']),
                     'stderr' => trim((string)$result['stderr']),
                     'exit_code' => $result['exit_code'],
@@ -752,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['admin_upgrade_log'] = [
                     'type' => 'restore',
                     'timestamp' => time(),
-                    'command' => $formatCommandForDisplay($restoreCommandForLog),
+                    'command' => upgrade_format_command($restoreCommandForLog),
                     'stdout' => '',
                     'stderr' => $restoreError->getMessage(),
                     'exit_code' => -1,
@@ -780,7 +328,8 @@ $_SESSION['admin_upgrade_state'] = $upgradeState;
 $upgradeLog = $_SESSION['admin_upgrade_log'] ?? null;
 unset($_SESSION['admin_upgrade_log']);
 
-$upgradeBackups = $listUpgradeBackups();
+$upgradeBackups = upgrade_list_backups();
+
 
 $users = $fetchCount($pdo, 'SELECT COUNT(*) c FROM users');
 $activeUsers = $fetchCount($pdo, "SELECT COUNT(*) c FROM users WHERE account_status='active'");
@@ -819,11 +368,13 @@ $lastBackupDisplay = !empty($upgradeState['last_backup_at']) ? date('M j, Y g:i 
 $backupDownloadUrl = !empty($upgradeState['last_backup_path']) ? asset_url($upgradeState['last_backup_path']) : null;
 $upgradeRepoDisplay = $upgradeState['upgrade_repo'] ?? $upgradeRepo;
 $upgradeRepoLink = '';
-$repoSlugForLink = $extractGithubSlug($upgradeRepoDisplay);
-if ($repoSlugForLink !== null) {
-    $upgradeRepoLink = 'https://github.com/' . $repoSlugForLink;
-} elseif (is_string($upgradeRepoDisplay) && preg_match('#^https?://#i', (string)$upgradeRepoDisplay)) {
+if (is_string($upgradeRepoDisplay) && preg_match('#^https?://#i', (string)$upgradeRepoDisplay)) {
     $upgradeRepoLink = (string)$upgradeRepoDisplay;
+} else {
+    $repoSlugForLink = upgrade_extract_slug((string)$upgradeRepoDisplay);
+    if ($repoSlugForLink !== null) {
+        $upgradeRepoLink = 'https://github.com/' . $repoSlugForLink;
+    }
 }
 $selectedBackupId = $upgradeBackups[0]['timestamp'] ?? '';
 ?>
@@ -914,9 +465,9 @@ $selectedBackupId = $upgradeBackups[0]['timestamp'] ?? '';
       <input type="hidden" name="action" value="update_upgrade_repo">
       <label class="md-field">
         <span><?=t($t,'upgrade_repo_label','Release source')?></span>
-        <input type="text" name="upgrade_repo" value="<?=htmlspecialchars((string)$upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>" placeholder="owner/repository">
+        <input type="text" name="upgrade_repo" value="<?=htmlspecialchars((string)$upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>" placeholder="https://github.com/owner/repository" class="md-upgrade-source-input" inputmode="url" spellcheck="false" autocapitalize="none" autocomplete="off">
       </label>
-      <p class="md-upgrade-meta"><?=t($t,'upgrade_repo_hint','Specify the GitHub owner/repository slug used to check for releases (for example, khoppenworth/HRassessv300).')?></p>
+      <p class="md-upgrade-meta"><?=t($t,'upgrade_repo_hint','Specify the GitHub repository slug or a full HTTPS Git URL used to check for releases (for example, https://github.com/khoppenworth/HRassessv300).')?></p>
       <button type="submit" class="md-button md-outline md-compact"><?=t($t,'save_upgrade_source','Save source')?></button>
     </form>
     <div class="md-upgrade-actions">
