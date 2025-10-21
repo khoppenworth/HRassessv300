@@ -226,6 +226,13 @@ function analytics_report_render_pdf(array $snapshot, array $cfg): string
         );
     }
 
+    $pdf->addSubheading('Sign-off');
+    $pdf->addParagraph('Please review this report and acknowledge completion with the signatures below.');
+    $pdf->addSignatureFields([
+        ['Staff name', 'Staff signature'],
+        ['Supervisor name', 'Supervisor signature'],
+    ]);
+
     return $pdf->output();
 }
 
@@ -425,11 +432,12 @@ function analytics_report_generate_placeholder_logo(array $cfg): ?array
 
 function analytics_report_logo_display_dimensions(int $pixelWidth, int $pixelHeight): array
 {
-    $maxWidth = 140.0;
-    $maxHeight = 72.0;
-    $minWidth = 72.0;
-    $displayWidth = max(1, $pixelWidth) * 0.35;
-    $displayHeight = max(1, $pixelHeight) * 0.35;
+    $maxWidth = 220.0;
+    $maxHeight = 120.0;
+    $minWidth = 90.0;
+    $scale = 0.75;
+    $displayWidth = max(1, $pixelWidth) * $scale;
+    $displayHeight = max(1, $pixelHeight) * $scale;
 
     if ($displayWidth > $maxWidth) {
         $scale = $maxWidth / $displayWidth;

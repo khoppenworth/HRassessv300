@@ -131,6 +131,62 @@ class SimplePdfDocument
         $this->addSpacer(4.0);
     }
 
+    public function addSignatureFields(array $rows): void
+    {
+        $labelFontSize = 10.0;
+        $rowHeight = $labelFontSize + 28.0;
+        $columnSpacing = 28.0;
+        $minimumLineLength = 90.0;
+
+        $rendered = false;
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $labels = [];
+            foreach ($row as $label) {
+                $text = trim((string)$label);
+                if ($text !== '') {
+                    $labels[] = $text;
+                }
+            }
+
+            if ($labels === []) {
+                continue;
+            }
+
+            $this->ensureSpace($rowHeight);
+            $baselineY = $this->cursorY;
+            $availableWidth = $this->width - $this->marginLeft - $this->marginRight;
+            $columns = count($labels);
+            $lineWidth = $columns > 0
+                ? ($availableWidth - $columnSpacing * max(0, $columns - 1)) / $columns
+                : $availableWidth;
+            $lineWidth = max($minimumLineLength, min($lineWidth, 230.0));
+
+            $x = $this->marginLeft;
+            foreach ($labels as $label) {
+                $this->drawText($label, 'F1', $labelFontSize, $x, $baselineY);
+
+                $lineY = $baselineY - ($labelFontSize + 6.0);
+                $lineStartX = $x;
+                $lineEndX = min($lineStartX + $lineWidth, $this->width - $this->marginRight);
+                $this->drawLine($lineStartX, $lineY, $lineEndX, $lineY, 0.6);
+
+                $x = $lineEndX + $columnSpacing;
+            }
+
+            $this->cursorY = $baselineY - $rowHeight;
+            $rendered = true;
+        }
+
+        if ($rendered) {
+            $this->cursorY -= 4.0;
+        }
+    }
+
     public function addSpacer(float $points): void
     {
         $this->cursorY -= $points;
@@ -414,15 +470,145 @@ class SimplePdfDocument
 
     private function wrapText(string $text, float $fontSize): array
     {
-        $normalized = preg_replace("/\s+/u", ' ', trim($text));
+        $normalized = preg_replace('/\s+/u', ' ', trim($text));
         if ($normalized === '') {
             return [''];
         }
-        $availableWidth = $this->width - $this->marginLeft - $this->marginRight;
-        $avgCharWidth = max(0.1, $fontSize * 0.55);
-        $maxChars = max(10, (int)floor($availableWidth / $avgCharWidth));
-        $wrapped = wordwrap($normalized, $maxChars, "\n", true);
-        return explode("\n", $wrapped);
+
+        $availableWidth = $this->width - $this->marginLeft - $this->marginRight - 4.0;
+        if ($availableWidth <= 0.0) {
+            return [$normalized];
+        }
+
+        $words = preg_split('/\s+/u', $normalized);
+        if (!is_array($words)) {
+            $words = [$normalized];
+        }
+
+        $spaceWidth = $this->estimateTextWidth(' ', $fontSize);
+        $lines = [];
+        $currentLine = '';
+        $currentWidth = 0.0;
+
+        foreach ($words as $word) {
+            if ($word === '') {
+                continue;
+            }
+
+            $segments = $this->segmentWordToFit($word, $availableWidth, $fontSize);
+            foreach ($segments as $index => $segment) {
+                $segmentWidth = $this->estimateTextWidth($segment, $fontSize);
+
+                if ($currentLine === '') {
+                    $currentLine = $segment;
+                    $currentWidth = $segmentWidth;
+                    continue;
+                }
+
+                $requiresSpace = ($index === 0);
+                $candidateWidth = $currentWidth + ($requiresSpace ? $spaceWidth : 0.0) + $segmentWidth;
+
+                if ($requiresSpace && $candidateWidth <= $availableWidth) {
+                    $currentLine .= ' ' . $segment;
+                    $currentWidth = $candidateWidth;
+                } else {
+                    $lines[] = $currentLine;
+                    $currentLine = $segment;
+                    $currentWidth = $segmentWidth;
+                }
+            }
+        }
+
+        if ($currentLine !== '') {
+            $lines[] = $currentLine;
+        }
+
+        return $lines ?: [''];
+    }
+
+    private function segmentWordToFit(string $word, float $availableWidth, float $fontSize): array
+    {
+        $wordWidth = $this->estimateTextWidth($word, $fontSize);
+        if ($wordWidth <= $availableWidth) {
+            return [$word];
+        }
+
+        $characters = $this->utf8Characters($word);
+        if ($characters === []) {
+            return [$word];
+        }
+
+        $segments = [];
+        $current = '';
+        $currentWidth = 0.0;
+
+        foreach ($characters as $char) {
+            $charWidth = $this->characterWidth($char, $fontSize);
+            if ($current !== '' && $currentWidth + $charWidth > $availableWidth) {
+                $segments[] = $current;
+                $current = $char;
+                $currentWidth = $charWidth;
+                continue;
+            }
+
+            $current .= $char;
+            $currentWidth += $charWidth;
+        }
+
+        if ($current !== '') {
+            $segments[] = $current;
+        }
+
+        return $segments ?: [$word];
+    }
+
+    private function estimateTextWidth(string $text, float $fontSize): float
+    {
+        if ($text === '') {
+            return 0.0;
+        }
+
+        $width = 0.0;
+        foreach ($this->utf8Characters($text) as $char) {
+            $width += $this->characterWidth($char, $fontSize);
+        }
+
+        return max($width, $fontSize * 0.5);
+    }
+
+    private function characterWidth(string $char, float $fontSize): float
+    {
+        if ($char === ' ') {
+            return $fontSize * 0.32;
+        }
+
+        if (preg_match("/[ilI1!\\.,:'`]/u", $char)) {
+            return $fontSize * 0.36;
+        }
+
+        if (preg_match('/[mwMW@#%&0-9]/u', $char)) {
+            return $fontSize * 0.72;
+        }
+
+        if (preg_match('/\p{Lu}/u', $char)) {
+            return $fontSize * 0.64;
+        }
+
+        return $fontSize * 0.55;
+    }
+
+    private function utf8Characters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if (is_array($characters)) {
+            return $characters;
+        }
+
+        return str_split($text);
     }
 
     private function lineHeight(float $fontSize, float $multiplier): float
