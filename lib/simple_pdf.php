@@ -14,10 +14,95 @@ class SimplePdfDocument
     private array $pages = [];
     private array $currentOps = [];
     private bool $pageOpen = false;
+    private array $imageResources = [];
+    private int $imageCounter = 0;
+    private ?array $headerConfig = null;
+    private float $headerSpacing = 0.0;
 
     public function __construct()
     {
-        $this->startNewPage();
+        $this->cursorY = 0.0;
+    }
+
+    public function registerImageResource(
+        string $data,
+        int $pixelWidth,
+        int $pixelHeight,
+        string $filter,
+        string $colorSpace,
+        int $bitsPerComponent
+    ): string {
+        $name = 'Im' . (++$this->imageCounter);
+        $this->imageResources[$name] = [
+            'data' => $data,
+            'width' => max(1, $pixelWidth),
+            'height' => max(1, $pixelHeight),
+            'filter' => $filter,
+            'colorSpace' => $colorSpace,
+            'bits' => max(1, $bitsPerComponent),
+        ];
+
+        return $name;
+    }
+
+    public function registerJpegImage(string $data, int $pixelWidth, int $pixelHeight): string
+    {
+        return $this->registerImageResource($data, $pixelWidth, $pixelHeight, 'DCTDecode', '/DeviceRGB', 8);
+    }
+
+    public function setHeader(?string $title, ?string $subtitle = null, ?array $imageSpec = null): void
+    {
+        $normalizedTitle = $this->normalizeHeaderText($title);
+        $normalizedSubtitle = $this->normalizeHeaderText($subtitle);
+        $image = null;
+
+        if (is_array($imageSpec) && isset($imageSpec['name'], $imageSpec['width'], $imageSpec['height'])) {
+            $image = [
+                'name' => (string)$imageSpec['name'],
+                'width' => max(0.0, (float)$imageSpec['width']),
+                'height' => max(0.0, (float)$imageSpec['height']),
+            ];
+        }
+
+        if ($normalizedTitle === null && $normalizedSubtitle === null && $image === null) {
+            $this->headerConfig = null;
+            $this->headerSpacing = 0.0;
+            return;
+        }
+
+        $titleFontSize = 16.0;
+        $subtitleFontSize = 11.0;
+        $lineGap = 4.0;
+        $topPadding = 8.0;
+        $bottomPadding = 12.0;
+        $textGap = $image !== null ? 12.0 : 0.0;
+
+        $textHeight = 0.0;
+        if ($normalizedTitle !== null) {
+            $textHeight += $titleFontSize;
+        }
+        if ($normalizedSubtitle !== null) {
+            if ($textHeight > 0.0) {
+                $textHeight += $lineGap;
+            }
+            $textHeight += $subtitleFontSize;
+        }
+
+        $imageHeight = $image['height'] ?? 0.0;
+        $contentHeight = max($textHeight, $imageHeight);
+        $this->headerSpacing = $topPadding + $contentHeight + $bottomPadding;
+
+        $this->headerConfig = [
+            'title' => $normalizedTitle,
+            'subtitle' => $normalizedSubtitle,
+            'title_font_size' => $titleFontSize,
+            'subtitle_font_size' => $subtitleFontSize,
+            'line_gap' => $lineGap,
+            'top_padding' => $topPadding,
+            'bottom_padding' => $bottomPadding,
+            'text_gap' => $textGap,
+            'image' => $image,
+        ];
     }
 
     public function addHeading(string $text): void
@@ -92,14 +177,40 @@ class SimplePdfDocument
         $pageReferences = [];
         $objectIndex = 6; // reserve 1-5 for catalog, pages, fonts
 
+        $imageReferences = [];
+        foreach ($this->imageResources as $name => $image) {
+            $stream = '<< '
+                . '/Type /XObject '
+                . '/Subtype /Image '
+                . '/Width ' . max(1, (int)$image['width']) . ' '
+                . '/Height ' . max(1, (int)$image['height']) . ' '
+                . '/ColorSpace ' . $image['colorSpace'] . ' '
+                . '/BitsPerComponent ' . max(1, (int)$image['bits']) . ' '
+                . '/Filter /' . $image['filter'] . ' '
+                . '/Length ' . strlen($image['data']) . " >>\nstream\n"
+                . $image['data'] . 'endstream';
+            $objNum = $objectIndex++;
+            $objects[$objNum] = $stream;
+            $imageReferences[$name] = $objNum;
+        }
+
         foreach ($this->pages as $ops) {
             $content = implode("\n", $ops) . "\n";
             $contentObjNum = $objectIndex++;
             $objects[$contentObjNum] = '<< /Length ' . strlen($content) . " >>\nstream\n" . $content . "endstream";
             $pageObjNum = $objectIndex++;
             $pageReferences[] = $pageObjNum;
+            $resources = '/Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >>';
+            if ($imageReferences !== []) {
+                $resources .= ' /XObject <<';
+                foreach ($imageReferences as $resourceName => $ref) {
+                    $resources .= ' /' . $resourceName . ' ' . $ref . ' 0 R';
+                }
+                $resources .= ' >>';
+            }
+            $resources .= ' >> ';
             $pageObject = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' . $this->formatFloat($this->width) . ' ' . $this->formatFloat($this->height) . '] '
-                . '/Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> '
+                . $resources
                 . '/Contents ' . $contentObjNum . ' 0 R >>';
             $objects[$pageObjNum] = $pageObject;
         }
@@ -168,8 +279,9 @@ class SimplePdfDocument
             $this->pages[] = $this->currentOps;
         }
         $this->currentOps = [];
-        $this->cursorY = $this->height - $this->marginTop;
         $this->pageOpen = true;
+        $this->cursorY = $this->height - $this->marginTop;
+        $this->renderHeader();
     }
 
     private function ensureSpace(float $lineHeight): void
@@ -193,6 +305,111 @@ class SimplePdfDocument
         $x = $this->marginLeft;
         $y = $this->cursorY;
         $this->currentOps[] = sprintf('BT /F3 %.2f Tf 1 0 0 1 %.2f %.2f Tm (%s) Tj ET', $fontSize, $x, $y, $escaped);
+    }
+
+    private function drawText(string $text, string $fontKey, float $fontSize, float $x, float $y): void
+    {
+        $escaped = $this->escapeText($text);
+        $this->currentOps[] = sprintf(
+            'BT /%s %s Tf 1 0 0 1 %s %s Tm (%s) Tj ET',
+            $fontKey,
+            $this->formatFloat($fontSize),
+            $this->formatFloat($x),
+            $this->formatFloat($y),
+            $escaped
+        );
+    }
+
+    private function drawImage(string $name, float $x, float $y, float $width, float $height): void
+    {
+        if (!isset($this->imageResources[$name]) || $width <= 0.0 || $height <= 0.0) {
+            return;
+        }
+
+        $this->currentOps[] = sprintf(
+            'q %s 0 0 %s %s %s cm /%s Do Q',
+            $this->formatFloat($width),
+            $this->formatFloat($height),
+            $this->formatFloat($x),
+            $this->formatFloat($y),
+            $name
+        );
+    }
+
+    private function drawLine(float $startX, float $startY, float $endX, float $endY, float $lineWidth = 1.0): void
+    {
+        $this->currentOps[] = sprintf(
+            'q %s w %s %s m %s %s l S Q',
+            $this->formatFloat($lineWidth),
+            $this->formatFloat($startX),
+            $this->formatFloat($startY),
+            $this->formatFloat($endX),
+            $this->formatFloat($endY)
+        );
+    }
+
+    private function renderHeader(): void
+    {
+        $topY = $this->height - $this->marginTop;
+        if ($this->headerConfig === null) {
+            $this->cursorY = $topY;
+            return;
+        }
+
+        $config = $this->headerConfig;
+        $image = $config['image'] ?? null;
+        $textX = $this->marginLeft;
+        $imageHeight = 0.0;
+
+        if (is_array($image) && $image['width'] > 0.0 && $image['height'] > 0.0) {
+            $imageX = $this->marginLeft;
+            $imageY = $topY - $image['height'];
+            $this->drawImage($image['name'], $imageX, $imageY, $image['width'], $image['height']);
+            $textX += $image['width'] + $config['text_gap'];
+            $imageHeight = $image['height'];
+        } else {
+            $textX += $config['text_gap'];
+        }
+
+        $currentTop = $topY - $config['top_padding'];
+        if ($config['title'] !== null) {
+            $currentTop -= $config['title_font_size'];
+            $this->drawText($config['title'], 'F2', $config['title_font_size'], $textX, $currentTop);
+            $currentTop -= $config['line_gap'];
+        }
+
+        if ($config['subtitle'] !== null) {
+            $currentTop -= $config['subtitle_font_size'];
+            $this->drawText($config['subtitle'], 'F1', $config['subtitle_font_size'], $textX, $currentTop);
+        }
+
+        $ruleY = $topY - $this->headerSpacing + 2.0;
+        if ($imageHeight > 0.0 || $config['title'] !== null || $config['subtitle'] !== null) {
+            $this->drawLine(
+                $this->marginLeft,
+                $ruleY,
+                $this->width - $this->marginRight,
+                $ruleY,
+                0.6
+            );
+        }
+
+        $this->cursorY = $topY - $this->headerSpacing;
+    }
+
+    private function normalizeHeaderText(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = preg_replace('/\s+/u', ' ', $value);
+        $trimmed = trim($normalized ?? '');
+        if ($trimmed === '') {
+            return null;
+        }
+
+        return $trimmed;
     }
 
     private function wrapText(string $text, float $fontSize): array
