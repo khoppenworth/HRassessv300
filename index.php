@@ -15,12 +15,51 @@ $siteName = htmlspecialchars($cfg['site_name'] ?? 'My Performance', ENT_QUOTES, 
 $landingText = htmlspecialchars($cfg['landing_text'] ?? '', ENT_QUOTES, 'UTF-8');
 $address = htmlspecialchars($cfg['address'] ?? '', ENT_QUOTES, 'UTF-8');
 $contact = htmlspecialchars($cfg['contact'] ?? '', ENT_QUOTES, 'UTF-8');
-$bodyClass = htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8');
+$bodyClass = trim(htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8') . ' landing-body');
 $bodyStyle = htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8');
 $brandStyle = site_brand_style($cfg);
 $baseUrl = htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8');
 $langAttr = htmlspecialchars($locale, ENT_QUOTES, 'UTF-8');
 $loginUrl = htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8');
+$heroSubtitle = $landingText !== ''
+    ? $landingText
+    : htmlspecialchars(t(
+        $t,
+        'landing_intro',
+        "Welcome to the performance management portal. Discover resources and updates about your organisation's assessment program."
+    ), ENT_QUOTES, 'UTF-8');
+
+$primaryCta = htmlspecialchars(t($t, 'sign_in', 'Sign In'), ENT_QUOTES, 'UTF-8');
+$secondaryCta = htmlspecialchars(t($t, 'login_now', 'Go to secure login'), ENT_QUOTES, 'UTF-8');
+$addressLabel = htmlspecialchars(t($t, 'address_label', 'Address'), ENT_QUOTES, 'UTF-8');
+$contactLabel = htmlspecialchars(t($t, 'contact_label', 'Contact'), ENT_QUOTES, 'UTF-8');
+
+$featureItems = [
+    [
+        'title' => htmlspecialchars(t($t, 'feature_insights_title', 'Actionable insights'), ENT_QUOTES, 'UTF-8'),
+        'description' => htmlspecialchars(t(
+            $t,
+            'feature_insights_body',
+            'Understand progress at a glance with dashboards tailored to your role and priorities.'
+        ), ENT_QUOTES, 'UTF-8'),
+    ],
+    [
+        'title' => htmlspecialchars(t($t, 'feature_collaboration_title', 'Collaborative reviews'), ENT_QUOTES, 'UTF-8'),
+        'description' => htmlspecialchars(t(
+            $t,
+            'feature_collaboration_body',
+            'Coordinate assessments with managers and peers through guided workflows and reminders.'
+        ), ENT_QUOTES, 'UTF-8'),
+    ],
+    [
+        'title' => htmlspecialchars(t($t, 'feature_growth_title', 'Continuous growth'), ENT_QUOTES, 'UTF-8'),
+        'description' => htmlspecialchars(t(
+            $t,
+            'feature_growth_body',
+            'Empower your teams with curated learning paths, development goals, and timely recognition.'
+        ), ENT_QUOTES, 'UTF-8'),
+    ],
+];
 ?>
 <!doctype html>
 <html lang="<?= $langAttr ?>" data-base-url="<?= $baseUrl ?>">
@@ -32,42 +71,82 @@ $loginUrl = htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8');
   <link rel="manifest" href="<?= asset_url('manifest.php') ?>">
   <link rel="stylesheet" href="<?= asset_url('assets/css/material.css') ?>">
   <link rel="stylesheet" href="<?= asset_url('assets/css/styles.css') ?>">
+  <link rel="stylesheet" href="<?= asset_url('assets/css/landing.css') ?>">
   <?php if ($brandStyle !== ''): ?>
     <style id="md-brand-style"><?= htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8') ?></style>
   <?php endif; ?>
 </head>
 <body class="<?= $bodyClass ?>" style="<?= $bodyStyle ?>">
   <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
-  <div class="md-container">
-    <div class="md-card md-elev-3 md-login">
-      <div class="md-card-media">
-        <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="md-logo">
-        <h1 class="md-title"><?= $siteName ?></h1>
+  <div class="landing-page">
+    <header class="landing-hero">
+      <div class="landing-hero__background" role="presentation"></div>
+      <div class="landing-hero__content">
+        <div class="landing-brand">
+          <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="landing-brand__logo">
+          <span class="landing-brand__name"><?= $siteName ?></span>
+        </div>
+        <h1 class="landing-hero__title"><?= htmlspecialchars(t($t, 'landing_title', 'Performance that powers people'), ENT_QUOTES, 'UTF-8') ?></h1>
+        <p class="landing-hero__subtitle"><?= $heroSubtitle ?></p>
+        <div class="landing-hero__actions">
+          <a class="landing-button landing-button--primary" href="<?= $loginUrl ?>">
+            <?= $primaryCta ?>
+          </a>
+          <a class="landing-button landing-button--ghost" href="<?= $loginUrl ?>">
+            <?= $secondaryCta ?>
+          </a>
+        </div>
       </div>
-
-      <?php if ($landingText !== ''): ?>
-        <p class="md-subtitle"><?= $landingText ?></p>
-      <?php else: ?>
-        <p class="md-subtitle"><?= t($t, 'landing_intro', 'Welcome to the performance management portal. Discover resources and updates about your organisation\'s assessment program.') ?></p>
-      <?php endif; ?>
-
-      <div class="md-form-actions md-form-actions--center md-login-actions">
-        <a class="md-button md-primary md-elev-2" href="<?= $loginUrl ?>">
-          <?= t($t, 'sign_in', 'Sign In') ?>
-        </a>
+      <div class="landing-hero__card" aria-label="<?= htmlspecialchars(t($t, 'landing_snapshot_label', 'Snapshot of platform highlights'), ENT_QUOTES, 'UTF-8') ?>">
+        <div class="landing-hero__card-body">
+          <p class="landing-hero__card-title"><?= htmlspecialchars(t($t, 'landing_card_title', 'Designed for modern HR teams'), ENT_QUOTES, 'UTF-8') ?></p>
+          <ul class="landing-hero__list">
+            <li><?= htmlspecialchars(t($t, 'landing_card_point_one', 'Assess workforce readiness with confidence'), ENT_QUOTES, 'UTF-8') ?></li>
+            <li><?= htmlspecialchars(t($t, 'landing_card_point_two', 'Track completion rates and feedback in real time'), ENT_QUOTES, 'UTF-8') ?></li>
+            <li><?= htmlspecialchars(t($t, 'landing_card_point_three', 'Celebrate achievements with automated kudos'), ENT_QUOTES, 'UTF-8') ?></li>
+          </ul>
+        </div>
       </div>
+    </header>
 
-      <div class="md-meta">
+    <main class="landing-main" aria-labelledby="features-heading">
+      <section class="landing-section landing-section--features">
+        <div class="landing-section__header">
+          <h2 id="features-heading"><?= htmlspecialchars(t($t, 'features_heading', 'What sets the experience apart'), ENT_QUOTES, 'UTF-8') ?></h2>
+          <p><?= htmlspecialchars(t($t, 'features_subheading', 'Every element of the portal is crafted to elevate employee growth and organisational performance.'), ENT_QUOTES, 'UTF-8') ?></p>
+        </div>
+        <div class="landing-features">
+          <?php foreach ($featureItems as $feature): ?>
+            <article class="landing-feature-card">
+              <h3><?= $feature['title'] ?></h3>
+              <p><?= $feature['description'] ?></p>
+            </article>
+          <?php endforeach; ?>
+        </div>
+      </section>
+
+      <section class="landing-section landing-section--cta" aria-labelledby="cta-heading">
+        <div class="landing-section__content">
+          <h2 id="cta-heading"><?= htmlspecialchars(t($t, 'cta_heading', 'Bring clarity to every assessment journey'), ENT_QUOTES, 'UTF-8') ?></h2>
+          <p><?= htmlspecialchars(t($t, 'cta_body', 'Streamline evaluations, boost engagement, and guide meaningful conversations with a platform trusted by leading organisations.'), ENT_QUOTES, 'UTF-8') ?></p>
+          <a class="landing-button landing-button--accent" href="<?= $loginUrl ?>">
+            <?= htmlspecialchars(t($t, 'cta_button', 'Enter the portal'), ENT_QUOTES, 'UTF-8') ?>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="landing-footer">
+      <div class="landing-footer__contact" aria-label="<?= htmlspecialchars(t($t, 'contact_details_label', 'Contact details'), ENT_QUOTES, 'UTF-8') ?>">
         <?php if ($address !== ''): ?>
-          <div class="md-small"><strong><?= t($t, 'address_label', 'Address') ?>:</strong> <?= $address ?></div>
+          <div><strong><?= $addressLabel ?>:</strong> <?= $address ?></div>
         <?php endif; ?>
         <?php if ($contact !== ''): ?>
-          <div class="md-small"><strong><?= t($t, 'contact_label', 'Contact') ?>:</strong> <?= $contact ?></div>
+          <div><strong><?= $contactLabel ?>:</strong> <?= $contact ?></div>
         <?php endif; ?>
-        <div class="md-small">
-          <a href="<?= $loginUrl ?>"><?= t($t, 'login_now', 'Go to secure login') ?></a>
-        </div>
-        <div class="md-small lang-switch">
+      </div>
+      <div class="landing-footer__meta">
+        <div class="landing-footer__languages" aria-label="<?= htmlspecialchars(t($t, 'language_switch_label', 'Change language'), ENT_QUOTES, 'UTF-8') ?>">
           <?php
           $links = [];
           foreach ($availableLocales as $loc) {
@@ -78,8 +157,11 @@ $loginUrl = htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8');
           echo implode(' · ', $links);
           ?>
         </div>
+        <div class="landing-footer__secondary-link">
+          <a href="<?= $loginUrl ?>"><?= $secondaryCta ?></a>
+        </div>
       </div>
-    </div>
+    </footer>
   </div>
 
   <script nonce="<?= htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8') ?>">
