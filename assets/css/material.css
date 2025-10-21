@@ -476,12 +476,37 @@ body.md-bg {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  position: relative;
+  background: var(--md-bg);
+  isolation: isolate;
+}
+
+.md-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--md-primary) 20%, transparent) 0%, transparent 68%),
+    radial-gradient(85% 85% at 100% 100%, color-mix(in srgb, var(--md-accent) 16%, transparent) 0%, transparent 70%);
+  opacity: 0.6;
+  z-index: 0;
 }
 
 .md-login {
   max-width: 460px;
   width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.md-card.md-login {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  overflow: visible;
 }
 
 .md-card-media {
@@ -553,10 +578,15 @@ body.md-bg {
   display: flex;
   flex-direction: column;
   background: var(--md-surface);
+  border-radius: var(--md-radius);
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border: 1px solid color-mix(in srgb, var(--app-border) 65%, transparent);
+  box-shadow: 0 32px 60px var(--app-shadow-soft);
 }
 
 .md-login-panel {
-  padding: 2rem 1.75rem;
+  padding: clamp(2rem, 4vw, 2.75rem) clamp(1.75rem, 4vw, 3rem);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -566,8 +596,26 @@ body.md-bg {
 .md-login-panel--brand {
   align-items: center;
   text-align: center;
-  background: var(--app-surface-alt, rgba(255, 255, 255, 0.6));
-  border-bottom: 1px solid var(--app-border, rgba(148, 163, 184, 0.35));
+  background: linear-gradient(140deg, var(--md-primary-dark), var(--md-primary));
+  color: var(--md-on-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid color-mix(in srgb, var(--md-on-primary) 10%, transparent);
+}
+
+.md-login-panel--brand .md-title,
+.md-login-panel--brand .md-login-tagline {
+  color: inherit;
+}
+
+.md-login-panel--brand .md-login-tagline {
+  opacity: 0.85;
+  margin: 0;
+  max-width: 24rem;
+  text-align: inherit;
+}
+
+.md-login-panel--brand .md-logo {
+  filter: drop-shadow(0 12px 28px rgba(15, 23, 42, 0.35));
 }
 
 .md-login-panel--form {
@@ -687,12 +735,16 @@ body.md-bg {
   .md-login--split .md-login-panel--brand {
     flex: 0 0 320px;
     border-bottom: 0;
-    border-right: 1px solid var(--app-border, rgba(148, 163, 184, 0.35));
+    border-right: 1px solid rgba(255, 255, 255, 0.18);
+    border-right: 1px solid color-mix(in srgb, var(--md-on-primary) 12%, transparent);
+    align-items: flex-start;
+    text-align: left;
+    padding-right: clamp(2rem, 4vw, 3.25rem);
   }
 
   .md-login--split .md-login-panel,
   .md-login--split .md-login-panel--form {
-    padding: 2.75rem 3rem;
+    padding: clamp(2.5rem, 4vw, 3rem) clamp(2.5rem, 4vw, 3.5rem);
   }
 }
 
