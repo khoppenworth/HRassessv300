@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Fetch items with weights
-            $itemsStmt = $pdo->prepare('SELECT id, linkId, type, allow_multiple, COALESCE(weight_percent,0) AS weight_percent, is_required FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC');
+            $itemsStmt = $pdo->prepare('SELECT id, linkId, type, allow_multiple, weight_percent, is_required FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC');
             $itemsStmt->execute([$qid]);
             $items = $itemsStmt->fetchAll();
 
@@ -98,12 +98,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $missingRequired = [];
             foreach ($items as $it) {
                 $name = 'item_' . $it['linkId'];
-                $weight = (float)$it['weight_percent'];
+                $rawWeight = array_key_exists('weight_percent', $it) ? $it['weight_percent'] : null;
+                $hasExplicitWeight = $rawWeight !== null && $rawWeight !== '';
+                $weight = $hasExplicitWeight ? max(0.0, (float)$rawWeight) : null;
                 $type = (string)($it['type'] ?? '');
                 $isScorable = !in_array($type, $nonScorableTypes, true);
-                $effectiveWeight = $weight > 0 ? $weight : 1.0;
                 if (!$isScorable) {
                     $effectiveWeight = 0.0;
+                } elseif ($hasExplicitWeight) {
+                    $effectiveWeight = $weight;
+                } else {
+                    $effectiveWeight = 1.0;
                 }
                 $achievedPoints = 0.0;
                 $a = json_encode([]);
