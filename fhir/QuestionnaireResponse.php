@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $rid = (int)$pdo->lastInsertId();
 
     // Calculate weighted score
-    $items_meta = $pdo->prepare("SELECT linkId, type, COALESCE(weight_percent,0) AS weight FROM questionnaire_item WHERE questionnaire_id=?");
+    $items_meta = $pdo->prepare("SELECT linkId, type, weight_percent AS weight FROM questionnaire_item WHERE questionnaire_id=?");
     $items_meta->execute([$qid]);
     $meta = [];
     foreach ($items_meta as $m) { $meta[$m['linkId']] = $m; }
@@ -62,11 +62,19 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 
       $metaRow = $meta[$lid] ?? null;
       $type = is_array($metaRow) ? (string)($metaRow['type'] ?? '') : '';
-      $weight = is_array($metaRow) ? (float)$metaRow['weight'] : 0.0;
+      $rawWeight = null;
+      if (is_array($metaRow) && array_key_exists('weight', $metaRow)) {
+        $rawWeight = $metaRow['weight'];
+      }
+      $hasExplicitWeight = $rawWeight !== null && $rawWeight !== '';
+      $weight = $hasExplicitWeight ? max(0.0, (float)$rawWeight) : null;
       $isScorable = !in_array($type, $nonScorableTypes, true);
-      $effectiveWeight = $weight > 0 ? $weight : 1.0;
       if (!$isScorable) {
         $effectiveWeight = 0.0;
+      } elseif ($hasExplicitWeight) {
+        $effectiveWeight = $weight;
+      } else {
+        $effectiveWeight = 1.0;
       }
       $achievedPoints = 0.0;
 
