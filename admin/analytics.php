@@ -1130,6 +1130,32 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
 
     let chartLoaderPromise = null;
 
+    const parseMajorVersion = (chartLib) => {
+      if (!chartLib || !chartLib.version) {
+        return 0;
+      }
+      const versionStr = String(chartLib.version);
+      const majorPart = versionStr.split('.')[0];
+      const parsed = Number.parseInt(majorPart, 10);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+
+    const createChartInstance = (chartLib, context, config) => {
+      if (!chartLib || !context) {
+        return null;
+      }
+      if (typeof chartLib === 'function') {
+        return new chartLib(context, config);
+      }
+      if (chartLib.Chart && typeof chartLib.Chart === 'function') {
+        return new chartLib.Chart(context, config);
+      }
+      if (chartLib.default && typeof chartLib.default === 'function') {
+        return new chartLib.default(context, config);
+      }
+      return null;
+    };
+
     const ensureChartLibrary = () => {
       if (window.Chart) {
         return Promise.resolve(window.Chart);
@@ -1181,7 +1207,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
-    function renderHeatmap(chartLib, targetId, dataset, options = {}) {
+    function renderHeatmap(chartLib, targetId, dataset, renderOptions = {}) {
       if (!dataset || !Array.isArray(dataset.labels) || !dataset.labels.length) {
         return;
       }
@@ -1196,24 +1222,34 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       const scores = dataset.scores.map((score) => (typeof score === 'number' ? score : 0));
       const colors = scores.map((score) => heatColor(score, 0.8));
       const borderColors = scores.map((score) => heatColor(score, 1));
-      const counts = dataset.counts || [];
-      new chartLib(canvas, {
-        type: 'bar',
-        data: {
-          labels: dataset.labels,
-          datasets: [{
-            data: scores,
-            backgroundColor: colors,
-            borderColor: borderColors,
-            borderWidth: 1.5,
-            borderRadius: 6,
-            barPercentage: 0.75,
-          }],
-        },
-        options: {
+      const counts = Array.isArray(dataset.counts) ? dataset.counts : [];
+      const orientation = renderOptions.indexAxis === 'x' ? 'x' : 'y';
+      const valueAxisKey = orientation === 'y' ? 'x' : 'y';
+      const major = parseMajorVersion(chartLib);
+      const isModern = major >= 3;
+
+      const formatTooltip = (label, value, count) => {
+        const numericValue = typeof value === 'number' ? value : Number.parseFloat(value);
+        const valueText = Number.isFinite(numericValue) ? numericValue.toFixed(1) : value;
+        const countText = typeof count === 'number' ? ` · ${count} ${labels.responses}` : '';
+        return `${label}: ${valueText}%${countText}`;
+      };
+
+      const datasetConfig = {
+        data: scores,
+        backgroundColor: colors,
+        borderColor: borderColors,
+        borderWidth: 1.5,
+        barPercentage: 0.75,
+      };
+
+      let chartConfig;
+      if (isModern) {
+        datasetConfig.borderRadius = 6;
+        const chartOptions = {
           responsive: true,
           maintainAspectRatio: false,
-          indexAxis: options.indexAxis || 'y',
+          indexAxis: orientation,
           scales: {
             x: {
               beginAtZero: true,
@@ -1222,7 +1258,6 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
                 callback: (value) => `${value}%`,
               },
               grid: { color: 'rgba(17, 56, 94, 0.08)' },
-              title: options.indexAxis === 'y' ? { display: true, text: labels.averageScore } : undefined,
             },
             y: {
               ticks: { autoSkip: false },
@@ -1234,16 +1269,92 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
             tooltip: {
               callbacks: {
                 label: (context) => {
-                  const value = typeof context.parsed.x === 'number' ? context.parsed.x.toFixed(1) : context.parsed.x;
+                  const parsed = context.parsed || {};
+                  const value = parsed[valueAxisKey];
                   const count = counts[context.dataIndex];
-                  const countText = typeof count === 'number' ? ` · ${count} ${labels.responses}` : '';
-                  return `${context.label}: ${value}%${countText}`;
+                  return formatTooltip(context.label || '', value, count);
                 },
               },
             },
           },
-        },
-      });
+        };
+
+        if (orientation === 'y') {
+          chartOptions.scales.x.title = { display: true, text: labels.averageScore };
+        } else {
+          chartOptions.scales.y = {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: (value) => `${value}%`,
+            },
+            grid: { color: 'rgba(17, 56, 94, 0.08)' },
+            title: { display: true, text: labels.averageScore },
+          };
+          chartOptions.scales.x = {
+            ticks: { autoSkip: false },
+            grid: { display: false },
+          };
+        }
+
+        chartConfig = {
+          type: 'bar',
+          data: {
+            labels: dataset.labels,
+            datasets: [datasetConfig],
+          },
+          options: chartOptions,
+        };
+      } else {
+        const tooltipLegacy = (tooltipItem, data) => {
+          const itemLabel = tooltipItem.label || (data.labels && data.labels[tooltipItem.index]) || '';
+          const rawValue = orientation === 'y' ? tooltipItem.xLabel : tooltipItem.yLabel;
+          const count = counts[tooltipItem.index];
+          return formatTooltip(itemLabel, rawValue, count);
+        };
+
+        const valueScale = {
+          ticks: {
+            beginAtZero: true,
+            max: 100,
+            callback: (value) => `${value}%`,
+          },
+          gridLines: { color: 'rgba(17, 56, 94, 0.08)' },
+          scaleLabel: { display: true, labelString: labels.averageScore },
+        };
+
+        const categoryScale = {
+          ticks: { autoSkip: false },
+          gridLines: { display: false },
+        };
+
+        const scales = orientation === 'y'
+          ? { xAxes: [valueScale], yAxes: [categoryScale] }
+          : { xAxes: [categoryScale], yAxes: [valueScale] };
+
+        chartConfig = {
+          type: orientation === 'y' ? 'horizontalBar' : 'bar',
+          data: {
+            labels: dataset.labels,
+            datasets: [datasetConfig],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            legend: { display: false },
+            tooltips: {
+              callbacks: {
+                label: tooltipLegacy,
+              },
+            },
+            scales,
+          },
+        };
+      }
+
+      canvas.width = canvas.clientWidth || canvas.width;
+      canvas.height = canvas.clientHeight || canvas.height;
+      createChartInstance(chartLib, context, chartConfig);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
