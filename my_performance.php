@@ -282,7 +282,22 @@ $belowThreshold = array_values(array_filter($rows, static function ($row) {
 
 $chartLabels = [];
 $chartScores = [];
-foreach ($rows as $row) {
+$timelineRows = $rows;
+usort($timelineRows, static function (array $a, array $b): int {
+    $aTime = isset($a['created_at']) ? strtotime((string)$a['created_at']) : false;
+    $bTime = isset($b['created_at']) ? strtotime((string)$b['created_at']) : false;
+    if ($aTime === $bTime) {
+        return (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
+    }
+    if ($aTime === false) {
+        return -1;
+    }
+    if ($bTime === false) {
+        return 1;
+    }
+    return $aTime <=> $bTime;
+});
+foreach ($timelineRows as $row) {
     $chartLabels[] = date('Y-m-d', strtotime($row['created_at'])) . ' · ' . $row['period_label'];
     $chartScores[] = $row['score'] !== null ? (int)$row['score'] : null;
 }
