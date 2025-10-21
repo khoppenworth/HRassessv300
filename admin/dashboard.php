@@ -329,7 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $normalizedRepo = $normalizeUpgradeRepo($inputRepo);
             if ($normalizedRepo === '') {
                 try {
-                    $stmt = $pdo->prepare('UPDATE site_config SET upgrade_repo=NULL WHERE id=1');
+                    $stmt = $pdo->prepare('INSERT INTO site_config (id, upgrade_repo) VALUES (1, NULL) ON DUPLICATE KEY UPDATE upgrade_repo=VALUES(upgrade_repo)');
                     $stmt->execute();
                     $cfg = get_site_config($pdo);
                     $upgradeRepo = $resolveUpgradeRepo($cfg);
@@ -352,7 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
             try {
-                $stmt = $pdo->prepare('UPDATE site_config SET upgrade_repo=? WHERE id=1');
+                $stmt = $pdo->prepare('INSERT INTO site_config (id, upgrade_repo) VALUES (1, ?) ON DUPLICATE KEY UPDATE upgrade_repo=VALUES(upgrade_repo)');
                 $stmt->execute([$normalizedRepo]);
                 $cfg = get_site_config($pdo);
                 $upgradeRepo = $resolveUpgradeRepo($cfg);
@@ -408,14 +408,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         case 'download_backups':
             if (!class_exists('ZipArchive')) {
-                $flashMessage = t($t, 'backup_failed', 'The ZipArchive extension is required to generate backups.');
+                $flashMessage = t($t, 'backup_extension_missing', 'The ZipArchive extension is required to generate backups.');
                 $flashType = 'error';
                 break;
             }
 
             $backupDir = base_path('assets/backups');
             if (!is_dir($backupDir) && !mkdir($backupDir, 0755, true) && !is_dir($backupDir)) {
-                $flashMessage = t($t, 'backup_failed', 'Unable to prepare the backup directory.');
+                $flashMessage = t($t, 'backup_directory_failed', 'Unable to prepare the backup directory.');
                 $flashType = 'error';
                 break;
             }
@@ -923,7 +923,7 @@ $selectedBackupId = $upgradeBackups[0]['timestamp'] ?? '';
       <form method="post">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="action" value="check_upgrade">
-        <button type="submit" class="md-button md-outline md-elev-1"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
+        <button type="submit" class="md-button md-elev-1"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
       </form>
       <form method="post">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
