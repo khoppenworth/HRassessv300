@@ -707,6 +707,7 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
       };
       const storagePrefix = 'hrassess:assessment';
       let pendingSubmit = false;
+      let lastSubmitAction = null;
 
       const getStorageKey = () => {
         const qid = qidField && qidField.value ? qidField.value : 'unknown';
@@ -725,6 +726,44 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
       } else {
         assessmentForm.appendChild(offlineStatus);
       }
+
+      const submitControls = Array.from(assessmentForm.querySelectorAll('button[type="submit"], input[type="submit"]'));
+
+      const captureSubmitAction = (control) => {
+        if (!control) {
+          return;
+        }
+        const remember = () => {
+          if (control.name === 'action') {
+            lastSubmitAction = control.value || null;
+          } else {
+            lastSubmitAction = null;
+          }
+        };
+        control.addEventListener('click', remember);
+        control.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+            remember();
+          }
+        });
+      };
+
+      submitControls.forEach(captureSubmitAction);
+
+      const resolveSubmitAction = (event) => {
+        if (event && event.submitter && event.submitter.name === 'action') {
+          return event.submitter.value || null;
+        }
+        if (lastSubmitAction !== null) {
+          return lastSubmitAction;
+        }
+        const active = document.activeElement;
+        if (active && active.form === assessmentForm && active.name === 'action') {
+          return active.value || null;
+        }
+        const defaultSubmit = submitControls.find((control) => control.name === 'action');
+        return defaultSubmit ? (defaultSubmit.value || null) : null;
+      };
 
       const formatTimestamp = (value) => {
         if (!value) {
@@ -897,17 +936,23 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
       }
 
       assessmentForm.addEventListener('submit', (event) => {
+        const submitAction = resolveSubmitAction(event);
+        lastSubmitAction = null;
+        const isFinalSubmit = submitAction === 'submit_final';
+
         if (!isAppOnline()) {
           event.preventDefault();
-          pendingSubmit = true;
+          pendingSubmit = isFinalSubmit;
           persistDraft();
         } else {
-          pendingSubmit = false;
+          pendingSubmit = isFinalSubmit;
           persistDraft();
-          clearDraft();
-          offlineStatus.dataset.state = '';
-          offlineStatus.textContent = '';
-          offlineStatus.hidden = true;
+          if (isFinalSubmit) {
+            clearDraft();
+            offlineStatus.dataset.state = '';
+            offlineStatus.textContent = '';
+            offlineStatus.hidden = true;
+          }
         }
       });
 

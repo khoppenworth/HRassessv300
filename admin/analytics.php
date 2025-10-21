@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../lib/analytics_report.php';
-auth_required(['admin']);
+auth_required(['admin', 'supervisor']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
 $locale = ensure_locale();
@@ -10,6 +10,17 @@ $cfg = get_site_config($pdo);
 
 $reportMessage = '';
 $reportError = '';
+
+if (isset($_SESSION['analytics_report_flash']) && is_array($_SESSION['analytics_report_flash'])) {
+    $flash = $_SESSION['analytics_report_flash'];
+    unset($_SESSION['analytics_report_flash']);
+    if ($reportMessage === '' && !empty($flash['message'])) {
+        $reportMessage = (string)$flash['message'];
+    }
+    if ($reportError === '' && !empty($flash['error'])) {
+        $reportError = (string)$flash['error'];
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -185,6 +196,52 @@ $selectedUserBreakdown = [];
 $sectionColumns = [];
 $sectionScoresByResponse = [];
 $sectionAggregates = [];
+
+$downloadUrlFor = static function (array $params = []): string {
+    $path = 'admin/analytics_download.php';
+    if ($params) {
+        $path .= '?' . http_build_query($params);
+    }
+    return url_for($path);
+};
+
+$defaultReportDownloads = [
+    [
+        'title' => t($t, 'analytics_download_summary', 'Overall summary report'),
+        'description' => t($t, 'analytics_download_summary_hint', 'Includes total responses, averages, and questionnaire performance.'),
+        'url' => $downloadUrlFor([]),
+    ],
+    [
+        'title' => t($t, 'analytics_download_summary_details', 'Summary with top contributors'),
+        'description' => t($t, 'analytics_download_summary_details_hint', 'Adds the leading contributors for the busiest questionnaire.'),
+        'url' => $downloadUrlFor(['include_details' => 1]),
+    ],
+];
+
+foreach ($questionnaires as $qRow) {
+    $qid = (int)($qRow['id'] ?? 0);
+    if ($qid <= 0) {
+        continue;
+    }
+    $rawTitle = trim((string)($qRow['title'] ?? ''));
+    $displayTitle = $rawTitle !== '' ? $rawTitle : t($t, 'questionnaire', 'Questionnaire');
+    $displayTitleForFormat = str_replace('%', '%%', $displayTitle);
+    $defaultReportDownloads[] = [
+        'title' => sprintf(
+            t($t, 'analytics_download_questionnaire_title', 'Questionnaire report: %s'),
+            $displayTitleForFormat
+        ),
+        'description' => t(
+            $t,
+            'analytics_download_questionnaire_hint',
+            'Detailed breakdown for this questionnaire, including top contributors.'
+        ),
+        'url' => $downloadUrlFor([
+            'questionnaire_id' => $qid,
+            'include_details' => 1,
+        ]),
+    ];
+}
 if ($selectedQuestionnaireId) {
     $responseStmt = $pdo->prepare(
         'SELECT qr.id, qr.status, qr.score, qr.created_at, qr.review_comment, '
@@ -557,6 +614,34 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       margin-bottom: 1rem;
     }
+    .md-download-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      margin: 0.5rem 0 1rem;
+    }
+    .md-download-card {
+      padding: 1rem;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 6px;
+      background: var(--app-surface, #fff);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-height: 100%;
+    }
+    .md-download-card h3 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+    .md-download-card p {
+      margin: 0;
+      color: var(--app-text-secondary, #555);
+      flex: 1 1 auto;
+    }
+    .md-download-card .md-button {
+      align-self: flex-start;
+    }
     .md-report-grid textarea {
       min-height: 80px;
     }
@@ -630,6 +715,21 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
     <?php if (!empty($summary['latest_at'])): ?>
       <p class="md-analytics-meta"><?=t($t, 'latest_submission', 'Latest submission:')?> <?=htmlspecialchars($summary['latest_at'], ENT_QUOTES, 'UTF-8')?></p>
     <?php endif; ?>
+  </div>
+
+  <div class="md-card md-elev-2">
+    <h2 class="md-card-title"><?=t($t, 'analytics_download_reports', 'Download default reports')?></h2>
+    <p><?=t($t, 'analytics_download_reports_hint', 'Quickly download PDF snapshots for offline sharing.')?></p>
+    <div class="md-download-grid">
+      <?php foreach ($defaultReportDownloads as $download): ?>
+        <div class="md-download-card">
+          <h3><?=htmlspecialchars($download['title'], ENT_QUOTES, 'UTF-8')?></h3>
+          <p><?=htmlspecialchars($download['description'], ENT_QUOTES, 'UTF-8')?></p>
+          <a class="md-button md-primary md-elev-1" href="<?=htmlspecialchars($download['url'], ENT_QUOTES, 'UTF-8')?>">
+            <?=t($t, 'analytics_download_button', 'Download PDF')?></a>
+        </div>
+      <?php endforeach; ?>
+    </div>
   </div>
 
   <div class="md-card md-elev-2">
@@ -1018,6 +1118,36 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       responses: <?=json_encode(t($t, 'count', 'Responses'), $chartJsonFlags)?>,
     };
 
+    const baseUrlAttr = document.documentElement.getAttribute('data-base-url') || '';
+    const fallbackChartSrc = (function () {
+      const trimmed = baseUrlAttr.replace(/\/+$/u, '');
+      const assetPath = 'assets/adminlte/plugins/chart.js/Chart.min.js';
+      if (!trimmed) {
+        return assetPath;
+      }
+      return `${trimmed}/${assetPath}`;
+    })();
+
+    let chartLoaderPromise = null;
+
+    const ensureChartLibrary = () => {
+      if (window.Chart) {
+        return Promise.resolve(window.Chart);
+      }
+      if (chartLoaderPromise) {
+        return chartLoaderPromise;
+      }
+      chartLoaderPromise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = fallbackChartSrc;
+        script.async = true;
+        script.onload = () => resolve(window.Chart || null);
+        script.onerror = () => resolve(null);
+        document.head.appendChild(script);
+      });
+      return chartLoaderPromise;
+    };
+
     const heatStops = [
       { stop: 0, color: [211, 47, 47] },
       { stop: 0.5, color: [249, 168, 37] },
@@ -1051,7 +1181,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
-    function renderHeatmap(targetId, dataset, options = {}) {
+    function renderHeatmap(chartLib, targetId, dataset, options = {}) {
       if (!dataset || !Array.isArray(dataset.labels) || !dataset.labels.length) {
         return;
       }
@@ -1067,7 +1197,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
       const colors = scores.map((score) => heatColor(score, 0.8));
       const borderColors = scores.map((score) => heatColor(score, 1));
       const counts = dataset.counts || [];
-      new Chart(canvas, {
+      new chartLib(canvas, {
         type: 'bar',
         data: {
           labels: dataset.labels,
@@ -1117,15 +1247,17 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      if (!window.Chart) {
-        return;
-      }
-      if (questionnaireHeatmap.labels && questionnaireHeatmap.labels.length) {
-        renderHeatmap('questionnaire-performance-heatmap', questionnaireHeatmap, { indexAxis: 'y' });
-      }
-      if (workFunctionHeatmap.labels && workFunctionHeatmap.labels.length) {
-        renderHeatmap('work-function-heatmap', workFunctionHeatmap, { indexAxis: 'y' });
-      }
+      ensureChartLibrary().then((chartLib) => {
+        if (!chartLib) {
+          return;
+        }
+        if (questionnaireHeatmap.labels && questionnaireHeatmap.labels.length) {
+          renderHeatmap(chartLib, 'questionnaire-performance-heatmap', questionnaireHeatmap, { indexAxis: 'y' });
+        }
+        if (workFunctionHeatmap.labels && workFunctionHeatmap.labels.length) {
+          renderHeatmap(chartLib, 'work-function-heatmap', workFunctionHeatmap, { indexAxis: 'y' });
+        }
+      });
     });
   })();
 </script>
