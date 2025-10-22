@@ -3,10 +3,150 @@ declare(strict_types=1);
 
 const ADMIN_UPGRADE_DEFAULT_REPO = 'khoppenworth/HRassessv300';
 const ADMIN_UPGRADE_MANIFEST_PREFIX = 'upgrade-';
+const ADMIN_UPGRADE_VERSION_FILE = 'backups/installed-release.json';
+const ADMIN_UPGRADE_MANUAL_BACKUP_DIR = 'backups/manual';
 
 function upgrade_current_version(): string
 {
+    $info = upgrade_current_release_info();
+    if ($info !== null && !empty($info['label'])) {
+        return (string)$info['label'];
+    }
+
     return '3.0.0';
+}
+
+function upgrade_current_release_info(): ?array
+{
+    $versionPath = base_path(ADMIN_UPGRADE_VERSION_FILE);
+    if (is_file($versionPath)) {
+        $contents = @file_get_contents($versionPath);
+        if ($contents !== false) {
+            $data = json_decode($contents, true);
+            if (is_array($data)) {
+                $tag = trim((string)($data['tag'] ?? ''));
+                $label = trim((string)($data['name'] ?? ''));
+                $installedAt = isset($data['installed_at']) && $data['installed_at'] !== ''
+                    ? (string)$data['installed_at']
+                    : null;
+                $repo = isset($data['repo']) && $data['repo'] !== ''
+                    ? (string)$data['repo']
+                    : null;
+                $url = isset($data['url']) && $data['url'] !== ''
+                    ? (string)$data['url']
+                    : null;
+                if ($tag !== '' || $label !== '') {
+                    return [
+                        'tag' => $tag !== '' ? $tag : null,
+                        'label' => $label !== '' ? $label : ($tag !== '' ? $tag : null),
+                        'installed_at' => $installedAt,
+                        'repo' => $repo,
+                        'url' => $url,
+                    ];
+                }
+            }
+        }
+    }
+
+    foreach (upgrade_list_backups() as $backup) {
+        if (($backup['status'] ?? '') !== 'success') {
+            continue;
+        }
+        $tag = trim((string)($backup['ref'] ?? ''));
+        $label = trim((string)($backup['version_label'] ?? ''));
+        $url = isset($backup['release_url']) && $backup['release_url'] !== ''
+            ? (string)$backup['release_url']
+            : null;
+        if ($tag !== '' || $label !== '') {
+            return [
+                'tag' => $tag !== '' ? $tag : null,
+                'label' => $label !== '' ? $label : ($tag !== '' ? $tag : null),
+                'installed_at' => isset($backup['completed_at']) ? (string)$backup['completed_at'] : null,
+                'repo' => isset($backup['repo']) ? (string)$backup['repo'] : null,
+                'url' => $url,
+            ];
+        }
+    }
+
+    return null;
+}
+
+function upgrade_store_installed_release(array $release): void
+{
+    $tag = trim((string)($release['tag'] ?? ''));
+    $label = trim((string)($release['name'] ?? ''));
+    if ($tag === '' && $label === '') {
+        return;
+    }
+
+    $payload = [
+        'tag' => $tag,
+        'name' => $label,
+        'repo' => isset($release['repo']) ? (string)$release['repo'] : null,
+        'url' => isset($release['url']) ? (string)$release['url'] : null,
+        'installed_at' => isset($release['installed_at']) && $release['installed_at'] !== ''
+            ? (string)$release['installed_at']
+            : date(DATE_ATOM),
+    ];
+
+    $target = base_path(ADMIN_UPGRADE_VERSION_FILE);
+    $dir = dirname($target);
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        throw new RuntimeException('Unable to create directory for installed release metadata.');
+    }
+
+    $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    if ($json === false) {
+        throw new RuntimeException('Unable to encode installed release metadata.');
+    }
+
+    if (file_put_contents($target, $json . "\n") === false) {
+        throw new RuntimeException('Unable to write installed release metadata.');
+    }
+}
+
+function upgrade_normalize_version_string(string $value): string
+{
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    $normalized = preg_replace('/^v(?=\d)/i', '', $trimmed);
+    if (is_string($normalized) && $normalized !== '') {
+        return $normalized;
+    }
+
+    return $trimmed;
+}
+
+function upgrade_release_is_newer(string $candidate, ?string $currentTag, ?string $currentLabel = null): bool
+{
+    $candidateNormalized = upgrade_normalize_version_string($candidate);
+    if ($candidateNormalized === '') {
+        return false;
+    }
+
+    $baseline = null;
+    if ($currentTag !== null && $currentTag !== '') {
+        $baseline = upgrade_normalize_version_string($currentTag);
+    } elseif ($currentLabel !== null && $currentLabel !== '') {
+        $baseline = upgrade_normalize_version_string($currentLabel);
+    }
+
+    if ($baseline === null || $baseline === '') {
+        return true;
+    }
+
+    $semverPattern = '/^[0-9]+(?:\.[0-9]+)*(?:[-+][0-9A-Za-z.-]+)?$/';
+    $candidateIsSemver = preg_match($semverPattern, $candidateNormalized) === 1;
+    $baselineIsSemver = preg_match($semverPattern, $baseline) === 1;
+
+    if ($candidateIsSemver && $baselineIsSemver) {
+        return version_compare($candidateNormalized, $baseline, '>');
+    }
+
+    return strcasecmp($candidateNormalized, $baseline) !== 0;
 }
 
 function upgrade_normalize_source(string $value): string
@@ -214,6 +354,8 @@ function upgrade_list_backups(): array
             'status' => (string)($data['status'] ?? 'unknown'),
             'ref' => (string)($data['ref'] ?? ''),
             'repo' => (string)($data['repo'] ?? ''),
+            'version_label' => (string)($data['version_label'] ?? ''),
+            'release_url' => (string)($data['release_url'] ?? ''),
             'started_at' => isset($data['started_at']) ? (string)$data['started_at'] : null,
             'completed_at' => isset($data['completed_at']) ? (string)$data['completed_at'] : null,
             'manifest_path' => $manifestPath,
@@ -358,13 +500,33 @@ function upgrade_export_database(PDO $pdo): string
     return implode("\n", $lines) . "\n";
 }
 
+function upgrade_manual_backup_directory(): string
+{
+    return base_path(ADMIN_UPGRADE_MANUAL_BACKUP_DIR);
+}
+
+function upgrade_resolve_manual_backup_path(string $filename): ?string
+{
+    $normalized = trim(str_replace(['\\', "\0"], '/', $filename), '/');
+    if ($normalized === '' || strpos($normalized, '..') !== false) {
+        return null;
+    }
+
+    $sanitized = basename($normalized);
+    if ($sanitized === '') {
+        return null;
+    }
+
+    return upgrade_manual_backup_directory() . DIRECTORY_SEPARATOR . $sanitized;
+}
+
 function upgrade_create_manual_backup(PDO $pdo): array
 {
     if (!class_exists('ZipArchive')) {
         throw new RuntimeException('The ZipArchive extension is required to generate backups.');
     }
 
-    $backupDir = base_path('assets/backups');
+    $backupDir = upgrade_manual_backup_directory();
     if (!is_dir($backupDir) && !mkdir($backupDir, 0755, true) && !is_dir($backupDir)) {
         throw new RuntimeException('Unable to prepare the backup directory.');
     }
@@ -519,7 +681,7 @@ function upgrade_create_manual_backup(PDO $pdo): array
     return [
         'filename' => $filename,
         'absolute_path' => $fullPath,
-        'relative_path' => 'assets/backups/' . $filename,
+        'relative_path' => $filename,
         'size' => (int)$archiveSize,
     ];
 }

@@ -2017,19 +2017,19 @@ body.theme-dark .md-button.md-primary {
 
 @media (min-width: 768px) {
   .md-upgrade-config {
-    max-width: 720px;
+    max-width: 100%;
   }
 }
 
 .md-upgrade-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 0.75rem;
 }
 
 .md-upgrade-meta {
   font-size: 0.85rem;
-  color: var(--app-muted-light);
+  color: var(--app-on-surface-muted);
+  line-height: 1.5;
 }
 
 .md-status-badge {
@@ -2068,6 +2068,108 @@ body.theme-dark .md-button.md-primary {
   text-decoration: none;
 }
 
+.md-button-block {
+  width: 100%;
+  justify-content: center;
+}
+
+.md-upgrade-header {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-bottom: 1.5rem;
+}
+
+.md-upgrade-item {
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border);
+  border-radius: 18px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  box-shadow: 0 12px 28px rgba(31, 42, 68, 0.08);
+}
+
+.md-upgrade-item-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+}
+
+.md-upgrade-item-value {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--app-on-surface-strong);
+}
+
+.md-upgrade-tag {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--app-primary-soft);
+  color: var(--app-primary-dark);
+  font-weight: 600;
+}
+
+.md-upgrade-link {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.md-upgrade-link:hover,
+.md-upgrade-link:focus {
+  text-decoration: none;
+}
+
+.md-upgrade-grid {
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (min-width: 900px) {
+  .md-upgrade-grid {
+    grid-template-columns: minmax(260px, 1.1fr) minmax(220px, 1fr);
+  }
+}
+
+.md-upgrade-panel {
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border);
+  border-radius: 18px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 16px 32px rgba(31, 42, 68, 0.08);
+}
+
+.md-upgrade-panel-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--app-on-surface-strong);
+}
+
+.md-upgrade-field-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--app-on-surface-muted);
+  margin-bottom: 0.35rem;
+}
+
+.md-upgrade-config {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 .md-upgrade-actions form {
-  display: inline-flex;
+  display: flex;
 }

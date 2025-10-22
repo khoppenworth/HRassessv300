@@ -384,6 +384,8 @@
   "upgrade_failed": "The upgrade could not be completed. Review the logs and database permissions, then try again.",
   "upgrade_hint": "Ensure a recent backup has been downloaded before applying upgrades.",
   "upgrade_hint_script": "Le script de mise à jour crée automatiquement des sauvegardes avant d'appliquer les modifications. Téléchargez des sauvegardes manuelles lorsque vous avez besoin d'une copie supplémentaire.",
+  "upgrade_actions_heading": "Actions de mise à jour",
+  "upgrade_installed_at": "Installé le %s",
   "upgrade_latest": "You are already on the latest version.",
   "upgrade_command_success": "La commande de mise à jour s'est terminée avec succès. Consultez les journaux pour plus de détails.",
   "upgrade_command_failed": "La commande de mise à jour a retourné un code de sortie non nul. Consultez le journal pour plus de détails.",

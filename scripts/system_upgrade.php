@@ -8,6 +8,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/upgrade.php';
 
 const BACKUP_MANIFEST_PREFIX = 'upgrade-';
 
@@ -92,14 +93,13 @@ function handleUpgrade(array $options, string $appPath, string $backupDir, array
 
     info('Starting upgrade process at ' . $timestamp);
 
-    ensureCommandAvailable('mysqldump');
-    ensureCommandAvailable('mysql');
-
     $repo = $repo !== '' ? $repo : inferRepositoryFromGit($appPath);
 
     $dbConfig = getDatabaseConfig();
-
-    $resolvedRef = resolveTargetReference($repo, $ref, $latestRelease);
+    $target = resolveTargetReference($repo, $ref, $latestRelease);
+    $resolvedRef = $target['ref'];
+    $resolvedLabel = $target['label'];
+    $resolvedUrl = $target['url'];
     info(sprintf('Using repository %s at reference %s', $repo, $resolvedRef));
 
     $manifest = [
@@ -107,6 +107,8 @@ function handleUpgrade(array $options, string $appPath, string $backupDir, array
         'timestamp' => $timestamp,
         'repo' => $repo,
         'ref' => $resolvedRef,
+        'version_label' => $resolvedLabel,
+        'release_url' => $resolvedUrl,
         'status' => 'pending',
         'started_at' => date(DATE_ATOM),
         'preserve' => $preservePaths,
@@ -122,8 +124,15 @@ function handleUpgrade(array $options, string $appPath, string $backupDir, array
         info('Snapshot stored at ' . $snapshot);
 
         info('Backing up application database...');
-        $dbBackup = backupDatabase($dbConfig, $backupDir, $timestamp);
+        $cliAvailable = commandAvailable('mysqldump') && commandAvailable('mysql');
+        if (!$cliAvailable) {
+            info('mysqldump/mysql not available; using built-in backup routine.');
+        }
+        $dbBackup = $cliAvailable
+            ? backupDatabaseCli($dbConfig, $backupDir, $timestamp)
+            : backupDatabaseInline($dbConfig, $backupDir, $timestamp);
         $manifest['db_backup'] = $dbBackup;
+        $manifest['db_backup_strategy'] = $cliAvailable ? 'cli' : 'php';
         writeBackupManifest($backupDir, $manifest, $manifestPath);
         info('Database backup created at ' . $dbBackup);
 
@@ -145,6 +154,17 @@ function handleUpgrade(array $options, string $appPath, string $backupDir, array
         $manifest['status'] = 'success';
         $manifest['completed_at'] = date(DATE_ATOM);
         writeBackupManifest($backupDir, $manifest, $manifestPath);
+        try {
+            upgrade_store_installed_release([
+                'tag' => $resolvedRef,
+                'name' => $resolvedLabel,
+                'repo' => $repo,
+                'url' => $resolvedUrl,
+                'installed_at' => $manifest['completed_at'],
+            ]);
+        } catch (Throwable $metaError) {
+            error_log('Unable to persist installed release metadata: ' . $metaError->getMessage());
+        }
         info('Upgrade completed successfully.');
     } catch (Throwable $e) {
         $manifest['status'] = 'failed';
@@ -161,7 +181,11 @@ function handleUpgrade(array $options, string $appPath, string $backupDir, array
                 info('Application files restored from snapshot.');
             }
             if (isset($manifest['db_backup']) && is_string($manifest['db_backup'])) {
-                restoreDatabaseFromBackup($dbConfig, $manifest['db_backup']);
+                $cliAvailable = commandAvailable('mysql');
+                if (!$cliAvailable) {
+                    info('mysql command not available; restoring database using built-in routine.');
+                }
+                restoreDatabaseFromBackup($dbConfig, $manifest['db_backup'], $cliAvailable);
                 info('Database restored from ' . $manifest['db_backup']);
             }
         } catch (Throwable $restoreException) {
@@ -217,7 +241,11 @@ function handleDowngrade(array $options, string $appPath, string $backupDir, arr
             throw new RuntimeException('Backup manifest is missing the db_backup path.');
         }
         $dbConfig = getDatabaseConfig();
-        restoreDatabaseFromBackup($dbConfig, $manifest['db_backup']);
+        $cliAvailable = commandAvailable('mysql');
+        if (!$cliAvailable) {
+            info('mysql command not available; restoring database using built-in routine.');
+        }
+        restoreDatabaseFromBackup($dbConfig, $manifest['db_backup'], $cliAvailable);
         info('Database restored from ' . $manifest['db_backup']);
     } else {
         info('Database restore skipped (use --restore-db to enable).');
@@ -311,46 +339,36 @@ function getDatabaseConfig(): array
  * @param string $repo
  * @param string $ref
  * @param bool $latestRelease
+ * @return array{ref: string, label: string, url: ?string}
  */
-function resolveTargetReference(string $repo, string $ref, bool $latestRelease): string
+function resolveTargetReference(string $repo, string $ref, bool $latestRelease): array
 {
     if ($latestRelease) {
-        return fetchLatestReleaseTag($repo);
+        $token = trim((string)(getenv('GITHUB_TOKEN') ?: ''));
+        $release = upgrade_fetch_latest_release($repo, $token !== '' ? $token : null);
+        if ($release === null) {
+            throw new RuntimeException('Unable to determine latest release for repository ' . $repo);
+        }
+
+        $tag = (string)$release['tag'];
+        $name = isset($release['name']) && $release['name'] !== ''
+            ? (string)$release['name']
+            : $tag;
+
+        return [
+            'ref' => $tag,
+            'label' => $name,
+            'url' => isset($release['url']) ? (string)$release['url'] : null,
+        ];
     }
 
-    return $ref !== '' ? $ref : 'main';
-}
+    $resolved = $ref !== '' ? $ref : 'main';
 
-function fetchLatestReleaseTag(string $repo): string
-{
-    $slug = extractGitHubSlug($repo);
-    if ($slug === null) {
-        throw new RuntimeException('Unable to determine GitHub repository slug from ' . $repo);
-    }
-
-    $apiUrl = sprintf('https://api.github.com/repos/%s/releases/latest', $slug);
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'header' => [
-                'User-Agent: HRassessv300-upgrader',
-                'Accept: application/vnd.github+json',
-            ],
-            'timeout' => 20,
-        ],
-    ]);
-
-    $response = @file_get_contents($apiUrl, false, $context);
-    if ($response === false) {
-        throw new RuntimeException('Failed to fetch latest release information from GitHub API.');
-    }
-
-    $data = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
-    if (!is_array($data) || !isset($data['tag_name'])) {
-        throw new RuntimeException('GitHub API response does not include a tag_name field.');
-    }
-
-    return (string)$data['tag_name'];
+    return [
+        'ref' => $resolved,
+        'label' => $resolved,
+        'url' => null,
+    ];
 }
 
 function extractGitHubSlug(string $repo): ?string
@@ -705,7 +723,7 @@ function restoreFromTarSnapshot(string $appPath, string $snapshotPath): void
     cleanupDirectory($extractDir);
 }
 
-function backupDatabase(array $dbConfig, string $backupDir, string $timestamp): string
+function backupDatabaseCli(array $dbConfig, string $backupDir, string $timestamp): string
 {
     $file = $backupDir . DIRECTORY_SEPARATOR . 'db-' . $timestamp . '.sql';
     $portFragment = '';
@@ -726,12 +744,38 @@ function backupDatabase(array $dbConfig, string $backupDir, string $timestamp): 
     return $file;
 }
 
-function restoreDatabaseFromBackup(array $dbConfig, string $backupFile): void
+function backupDatabaseInline(array $dbConfig, string $backupDir, string $timestamp): string
+{
+    global $pdo;
+    if (!$pdo instanceof PDO) {
+        throw new RuntimeException('Database connection unavailable for inline backup.');
+    }
+
+    $file = $backupDir . DIRECTORY_SEPARATOR . 'db-' . $timestamp . '.sql';
+    $sql = upgrade_export_database($pdo);
+    if (file_put_contents($file, $sql) === false) {
+        throw new RuntimeException('Unable to write database export to ' . $file);
+    }
+
+    return $file;
+}
+
+function restoreDatabaseFromBackup(array $dbConfig, string $backupFile, bool $cliAvailable): void
 {
     if (!is_file($backupFile)) {
         throw new RuntimeException('Database backup not found: ' . $backupFile);
     }
 
+    if ($cliAvailable) {
+        restoreDatabaseFromBackupCli($dbConfig, $backupFile);
+        return;
+    }
+
+    restoreDatabaseFromBackupInline($backupFile);
+}
+
+function restoreDatabaseFromBackupCli(array $dbConfig, string $backupFile): void
+{
     $portFragment = '';
     if ($dbConfig['port'] !== null) {
         $portFragment = ' --port=' . escapeshellarg((string)$dbConfig['port']);
@@ -746,6 +790,31 @@ function restoreDatabaseFromBackup(array $dbConfig, string $backupFile): void
         escapeshellarg($backupFile)
     );
     runShellCommand($cmd);
+}
+
+function restoreDatabaseFromBackupInline(string $backupFile): void
+{
+    global $pdo;
+    if (!$pdo instanceof PDO) {
+        throw new RuntimeException('Database connection unavailable for inline restore.');
+    }
+
+    $sql = file_get_contents($backupFile);
+    if ($sql === false) {
+        throw new RuntimeException('Unable to read database backup from ' . $backupFile);
+    }
+
+    $statements = parseSqlStatements($sql);
+    $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+    try {
+        foreach ($statements as $statement) {
+            if ($statement !== '') {
+                $pdo->exec($statement);
+            }
+        }
+    } finally {
+        $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+    }
 }
 
 function deletePath(string $path): void
@@ -772,12 +841,34 @@ function deletePath(string $path): void
     }
 }
 
+function parseSqlStatements(string $sql): array
+{
+    $withoutBlock = preg_replace('/\/\*.*?\*\//s', '', $sql);
+    $withoutLine = preg_replace('/^\s*--.*$/m', '', $withoutBlock ?? $sql);
+    $normalized = $withoutLine ?? $sql;
+    $parts = explode(';', $normalized);
+    $statements = [];
+    foreach ($parts as $part) {
+        $trimmed = trim($part);
+        if ($trimmed !== '') {
+            $statements[] = $trimmed;
+        }
+    }
+
+    return $statements;
+}
+
 function ensureCommandAvailable(string $command): void
 {
-    $result = runShellCommand('command -v ' . escapeshellarg($command));
-    if (trim($result['stdout']) === '') {
+    if (!commandAvailable($command)) {
         throw new RuntimeException(sprintf('Required command "%s" is not available in PATH.', $command));
     }
+}
+
+function commandAvailable(string $command): bool
+{
+    $output = @shell_exec('command -v ' . escapeshellarg($command) . ' 2>/dev/null');
+    return is_string($output) && trim($output) !== '';
 }
 
 /**
