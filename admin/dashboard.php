@@ -60,9 +60,17 @@ $runSqlScript = static function (PDO $pdo, string $path): void {
 
 
 $currentVersion = upgrade_current_version();
+$currentReleaseInfo = upgrade_current_release_info();
+$currentVersionLabel = $currentReleaseInfo['label'] ?? $currentVersion;
+$currentVersionTag = $currentReleaseInfo['tag'] ?? null;
+$currentVersionUrl = $currentReleaseInfo['url'] ?? null;
+$currentVersionInstalledAt = $currentReleaseInfo['installed_at'] ?? null;
 $upgradeRepo = upgrade_effective_source($cfg);
 $upgradeDefaults = [
-    'current_version' => $currentVersion,
+    'current_version' => $currentVersionLabel,
+    'current_version_tag' => $currentVersionTag,
+    'current_version_url' => $currentVersionUrl,
+    'current_version_installed_at' => $currentVersionInstalledAt,
     'available_version' => null,
     'available_version_label' => null,
     'available_version_url' => null,
@@ -73,6 +81,21 @@ $upgradeDefaults = [
     'upgrade_repo' => $upgradeRepo,
 ];
 $upgradeState = array_replace($upgradeDefaults, $_SESSION['admin_upgrade_state'] ?? []);
+$releaseState = [
+    'current_version' => $currentVersionLabel,
+    'current_version_tag' => $currentVersionTag,
+    'current_version_url' => $currentVersionUrl,
+    'current_version_installed_at' => $currentVersionInstalledAt,
+];
+foreach ($releaseState as $stateKey => $stateValue) {
+    if ($stateValue !== null && $stateValue !== '') {
+        if (!array_key_exists($stateKey, $upgradeState) || $upgradeState[$stateKey] !== $stateValue) {
+            $upgradeState[$stateKey] = $stateValue;
+        }
+    } elseif (array_key_exists($stateKey, $upgradeState) && $upgradeState[$stateKey] !== $stateValue) {
+        $upgradeState[$stateKey] = $stateValue;
+    }
+}
 $upgradeState['upgrade_repo'] = upgrade_normalize_source((string)($upgradeState['upgrade_repo'] ?? $upgradeRepo));
 if ($upgradeState['upgrade_repo'] === '') {
     $upgradeState['upgrade_repo'] = $upgradeRepo;
@@ -142,7 +165,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $availableVersion = $release['tag'];
                     $availableLabel = $release['name'];
                     $availableUrl = $release['url'];
-                    if (version_compare($availableVersion, (string)$upgradeState['current_version'], '>')) {
+                    $installedTagForComparison = $upgradeState['current_version_tag'] ?? $currentVersionTag;
+                    $installedLabelForComparison = $upgradeState['current_version'] ?? $currentVersionLabel;
+                    if (upgrade_release_is_newer(
+                        $availableVersion,
+                        $installedTagForComparison,
+                        $installedLabelForComparison
+                    )) {
                         $upgradeState['available_version'] = $availableVersion;
                         $upgradeState['available_version_label'] = $availableLabel;
                         $upgradeState['available_version_url'] = $availableUrl;
@@ -216,13 +245,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'exit_code' => $result['exit_code'],
                 ];
                 if ((int)$result['exit_code'] === 0) {
-                    if (!empty($upgradeState['available_version'])) {
-                        $upgradeState['current_version'] = $upgradeState['available_version'];
+                    $newVersionTag = $upgradeState['available_version'] ?? null;
+                    $newVersionLabel = $upgradeState['available_version_label'] ?? $newVersionTag;
+                    $newVersionUrl = $upgradeState['available_version_url'] ?? null;
+                    if (!empty($newVersionLabel)) {
+                        $upgradeState['current_version'] = $newVersionLabel;
                     }
+                    $upgradeState['current_version_tag'] = $newVersionTag;
+                    $upgradeState['current_version_url'] = $newVersionUrl;
+                    $upgradeState['current_version_installed_at'] = date(DATE_ATOM);
                     $upgradeState['available_version'] = null;
                     $upgradeState['available_version_label'] = null;
                     $upgradeState['available_version_url'] = null;
                     $upgradeState['backup_ready'] = false;
+                    try {
+                        upgrade_store_installed_release([
+                            'tag' => $newVersionTag,
+                            'name' => $newVersionLabel,
+                            'repo' => $repoForUpgrade,
+                            'url' => $newVersionUrl,
+                            'installed_at' => $upgradeState['current_version_installed_at'],
+                        ]);
+                    } catch (Throwable $versionStoreError) {
+                        error_log('Installed release metadata save failed: ' . $versionStoreError->getMessage());
+                    }
                     $flashMessage = t($t, 'upgrade_command_success', 'Upgrade command completed successfully. Review the logs for details.');
                     $flashType = 'success';
                 } else {
@@ -362,10 +408,23 @@ if ($latestSubmissionRaw) {
 $availableVersion = $upgradeState['available_version'] ?? null;
 $availableVersionLabel = $upgradeState['available_version_label'] ?? $availableVersion;
 $availableVersionUrl = $upgradeState['available_version_url'] ?? null;
+$currentVersionDisplay = $upgradeState['current_version'] ?? $currentVersionLabel;
+$currentVersionTag = $upgradeState['current_version_tag'] ?? $currentVersionTag;
+$currentVersionUrl = $upgradeState['current_version_url'] ?? $currentVersionUrl;
+$currentVersionInstalledAt = $upgradeState['current_version_installed_at'] ?? $currentVersionInstalledAt;
+$currentVersionInstalledAtDisplay = null;
+if ($currentVersionInstalledAt) {
+    $parsedInstalledAt = strtotime($currentVersionInstalledAt);
+    $currentVersionInstalledAtDisplay = $parsedInstalledAt
+        ? date('M j, Y g:i a', $parsedInstalledAt)
+        : $currentVersionInstalledAt;
+}
 $backupReady = !empty($upgradeState['backup_ready']);
 $lastCheckDisplay = !empty($upgradeState['last_check']) ? date('M j, Y g:i a', (int)$upgradeState['last_check']) : null;
 $lastBackupDisplay = !empty($upgradeState['last_backup_at']) ? date('M j, Y g:i a', (int)$upgradeState['last_backup_at']) : null;
-$backupDownloadUrl = !empty($upgradeState['last_backup_path']) ? asset_url($upgradeState['last_backup_path']) : null;
+$backupDownloadUrl = !empty($upgradeState['last_backup_path'])
+    ? url_for('admin/download_backup.php?file=' . rawurlencode((string)$upgradeState['last_backup_path']))
+    : null;
 $upgradeRepoDisplay = $upgradeState['upgrade_repo'] ?? $upgradeRepo;
 $upgradeRepoLink = '';
 if (is_string($upgradeRepoDisplay) && preg_match('#^https?://#i', (string)$upgradeRepoDisplay)) {
@@ -404,13 +463,49 @@ $selectedBackupId = $upgradeBackups[0]['timestamp'] ?? '';
 
   <div class="md-card md-elev-2 md-dashboard-card md-dashboard-card--upgrade">
     <h2 class="md-card-title"><?=t($t,'system_upgrade','System Upgrade')?></h2>
-    <div class="md-upgrade-status">
-        <div><strong><?=t($t,'current_version','Current version')?>:</strong> <span class="md-status-badge success"><?=htmlspecialchars((string)$upgradeState['current_version'], ENT_QUOTES, 'UTF-8')?></span></div>
-        <div><strong><?=t($t,'available_version','Available version')?>:</strong>
+    <div class="md-upgrade-header">
+      <div class="md-upgrade-item">
+        <span class="md-upgrade-item-label"><?=t($t,'current_version','Current version')?></span>
+        <div class="md-upgrade-item-value">
+          <?php if ($currentVersionUrl): ?>
+            <a href="<?=htmlspecialchars($currentVersionUrl, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener" class="md-upgrade-link">
+              <?=htmlspecialchars((string)$currentVersionDisplay, ENT_QUOTES, 'UTF-8')?>
+            </a>
+          <?php else: ?>
+            <span><?=htmlspecialchars((string)$currentVersionDisplay, ENT_QUOTES, 'UTF-8')?></span>
+          <?php endif; ?>
+          <?php if ($currentVersionTag && $currentVersionTag !== $currentVersionDisplay): ?>
+            <span class="md-upgrade-tag"><?=htmlspecialchars((string)$currentVersionTag, ENT_QUOTES, 'UTF-8')?></span>
+          <?php endif; ?>
+        </div>
+        <?php if ($currentVersionInstalledAtDisplay): ?>
+          <div class="md-upgrade-meta">
+            <?=sprintf(
+                t($t, 'upgrade_installed_at', 'Installed on %s'),
+                htmlspecialchars($currentVersionInstalledAtDisplay, ENT_QUOTES, 'UTF-8')
+            )?>
+          </div>
+        <?php endif; ?>
+        <?php if ($upgradeRepoDisplay): ?>
+          <div class="md-upgrade-meta">
+            <?=t($t,'release_source','Release source')?>:
+            <?php if ($upgradeRepoLink): ?>
+              <a href="<?=htmlspecialchars($upgradeRepoLink, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener" class="md-upgrade-link">
+                <?=htmlspecialchars($upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>
+              </a>
+            <?php else: ?>
+              <?=htmlspecialchars($upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>
+            <?php endif; ?>
+          </div>
+        <?php endif; ?>
+      </div>
+      <div class="md-upgrade-item">
+        <span class="md-upgrade-item-label"><?=t($t,'available_version','Available version')?></span>
+        <div class="md-upgrade-item-value">
           <?php if ($availableVersion): ?>
             <span class="md-status-badge warning">
               <?php if ($availableVersionUrl): ?>
-                <a href="<?=htmlspecialchars($availableVersionUrl, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener">
+                <a href="<?=htmlspecialchars($availableVersionUrl, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener" class="md-upgrade-link">
                   <?=htmlspecialchars($availableVersionLabel ?? $availableVersion, ENT_QUOTES, 'UTF-8')?>
                 </a>
               <?php else: ?>
@@ -419,75 +514,77 @@ $selectedBackupId = $upgradeBackups[0]['timestamp'] ?? '';
             </span>
           <?php else: ?>
             <span class="md-status-badge success"><?=t($t,'no_update_required','Up to date')?></span>
-            <?php if ($availableVersionLabel): ?>
-              <span class="md-upgrade-meta md-upgrade-meta--inline">
-                <?=t($t,'latest_release_label','Latest release')?>:
-                <?php if ($availableVersionUrl): ?>
-                  <a href="<?=htmlspecialchars($availableVersionUrl, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener">
-                    <?=htmlspecialchars($availableVersionLabel, ENT_QUOTES, 'UTF-8')?>
-                  </a>
-                <?php else: ?>
-                  <?=htmlspecialchars($availableVersionLabel, ENT_QUOTES, 'UTF-8')?>
-                <?php endif; ?>
-              </span>
-            <?php endif; ?>
           <?php endif; ?>
         </div>
-        <div><strong><?=t($t,'backup_status','Backup status')?>:</strong>
-          <span class="md-status-badge <?=$backupReady ? 'success' : 'warning'?>"><?=$backupReady ? t($t,'backup_ready','Backup ready') : t($t,'backup_required','Backup required')?></span>
-        </div>
-        <?php if ($upgradeRepoDisplay): ?>
+        <?php if (!$availableVersion && $availableVersionLabel): ?>
           <div class="md-upgrade-meta">
-            <?=t($t,'release_source','Release source')?>:
-            <?php if ($upgradeRepoLink): ?>
-              <a href="<?=htmlspecialchars($upgradeRepoLink, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener">
-                <?=htmlspecialchars($upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>
+            <?=t($t,'latest_release_label','Latest release')?>:
+            <?php if ($availableVersionUrl): ?>
+              <a href="<?=htmlspecialchars($availableVersionUrl, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener" class="md-upgrade-link">
+                <?=htmlspecialchars($availableVersionLabel, ENT_QUOTES, 'UTF-8')?>
               </a>
             <?php else: ?>
-              <?=htmlspecialchars($upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>
+              <?=htmlspecialchars($availableVersionLabel, ENT_QUOTES, 'UTF-8')?>
             <?php endif; ?>
           </div>
         <?php endif; ?>
         <?php if ($lastCheckDisplay): ?>
           <div class="md-upgrade-meta"><?=t($t,'last_checked','Last checked:')?> <?=htmlspecialchars($lastCheckDisplay, ENT_QUOTES, 'UTF-8')?></div>
         <?php endif; ?>
+      </div>
+      <div class="md-upgrade-item">
+        <span class="md-upgrade-item-label"><?=t($t,'backup_status','Backup status')?></span>
+        <div class="md-upgrade-item-value">
+          <span class="md-status-badge <?=$backupReady ? 'success' : 'warning'?>">
+            <?=$backupReady ? t($t,'backup_ready','Backup ready') : t($t,'backup_required','Backup required')?>
+          </span>
+        </div>
         <?php if ($lastBackupDisplay): ?>
           <div class="md-upgrade-meta">
             <?=t($t,'last_backup','Last backup:')?> <?=htmlspecialchars($lastBackupDisplay, ENT_QUOTES, 'UTF-8')?>
             <?php if ($backupDownloadUrl): ?>
-              · <a href="<?=htmlspecialchars($backupDownloadUrl, ENT_QUOTES, 'UTF-8')?>" class="md-appbar-link" download><?=t($t,'download_backup','Download backup')?></a>
+              · <a href="<?=htmlspecialchars($backupDownloadUrl, ENT_QUOTES, 'UTF-8')?>" class="md-upgrade-link"><?=t($t,'download_backup','Download backup')?></a>
             <?php endif; ?>
           </div>
         <?php endif; ?>
+      </div>
     </div>
-    <form method="post" class="md-upgrade-config">
-      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-      <input type="hidden" name="action" value="update_upgrade_repo">
-      <label class="md-field">
-        <span><?=t($t,'upgrade_repo_label','Release source')?></span>
-        <input type="text" name="upgrade_repo" value="<?=htmlspecialchars((string)$upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>" placeholder="https://github.com/owner/repository" class="md-upgrade-source-input" inputmode="url" spellcheck="false" autocapitalize="none" autocomplete="off">
-      </label>
-      <p class="md-upgrade-meta"><?=t($t,'upgrade_repo_hint','Specify the GitHub repository slug or a full HTTPS Git URL used to check for releases (for example, https://github.com/khoppenworth/HRassessv300).')?></p>
-      <button type="submit" class="md-button md-outline md-compact"><?=t($t,'save_upgrade_source','Save source')?></button>
-    </form>
-    <div class="md-upgrade-actions">
-      <form method="post">
-        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-        <input type="hidden" name="action" value="check_upgrade">
-        <button type="submit" class="md-button md-elev-1"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
-      </form>
-      <form method="post">
-        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-        <input type="hidden" name="action" value="download_backups">
-        <button type="submit" class="md-button md-elev-1"><?=t($t,'download_backups','Download backups')?></button>
-      </form>
-      <form method="post">
-        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-        <input type="hidden" name="action" value="install_upgrade">
-        <button type="submit" class="md-button md-primary md-elev-2" <?=($upgradeRepoDisplay === '' ? 'disabled' : '')?>><?=t($t,'install_upgrade','Install Upgrade')?></button>
-      </form>
+    <div class="md-upgrade-grid">
+      <section class="md-upgrade-panel">
+        <h3 class="md-upgrade-panel-title"><?=t($t,'upgrade_repo_label','Release source')?></h3>
+        <p class="md-upgrade-meta"><?=t($t,'upgrade_repo_hint','Specify the GitHub repository slug or a full HTTPS Git URL used to check for releases (for example, https://github.com/khoppenworth/HRassessv300).')?></p>
+        <form method="post" class="md-upgrade-config">
+          <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+          <input type="hidden" name="action" value="update_upgrade_repo">
+          <label class="md-field">
+            <span class="md-upgrade-field-label"><?=t($t,'upgrade_repo_label','Release source')?></span>
+            <input type="text" name="upgrade_repo" value="<?=htmlspecialchars((string)$upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>" placeholder="https://github.com/owner/repository" class="md-upgrade-source-input" inputmode="url" spellcheck="false" autocapitalize="none" autocomplete="off">
+          </label>
+          <button type="submit" class="md-button md-outline md-button-block"><?=t($t,'save_upgrade_source','Save source')?></button>
+        </form>
+      </section>
+      <section class="md-upgrade-panel">
+        <h3 class="md-upgrade-panel-title"><?=t($t,'upgrade_actions_heading','Upgrade actions')?></h3>
+        <div class="md-upgrade-actions">
+          <form method="post">
+            <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+            <input type="hidden" name="action" value="check_upgrade">
+            <button type="submit" class="md-button md-elev-1 md-button-block"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
+          </form>
+          <form method="post">
+            <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+            <input type="hidden" name="action" value="download_backups">
+            <button type="submit" class="md-button md-elev-1 md-button-block"><?=t($t,'download_backups','Download backups')?></button>
+          </form>
+          <form method="post">
+            <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+            <input type="hidden" name="action" value="install_upgrade">
+            <button type="submit" class="md-button md-primary md-elev-2 md-button-block" <?=($upgradeRepoDisplay === '' ? 'disabled' : '')?>><?=t($t,'install_upgrade','Install Upgrade')?></button>
+          </form>
+        </div>
+        <p class="md-upgrade-meta"><?=t($t,'upgrade_hint_script','The upgrade script automatically creates backups before applying changes. Download manual backups whenever you need an extra copy.')?></p>
+      </section>
     </div>
-    <p class="md-upgrade-meta"><?=t($t,'upgrade_hint_script','The upgrade script automatically creates backups before applying changes. Download manual backups whenever you need an extra copy.')?></p>
     <?php if ($upgradeLog): ?>
       <div class="md-upgrade-log">
         <h3 class="md-subhead"><?=t($t,'upgrade_log_heading','Recent upgrade activity')?></h3>

@@ -384,6 +384,8 @@
   "upgrade_failed": "The upgrade could not be completed. Review the logs and database permissions, then try again.",
   "upgrade_hint": "Ensure a recent backup has been downloaded before applying upgrades.",
   "upgrade_hint_script": "The upgrade script automatically creates backups before applying changes. Download manual backups whenever you need an extra copy.",
+  "upgrade_actions_heading": "Upgrade actions",
+  "upgrade_installed_at": "Installed on %s",
   "upgrade_latest": "You are already on the latest version.",
   "upgrade_command_success": "Upgrade command completed successfully. Review the logs for details.",
   "upgrade_command_failed": "The upgrade command returned a non-zero exit code. Review the log for details.",
