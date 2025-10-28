@@ -206,6 +206,82 @@ $statusLabels = [
     'pending' => t($t,'status_pending','Pending approval'),
     'disabled' => t($t,'status_disabled','Disabled'),
 ];
+$userRecords = [];
+foreach ($rows as $r) {
+    $statusKey = $r['account_status'] ?? 'active';
+    $statusLabel = $statusLabels[$statusKey] ?? $statusKey;
+    $statusSlug = preg_replace('/[^a-z0-9_-]/i', '', (string)$statusKey);
+    if ($statusSlug === '') {
+        $statusSlug = 'unknown';
+    }
+    $statusClass = 'status-' . $statusSlug;
+    $fullName = trim((string)($r['full_name'] ?? ''));
+    $displayName = $fullName !== '' ? $fullName : $r['username'];
+    $nameParts = preg_split('/\s+/u', trim($displayName));
+    $initials = '';
+    if ($nameParts && $nameParts[0] !== '') {
+        $initials .= mb_substr($nameParts[0], 0, 1, 'UTF-8');
+    }
+    if ($nameParts && count($nameParts) > 1) {
+        $initials .= mb_substr($nameParts[count($nameParts) - 1], 0, 1, 'UTF-8');
+    }
+    if ($initials === '') {
+        $initials = mb_substr((string)$r['username'], 0, 2, 'UTF-8');
+    }
+    $initials = mb_strtoupper(mb_substr($initials, 0, 2, 'UTF-8'), 'UTF-8');
+    $email = trim((string)($r['email'] ?? ''));
+    $workFunctionLabel = work_function_label($pdo, (string)($r['work_function'] ?? ''));
+    $nextAssessment = $r['next_assessment_date'] ?? '';
+    $nextAssessmentDisplay = '—';
+    if ($nextAssessment !== '') {
+        $ts = strtotime((string)$nextAssessment);
+        $nextAssessmentDisplay = $ts ? date('M j, Y', $ts) : $nextAssessment;
+    }
+    $createdAt = $r['created_at'] ?? '';
+    $createdDisplay = '—';
+    if ($createdAt !== '') {
+        $ts = strtotime((string)$createdAt);
+        $createdDisplay = $ts ? date('M j, Y', $ts) : $createdAt;
+    }
+    $roleKey = $r['role'] ?? 'staff';
+    $roleLabel = $roleLabels[$roleKey] ?? $roleKey;
+    $lastName = '';
+    if ($fullName !== '') {
+        $lastNameParts = preg_split('/\s+/u', trim($fullName));
+        if ($lastNameParts && count($lastNameParts) > 0) {
+            $lastName = (string)end($lastNameParts);
+        }
+    }
+    if ($lastName === '') {
+        $lastName = (string)$r['username'];
+    }
+    $searchLast = mb_strtolower($lastName, 'UTF-8');
+    $searchFull = mb_strtolower($displayName, 'UTF-8');
+    $searchUser = mb_strtolower((string)$r['username'], 'UTF-8');
+
+    $userRecords[] = [
+        'raw' => $r,
+        'id' => (int)$r['id'],
+        'status_key' => $statusKey,
+        'status_label' => $statusLabel,
+        'status_class' => $statusClass,
+        'display_name' => $displayName,
+        'username' => (string)$r['username'],
+        'initials' => $initials,
+        'email' => $email,
+        'work_function_label' => $workFunctionLabel,
+        'next_assessment' => $nextAssessment,
+        'next_assessment_display' => $nextAssessmentDisplay,
+        'created_display' => $createdDisplay,
+        'created_at' => $createdAt,
+        'role_key' => $roleKey,
+        'role_label' => $roleLabel,
+        'work_function_key' => $r['work_function'] ?? '',
+        'search_last' => $searchLast,
+        'search_full' => $searchFull,
+        'search_username' => $searchUser,
+    ];
+}
 ?>
 <!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head><meta charset="utf-8"><title><?=htmlspecialchars(t($t,'manage_users','Manage Users'), ENT_QUOTES, 'UTF-8')?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -282,100 +358,53 @@ $statusLabels = [
         <span><?=t($t,'search_last_name','Search by last name')?></span>
         <input type="search" placeholder="<?=htmlspecialchars(t($t,'search_last_name_placeholder','Start typing a last name'), ENT_QUOTES, 'UTF-8')?>" data-user-search>
       </label>
+      <div class="md-user-toggle" role="group" aria-label="<?=htmlspecialchars(t($t,'user_view_toggle_label','Change user layout'), ENT_QUOTES, 'UTF-8')?>">
+        <button type="button" class="md-button md-outline md-user-view-btn is-active" data-user-view="cards"><?=t($t,'view_tiles','Card view')?></button>
+        <button type="button" class="md-button md-outline md-user-view-btn" data-user-view="list"><?=t($t,'view_list','List view')?></button>
+      </div>
     </div>
-    <div class="md-user-grid" data-has-results="true" data-empty-message="<?=htmlspecialchars(t($t,'no_matching_users','No users match your search.'), ENT_QUOTES, 'UTF-8')?>">
-      <?php foreach ($rows as $r): ?>
-        <?php
-          $statusKey = $r['account_status'] ?? 'active';
-          $statusLabel = $statusLabels[$statusKey] ?? $statusKey;
-          $statusSlug = preg_replace('/[^a-z0-9_-]/i', '', (string)$statusKey);
-          if ($statusSlug === '') {
-              $statusSlug = 'unknown';
-          }
-          $statusClass = 'status-' . $statusSlug;
-          $fullName = trim((string)($r['full_name'] ?? ''));
-          $displayName = $fullName !== '' ? $fullName : $r['username'];
-          $nameParts = preg_split('/\s+/u', trim($displayName));
-          $initials = '';
-          if ($nameParts && $nameParts[0] !== '') {
-              $initials .= mb_substr($nameParts[0], 0, 1, 'UTF-8');
-          }
-          if ($nameParts && count($nameParts) > 1) {
-              $initials .= mb_substr($nameParts[count($nameParts) - 1], 0, 1, 'UTF-8');
-          }
-          if ($initials === '') {
-              $initials = mb_substr((string)$r['username'], 0, 2, 'UTF-8');
-          }
-          $initials = mb_strtoupper(mb_substr($initials, 0, 2, 'UTF-8'), 'UTF-8');
-          $email = trim((string)($r['email'] ?? ''));
-          $workFunctionLabel = work_function_label($pdo, (string)($r['work_function'] ?? ''));
-          $nextAssessment = $r['next_assessment_date'] ?? '';
-          $nextAssessmentDisplay = '—';
-          if ($nextAssessment !== '') {
-              $ts = strtotime($nextAssessment);
-              $nextAssessmentDisplay = $ts ? date('M j, Y', $ts) : $nextAssessment;
-          }
-          $createdAt = $r['created_at'] ?? '';
-          $createdDisplay = '—';
-          if ($createdAt !== '') {
-              $ts = strtotime((string)$createdAt);
-              $createdDisplay = $ts ? date('M j, Y', $ts) : $createdAt;
-          }
-          $roleKey = $r['role'] ?? 'staff';
-          $roleLabel = $roleLabels[$roleKey] ?? $roleKey;
-          $lastName = '';
-          if ($fullName !== '') {
-              $lastNameParts = preg_split('/\s+/u', trim($fullName));
-              if ($lastNameParts && count($lastNameParts) > 0) {
-                  $lastName = (string)end($lastNameParts);
-              }
-          }
-          if ($lastName === '') {
-              $lastName = (string)$r['username'];
-          }
-          $searchLast = mb_strtolower($lastName, 'UTF-8');
-          $searchFull = mb_strtolower($displayName, 'UTF-8');
-          $searchUser = mb_strtolower((string)$r['username'], 'UTF-8');
-        ?>
-        <article class="md-user-card" data-last-name="<?=htmlspecialchars($searchLast, ENT_QUOTES, 'UTF-8')?>" data-full-name="<?=htmlspecialchars($searchFull, ENT_QUOTES, 'UTF-8')?>" data-username="<?=htmlspecialchars($searchUser, ENT_QUOTES, 'UTF-8')?>">
+    <div class="md-user-grid" data-user-cards data-has-results="true" data-empty-message="<?=htmlspecialchars(t($t,'no_matching_users','No users match your search.'), ENT_QUOTES, 'UTF-8')?>">
+      <?php foreach ($userRecords as $record): ?>
+        <?php $r = $record['raw']; ?>
+        <article id="user-card-<?=$record['id']?>" class="md-user-card" data-last-name="<?=htmlspecialchars($record['search_last'], ENT_QUOTES, 'UTF-8')?>" data-full-name="<?=htmlspecialchars($record['search_full'], ENT_QUOTES, 'UTF-8')?>" data-username="<?=htmlspecialchars($record['search_username'], ENT_QUOTES, 'UTF-8')?>">
           <header class="md-user-card__header">
-            <div class="md-user-avatar" aria-hidden="true"><?=htmlspecialchars($initials, ENT_QUOTES, 'UTF-8')?></div>
+            <div class="md-user-avatar" aria-hidden="true"><?=htmlspecialchars($record['initials'], ENT_QUOTES, 'UTF-8')?></div>
             <div class="md-user-card__heading">
-              <h3><?=htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8')?></h3>
-              <p>@<?=htmlspecialchars($r['username'], ENT_QUOTES, 'UTF-8')?></p>
+              <h3><?=htmlspecialchars($record['display_name'], ENT_QUOTES, 'UTF-8')?></h3>
+              <p>@<?=htmlspecialchars($record['username'], ENT_QUOTES, 'UTF-8')?></p>
             </div>
-            <span class="md-user-chip <?=$statusClass?>"><?=htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8')?></span>
+            <span class="md-user-chip <?=$record['status_class']?>"><?=htmlspecialchars($record['status_label'], ENT_QUOTES, 'UTF-8')?></span>
           </header>
           <dl class="md-user-meta">
             <div>
               <dt><?=t($t,'role','Role')?></dt>
-              <dd><?=htmlspecialchars($roleLabel, ENT_QUOTES, 'UTF-8')?></dd>
+              <dd><?=htmlspecialchars($record['role_label'], ENT_QUOTES, 'UTF-8')?></dd>
             </div>
             <div>
               <dt><?=t($t,'work_function','Work Function / Cadre')?></dt>
-              <dd><?=htmlspecialchars($workFunctionLabel ?? '', ENT_QUOTES, 'UTF-8')?></dd>
+              <dd><?=htmlspecialchars($record['work_function_label'] ?? '', ENT_QUOTES, 'UTF-8')?></dd>
             </div>
             <div>
               <dt><?=t($t,'email','Email')?></dt>
-              <dd><?= $email !== '' ? htmlspecialchars($email, ENT_QUOTES, 'UTF-8') : '—' ?></dd>
+              <dd><?= $record['email'] !== '' ? htmlspecialchars($record['email'], ENT_QUOTES, 'UTF-8') : '—' ?></dd>
             </div>
             <div>
               <dt><?=t($t,'next_assessment','Next Assessment')?></dt>
-              <dd><?=htmlspecialchars($nextAssessmentDisplay, ENT_QUOTES, 'UTF-8')?></dd>
+              <dd><?=htmlspecialchars($record['next_assessment_display'], ENT_QUOTES, 'UTF-8')?></dd>
             </div>
             <div>
               <dt><?=t($t,'created','Created')?></dt>
-              <dd><?=htmlspecialchars($createdDisplay, ENT_QUOTES, 'UTF-8')?></dd>
+              <dd><?=htmlspecialchars($record['created_display'], ENT_QUOTES, 'UTF-8')?></dd>
             </div>
           </dl>
           <div class="md-user-card__footer">
             <form method="post" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" class="md-user-update-form">
               <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-              <input type="hidden" name="id" value="<?=$r['id']?>">
+              <input type="hidden" name="id" value="<?=$record['id']?>">
               <div class="md-user-form-grid">
                 <label class="md-field md-field--compact">
                   <span><?=t($t,'username','Username')?></span>
-                  <input value="<?=htmlspecialchars($r['username'], ENT_QUOTES, 'UTF-8')?>" readonly>
+                  <input value="<?=htmlspecialchars($record['username'], ENT_QUOTES, 'UTF-8')?>" readonly>
                 </label>
                 <label class="md-field md-field--compact">
                   <span><?=t($t,'new_password_reset','New Password')?></span>
@@ -385,29 +414,29 @@ $statusLabels = [
                   <span><?=t($t,'role','Role')?></span>
                   <select name="role">
                     <?php foreach ($roleOptions as $option): ?>
-                      <option value="<?=htmlspecialchars($option['role_key'], ENT_QUOTES, 'UTF-8')?>" <?=$roleKey===$option['role_key']?'selected':''?>><?=htmlspecialchars($option['label'], ENT_QUOTES, 'UTF-8')?></option>
+                      <option value="<?=htmlspecialchars($option['role_key'], ENT_QUOTES, 'UTF-8')?>" <?=$record['role_key']===$option['role_key']?'selected':''?>><?=htmlspecialchars($option['label'], ENT_QUOTES, 'UTF-8')?></option>
                     <?php endforeach; ?>
                   </select>
                 </label>
                 <label class="md-field md-field--compact">
                   <span><?=t($t,'account_status','Account Status')?></span>
                   <select name="account_status">
-                    <option value="active" <?=$statusKey==='active'?'selected':''?>><?=t($t,'status_active','Active')?></option>
-                    <option value="pending" <?=$statusKey==='pending'?'selected':''?>><?=t($t,'status_pending','Pending approval')?></option>
-                    <option value="disabled" <?=$statusKey==='disabled'?'selected':''?>><?=t($t,'status_disabled','Disabled')?></option>
+                    <option value="active" <?=$record['status_key']==='active'?'selected':''?>><?=t($t,'status_active','Active')?></option>
+                    <option value="pending" <?=$record['status_key']==='pending'?'selected':''?>><?=t($t,'status_pending','Pending approval')?></option>
+                    <option value="disabled" <?=$record['status_key']==='disabled'?'selected':''?>><?=t($t,'status_disabled','Disabled')?></option>
                   </select>
                 </label>
                 <label class="md-field md-field--compact">
                   <span><?=t($t,'work_function','Work Function / Cadre')?></span>
                   <select name="work_function">
                     <?php foreach ($workFunctionOptions as $function => $label): ?>
-                      <option value="<?=$function?>" <?=$r['work_function']===$function?'selected':''?>><?=htmlspecialchars($label ?? $function, ENT_QUOTES, 'UTF-8')?></option>
+                      <option value="<?=$function?>" <?=$record['work_function_key']===$function?'selected':''?>><?=htmlspecialchars($label ?? $function, ENT_QUOTES, 'UTF-8')?></option>
                     <?php endforeach; ?>
                   </select>
                 </label>
                 <label class="md-field md-field--compact">
                   <span><?=t($t,'next_assessment','Next Assessment Date')?></span>
-                  <input type="date" name="next_assessment_date" value="<?=htmlspecialchars($nextAssessment, ENT_QUOTES, 'UTF-8')?>">
+                  <input type="date" name="next_assessment_date" value="<?=htmlspecialchars($record['next_assessment'], ENT_QUOTES, 'UTF-8')?>">
                 </label>
               </div>
               <div class="md-user-form-actions">
@@ -416,12 +445,52 @@ $statusLabels = [
             </form>
             <form method="post" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" class="md-user-delete-form" data-verify-user="<?=htmlspecialchars($r['username'], ENT_QUOTES, 'UTF-8')?>" data-verify-prompt="<?=htmlspecialchars(t($t,'confirm_delete_prompt','Type the username to confirm deletion.'), ENT_QUOTES, 'UTF-8')?>" data-verify-mismatch="<?=htmlspecialchars(t($t,'delete_verification_failed','The entered username did not match. No changes were made.'), ENT_QUOTES, 'UTF-8')?>">
               <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-              <input type="hidden" name="id" value="<?=$r['id']?>">
+              <input type="hidden" name="id" value="<?=$record['id']?>">
               <button name="delete" class="md-button md-danger md-elev-1" type="submit"><?=t($t,'delete','Delete')?></button>
             </form>
           </div>
         </article>
       <?php endforeach; ?>
+    </div>
+    <div class="md-user-list is-hidden" data-user-list data-has-results="true" data-empty-message="<?=htmlspecialchars(t($t,'no_matching_users','No users match your search.'), ENT_QUOTES, 'UTF-8')?>">
+      <table class="md-table md-user-table">
+        <thead>
+          <tr>
+            <th><?=t($t,'name','Name')?></th>
+            <th><?=t($t,'username','Username')?></th>
+            <th><?=t($t,'role','Role')?></th>
+            <th><?=t($t,'work_function','Work Function / Cadre')?></th>
+            <th><?=t($t,'status','Status')?></th>
+            <th><?=t($t,'next_assessment','Next Assessment Date')?></th>
+            <th><?=t($t,'created','Created')?></th>
+            <th><?=t($t,'actions','Actions')?></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($userRecords as $record): ?>
+            <tr data-last-name="<?=htmlspecialchars($record['search_last'], ENT_QUOTES, 'UTF-8')?>" data-full-name="<?=htmlspecialchars($record['search_full'], ENT_QUOTES, 'UTF-8')?>" data-username="<?=htmlspecialchars($record['search_username'], ENT_QUOTES, 'UTF-8')?>">
+              <td>
+                <div class="md-user-list-name">
+                  <span class="md-user-avatar" aria-hidden="true"><?=htmlspecialchars($record['initials'], ENT_QUOTES, 'UTF-8')?></span>
+                  <div>
+                    <strong><?=htmlspecialchars($record['display_name'], ENT_QUOTES, 'UTF-8')?></strong><br>
+                    <span class="md-muted">@<?=htmlspecialchars($record['username'], ENT_QUOTES, 'UTF-8')?></span>
+                  </div>
+                </div>
+              </td>
+              <td><?=htmlspecialchars($record['username'], ENT_QUOTES, 'UTF-8')?></td>
+              <td><?=htmlspecialchars($record['role_label'], ENT_QUOTES, 'UTF-8')?></td>
+              <td><?=htmlspecialchars($record['work_function_label'] ?? '', ENT_QUOTES, 'UTF-8')?></td>
+              <td><span class="md-user-chip <?=$record['status_class']?>"><?=htmlspecialchars($record['status_label'], ENT_QUOTES, 'UTF-8')?></span></td>
+              <td><?=htmlspecialchars($record['next_assessment_display'], ENT_QUOTES, 'UTF-8')?></td>
+              <td><?=htmlspecialchars($record['created_display'], ENT_QUOTES, 'UTF-8')?></td>
+              <td>
+                <button type="button" class="md-button md-outline md-user-manage" data-scroll-target="user-card-<?=$record['id']?>"><?=t($t,'manage','Manage')?></button>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
     </div>
   <?php endif; ?>
 </div>
@@ -448,13 +517,17 @@ $statusLabels = [
   });
 
   const searchInput = document.querySelector('[data-user-search]');
-  const cards = Array.from(document.querySelectorAll('.md-user-card'));
-  const grid = document.querySelector('.md-user-grid');
+  const grid = document.querySelector('[data-user-cards]');
+  const list = document.querySelector('[data-user-list]');
+  const cards = grid ? Array.from(grid.querySelectorAll('.md-user-card')) : [];
+  const listRows = list ? Array.from(list.querySelectorAll('tbody tr')) : [];
+  const viewButtons = Array.from(document.querySelectorAll('[data-user-view]'));
 
   function applySearch(term) {
-    if (!grid) return;
     const value = term.trim().toLowerCase();
-    let visibleCount = 0;
+    let visibleCards = 0;
+    let visibleRows = 0;
+
     cards.forEach((card) => {
       const last = (card.dataset.lastName || '').toLowerCase();
       const full = (card.dataset.fullName || '').toLowerCase();
@@ -462,16 +535,68 @@ $statusLabels = [
       const matches = !value || last.includes(value) || full.includes(value) || username.includes(value);
       card.classList.toggle('md-user-card--hidden', !matches);
       if (matches) {
-        visibleCount++;
+        visibleCards += 1;
       }
     });
-    grid.dataset.hasResults = visibleCount > 0 ? 'true' : 'false';
+    if (grid) {
+      grid.dataset.hasResults = visibleCards > 0 ? 'true' : 'false';
+    }
+
+    listRows.forEach((row) => {
+      const last = (row.dataset.lastName || '').toLowerCase();
+      const full = (row.dataset.fullName || '').toLowerCase();
+      const username = (row.dataset.username || '').toLowerCase();
+      const matches = !value || last.includes(value) || full.includes(value) || username.includes(value);
+      row.classList.toggle('is-hidden', !matches);
+      if (matches) {
+        visibleRows += 1;
+      }
+    });
+    if (list) {
+      list.dataset.hasResults = visibleRows > 0 ? 'true' : 'false';
+    }
   }
 
-  if (searchInput && cards.length) {
+  function setView(mode) {
+    viewButtons.forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.userView === mode);
+    });
+    if (grid) {
+      grid.classList.toggle('is-hidden', mode !== 'cards');
+    }
+    if (list) {
+      list.classList.toggle('is-hidden', mode !== 'list');
+    }
+  }
+
+  viewButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const mode = button.dataset.userView || 'cards';
+      setView(mode);
+    });
+  });
+
+  if (searchInput) {
     searchInput.addEventListener('input', () => applySearch(searchInput.value));
     applySearch(searchInput.value || '');
   }
+
+  const manageButtons = document.querySelectorAll('.md-user-manage');
+  manageButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.scrollTarget;
+      if (!targetId) {
+        return;
+      }
+      setView('cards');
+      const target = document.getElementById(targetId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.classList.add('md-user-card--highlight');
+        setTimeout(() => target.classList.remove('md-user-card--highlight'), 1200);
+      }
+    });
+  });
 })();
 </script>
 </body></html>

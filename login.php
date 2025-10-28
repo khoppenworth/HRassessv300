@@ -96,18 +96,16 @@ $introText = $landingText !== ''
         'UTF-8'
     );
 $languageLabel = htmlspecialchars(t($t, 'language_label', 'Language'), ENT_QUOTES, 'UTF-8');
-$brandBadge = t($t, 'login_brand_badge', 'Employee Success Platform');
-$signInBadge = t($t, 'sign_in_badge', 'Secure sign-in');
 $signInHeading = t($t, 'sign_in_heading', 'Welcome back');
 $signInSubheading = t(
     $t,
     'sign_in_subheading',
     'Use your credentials to continue to your personalized workspace.'
 );
-$benefits = array_values(array_filter(array_map('trim', [
-    t($t, 'login_benefit_assess', 'Assess strengths and opportunities with guided check-ins.'),
-    t($t, 'login_benefit_visualize', 'Visualize growth trends with intuitive dashboards.'),
-    t($t, 'login_benefit_collaborate', 'Collaborate on goals with your manager in one place.'),
+$supportingPoints = array_values(array_filter(array_map('trim', [
+    t($t, 'login_supporting_point_one', 'Complete assessments without losing context.'),
+    t($t, 'login_supporting_point_two', 'Compare results across performance periods instantly.'),
+    t($t, 'login_supporting_point_three', 'Share feedback securely with your leadership team.'),
 ])));
 ?>
 <!doctype html>
@@ -127,113 +125,107 @@ $benefits = array_values(array_filter(array_map('trim', [
 <body class="<?= $bodyClass ?>" style="<?= $bodyStyle ?>">
   <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
   <div class="md-container">
-    <div class="md-card md-elev-3 md-login md-login--split">
-      <div class="md-login-grid">
-        <section class="md-login-panel md-login-panel--brand">
-          <div class="md-login-brand-inner">
-            <?php if (trim($brandBadge) !== ''): ?>
-              <span class="md-login-badge"><?= htmlspecialchars($brandBadge, ENT_QUOTES, 'UTF-8') ?></span>
-            <?php endif; ?>
-            <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="md-logo">
-            <h1 class="md-title"><?= $siteName ?></h1>
+    <div class="md-card md-elev-3 md-login md-login--simple">
+      <div class="md-login-simple">
+        <header class="md-login-simple__header">
+          <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="md-login-simple__logo">
+          <div class="md-login-simple__titles">
+            <p class="md-login-simple__eyebrow"><?= htmlspecialchars(t($t, 'login_tagline', 'Secure staff performance portal'), ENT_QUOTES, 'UTF-8') ?></p>
+            <h1><?= $siteName ?></h1>
             <?php if ($introText !== ''): ?>
-              <p class="md-login-tagline"><?= $introText ?></p>
+              <p class="md-login-simple__intro"><?= $introText ?></p>
             <?php endif; ?>
-            <?php if (!empty($benefits)): ?>
-              <ul class="md-login-benefits" role="list">
-                <?php foreach ($benefits as $benefit): ?>
+          </div>
+        </header>
+
+        <section class="md-login-simple__body" aria-labelledby="sign-in-heading">
+          <div class="md-login-simple__copy">
+            <h2 id="sign-in-heading"><?= htmlspecialchars($signInHeading, ENT_QUOTES, 'UTF-8') ?></h2>
+            <?php if (trim($signInSubheading) !== ''): ?>
+              <p><?= htmlspecialchars($signInSubheading, ENT_QUOTES, 'UTF-8') ?></p>
+            <?php endif; ?>
+            <?php if (!empty($supportingPoints)): ?>
+              <ul class="md-login-simple__list" role="list">
+                <?php foreach ($supportingPoints as $point): ?>
                   <li>
-                    <span class="md-login-benefit-bullet" aria-hidden="true"></span>
-                    <span><?= htmlspecialchars($benefit, ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="md-login-simple__bullet" aria-hidden="true"></span>
+                    <span><?= htmlspecialchars($point, ENT_QUOTES, 'UTF-8') ?></span>
                   </li>
                 <?php endforeach; ?>
               </ul>
             <?php endif; ?>
           </div>
-        </section>
-        <section class="md-login-panel md-login-panel--form">
-          <div class="md-login-form-body">
-            <header class="md-login-form-header">
-              <?php if (trim($signInBadge) !== ''): ?>
-                <span class="md-login-form-badge"><?= htmlspecialchars($signInBadge, ENT_QUOTES, 'UTF-8') ?></span>
-              <?php endif; ?>
-              <h2 class="md-login-form-title"><?= htmlspecialchars($signInHeading, ENT_QUOTES, 'UTF-8') ?></h2>
-              <?php if (trim($signInSubheading) !== ''): ?>
-                <p class="md-login-form-subtitle"><?= htmlspecialchars($signInSubheading, ENT_QUOTES, 'UTF-8') ?></p>
-              <?php endif; ?>
-            </header>
 
-            <?php if ($err !== ''): ?>
-              <div class="md-alert error" role="alert"><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
-            <?php endif; ?>
+          <?php if ($err !== ''): ?>
+            <div class="md-alert error" role="alert"><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
+          <?php endif; ?>
 
-            <form
-              method="post"
-              class="md-form md-login-form"
-              action="<?= htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8') ?>"
-              data-offline-redirect="<?= htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8') ?>"
-              data-offline-unavailable="<?= htmlspecialchars(t($t, 'offline_login_unavailable', 'Offline login is not available yet. Connect to the internet and sign in once to enable offline access.'), ENT_QUOTES, 'UTF-8') ?>"
-              data-offline-invalid="<?= htmlspecialchars(t($t, 'offline_login_invalid', 'Offline sign-in failed. Double-check your username and password.'), ENT_QUOTES, 'UTF-8') ?>"
-              data-offline-error="<?= htmlspecialchars(t($t, 'offline_login_error', 'We could not complete offline sign-in. Try again when you have a connection.'), ENT_QUOTES, 'UTF-8') ?>"
-              data-offline-warm-routes="<?= htmlspecialchars(implode(',', [
-                url_for('my_performance.php'),
-                url_for('submit_assessment.php'),
-                url_for('profile.php'),
-                url_for('dashboard.php'),
-              ]), ENT_QUOTES, 'UTF-8') ?>"
-            >
-              <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-              <label class="md-field">
-                <span><?= t($t, 'username', 'Username') ?></span>
-                <input name="username" autocomplete="username" required>
-              </label>
-              <label class="md-field">
-                <span><?= t($t, 'password', 'Password') ?></span>
-                <input type="password" name="password" autocomplete="current-password" required>
-              </label>
-              <div class="md-form-actions md-form-actions--center md-login-actions">
-                <button class="md-button md-primary md-elev-2" type="submit">
-                  <?= t($t, 'sign_in', 'Sign In') ?>
-                </button>
-              </div>
-            </form>
-
-            <?php if (!empty($oauthProviders)): ?>
-              <div class="md-login-divider"><span><?= htmlspecialchars(t($t, 'or_continue_with', 'or continue with'), ENT_QUOTES, 'UTF-8') ?></span></div>
-              <div class="md-sso-buttons">
-                <?php foreach ($oauthProviders as $provider => $label): ?>
-                  <a
-                    class="md-button md-elev-1 md-sso-btn <?= htmlspecialchars($provider, ENT_QUOTES, 'UTF-8') ?>"
-                    href="<?= htmlspecialchars(url_for('oauth.php?provider=' . $provider), ENT_QUOTES, 'UTF-8') ?>"
-                  ><?= $label ?></a>
-                <?php endforeach; ?>
-              </div>
-            <?php endif; ?>
-
-            <div class="md-login-footer">
-              <?php if ($address !== ''): ?>
-                <div class="md-login-footer-item">
-                  <span class="md-login-footer-label"><?= t($t, 'address_label', 'Address') ?></span>
-                  <span class="md-login-footer-value"><?= $address ?></span>
-                </div>
-              <?php endif; ?>
-              <?php if ($contact !== ''): ?>
-                <div class="md-login-footer-item">
-                  <span class="md-login-footer-label"><?= t($t, 'contact_label', 'Contact') ?></span>
-                  <span class="md-login-footer-value"><?= $contact ?></span>
-                </div>
-              <?php endif; ?>
-              <div class="md-login-footer-item">
-                <span class="md-login-footer-label"><?= $languageLabel ?></span>
-                <nav class="md-login-footer-value md-login-footer-locale lang-switch" aria-label="<?= $languageLabel ?>">
-                  <?php foreach ($availableLocales as $loc): ?>
-                    <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=' . $loc), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(strtoupper($loc), ENT_QUOTES, 'UTF-8') ?></a>
-                  <?php endforeach; ?>
-                </nav>
-              </div>
+          <form
+            method="post"
+            class="md-form md-login-form"
+            action="<?= htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-redirect="<?= htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-unavailable="<?= htmlspecialchars(t($t, 'offline_login_unavailable', 'Offline login is not available yet. Connect to the internet and sign in once to enable offline access.'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-invalid="<?= htmlspecialchars(t($t, 'offline_login_invalid', 'Offline sign-in failed. Double-check your username and password.'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-error="<?= htmlspecialchars(t($t, 'offline_login_error', 'We could not complete offline sign-in. Try again when you have a connection.'), ENT_QUOTES, 'UTF-8') ?>"
+            data-offline-warm-routes="<?= htmlspecialchars(implode(',', [
+              url_for('my_performance.php'),
+              url_for('submit_assessment.php'),
+              url_for('profile.php'),
+              url_for('dashboard.php'),
+            ]), ENT_QUOTES, 'UTF-8') ?>"
+          >
+            <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+            <label class="md-field">
+              <span><?= t($t, 'username', 'Username') ?></span>
+              <input name="username" autocomplete="username" required>
+            </label>
+            <label class="md-field">
+              <span><?= t($t, 'password', 'Password') ?></span>
+              <input type="password" name="password" autocomplete="current-password" required>
+            </label>
+            <div class="md-form-actions md-form-actions--center md-login-actions">
+              <button class="md-button md-primary md-elev-2" type="submit">
+                <?= t($t, 'sign_in', 'Sign In') ?>
+              </button>
             </div>
-          </div>
+          </form>
+
+          <?php if (!empty($oauthProviders)): ?>
+            <div class="md-login-divider"><span><?= htmlspecialchars(t($t, 'or_continue_with', 'or continue with'), ENT_QUOTES, 'UTF-8') ?></span></div>
+            <div class="md-sso-buttons">
+              <?php foreach ($oauthProviders as $provider => $label): ?>
+                <a
+                  class="md-button md-elev-1 md-sso-btn <?= htmlspecialchars($provider, ENT_QUOTES, 'UTF-8') ?>"
+                  href="<?= htmlspecialchars(url_for('oauth.php?provider=' . $provider), ENT_QUOTES, 'UTF-8') ?>"
+                ><?= $label ?></a>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
         </section>
+
+        <footer class="md-login-simple__footer">
+          <?php if ($address !== ''): ?>
+            <div>
+              <span class="md-login-footer-label"><?= t($t, 'address_label', 'Address') ?></span>
+              <span class="md-login-footer-value"><?= $address ?></span>
+            </div>
+          <?php endif; ?>
+          <?php if ($contact !== ''): ?>
+            <div>
+              <span class="md-login-footer-label"><?= t($t, 'contact_label', 'Contact') ?></span>
+              <span class="md-login-footer-value"><?= $contact ?></span>
+            </div>
+          <?php endif; ?>
+          <div>
+            <span class="md-login-footer-label"><?= $languageLabel ?></span>
+            <nav class="md-login-footer-value md-login-footer-locale lang-switch" aria-label="<?= $languageLabel ?>">
+              <?php foreach ($availableLocales as $loc): ?>
+                <a href="<?= htmlspecialchars(url_for('set_lang.php?lang=' . $loc), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(strtoupper($loc), ENT_QUOTES, 'UTF-8') ?></a>
+              <?php endforeach; ?>
+            </nav>
+          </div>
+        </footer>
       </div>
     </div>
   </div>

@@ -246,7 +246,7 @@ function compute_section_breakdowns(PDO $pdo, array $responses, array $translati
     return $sectionBreakdowns;
 }
 
-$stmt = $pdo->prepare("SELECT qr.*, q.title, pp.label AS period_label FROM questionnaire_response qr JOIN questionnaire q ON q.id=qr.questionnaire_id JOIN performance_period pp ON pp.id = qr.performance_period_id WHERE qr.user_id=? ORDER BY qr.created_at ASC");
+$stmt = $pdo->prepare("SELECT qr.*, q.title, pp.label AS period_label, pp.period_start FROM questionnaire_response qr JOIN questionnaire q ON q.id=qr.questionnaire_id JOIN performance_period pp ON pp.id = qr.performance_period_id WHERE qr.user_id=? ORDER BY qr.created_at ASC");
 $stmt->execute([$user['id']]);
 $rows = $stmt->fetchAll();
 $draftResponses = array_values(array_filter($rows, static fn($row) => ($row['status'] ?? '') === 'draft'));
@@ -298,7 +298,26 @@ usort($timelineRows, static function (array $a, array $b): int {
     return $aTime <=> $bTime;
 });
 foreach ($timelineRows as $row) {
-    $chartLabels[] = date('Y-m-d', strtotime($row['created_at'])) . ' · ' . $row['period_label'];
+    $periodYear = '';
+    if (!empty($row['period_start'])) {
+        $startTime = strtotime((string)$row['period_start']);
+        if ($startTime) {
+            $periodYear = date('Y', $startTime);
+        }
+    }
+    if ($periodYear === '' && !empty($row['period_label'])) {
+        $labelCandidate = (string)$row['period_label'];
+        if (preg_match('/(20\d{2}|19\d{2})/u', $labelCandidate, $matches)) {
+            $periodYear = $matches[1];
+        } else {
+            $periodYear = $labelCandidate;
+        }
+    }
+    if ($periodYear === '') {
+        $createdTime = strtotime((string)$row['created_at']);
+        $periodYear = $createdTime ? date('Y', $createdTime) : (string)$row['created_at'];
+    }
+    $chartLabels[] = $periodYear;
     $chartScores[] = $row['score'] !== null ? (int)$row['score'] : null;
 }
 
@@ -342,7 +361,15 @@ if ($flash === 'submitted') {
 <section class="md-section">
   <?php if ($flashMessage): ?><div class="md-alert success"><?=htmlspecialchars($flashMessage, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
   <div class="md-card md-elev-2">
-    <h2 class="md-card-title"><?=t($t,'performance_overview','Performance Overview')?></h2>
+    <div class="md-card-title-row">
+      <h2 class="md-card-title"><?=t($t,'performance_overview','Performance Overview')?></h2>
+      <a
+        class="md-button md-outline md-card-action"
+        href="<?=htmlspecialchars(url_for('my_performance_download.php'), ENT_QUOTES, 'UTF-8')?>"
+      >
+        <?=t($t,'download_performance_pdf','Download PDF')?>
+      </a>
+    </div>
     <p><?=t($t,'current_work_function','Current work function:')?> <?=htmlspecialchars($userWorkFunctionLabel !== '' ? $userWorkFunctionLabel : (string)($user['work_function'] ?? ''), ENT_QUOTES, 'UTF-8')?></p>
     <?php if ($latestEntry): ?>
       <p><?=t($t,'latest_submission','Latest submission:')?> <?=htmlspecialchars($latestEntry['period_label'])?> · <?=htmlspecialchars($latestEntry['title'])?> (<?= is_null($latestEntry['score']) ? '-' : (int)$latestEntry['score'] ?>%)</p>

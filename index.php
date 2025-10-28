@@ -34,6 +34,18 @@ $secondaryCta = htmlspecialchars(t($t, 'login_now', 'Go to secure login'), ENT_Q
 $addressLabel = htmlspecialchars(t($t, 'address_label', 'Address'), ENT_QUOTES, 'UTF-8');
 $contactLabel = htmlspecialchars(t($t, 'contact_label', 'Contact'), ENT_QUOTES, 'UTF-8');
 
+$highlightItems = [
+    [
+        'label' => htmlspecialchars(t($t, 'landing_highlight_one', 'Track progress with live dashboards'), ENT_QUOTES, 'UTF-8'),
+    ],
+    [
+        'label' => htmlspecialchars(t($t, 'landing_highlight_two', 'Spot coaching needs before reviews are due'), ENT_QUOTES, 'UTF-8'),
+    ],
+    [
+        'label' => htmlspecialchars(t($t, 'landing_highlight_three', 'Share consistent reports with leadership'), ENT_QUOTES, 'UTF-8'),
+    ],
+];
+
 $featureItems = [
     [
         'title' => htmlspecialchars(t($t, 'feature_insights_title', 'Actionable insights'), ENT_QUOTES, 'UTF-8'),
@@ -81,12 +93,12 @@ $featureItems = [
   <div class="landing-page">
     <header class="landing-hero">
       <div class="landing-hero__background" role="presentation"></div>
-      <div class="landing-hero__content">
+      <div class="landing-hero__content" aria-labelledby="landing-title">
         <div class="landing-brand">
           <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="landing-brand__logo">
           <span class="landing-brand__name"><?= $siteName ?></span>
         </div>
-        <h1 class="landing-hero__title"><?= htmlspecialchars(t($t, 'landing_title', 'Performance that powers people'), ENT_QUOTES, 'UTF-8') ?></h1>
+        <h1 id="landing-title" class="landing-hero__title"><?= htmlspecialchars(t($t, 'landing_title', 'Performance that powers people'), ENT_QUOTES, 'UTF-8') ?></h1>
         <p class="landing-hero__subtitle"><?= $heroSubtitle ?></p>
         <div class="landing-hero__actions">
           <a class="landing-button landing-button--primary" href="<?= $loginUrl ?>">
@@ -96,15 +108,33 @@ $featureItems = [
             <?= $secondaryCta ?>
           </a>
         </div>
+        <ul class="landing-hero__highlights" role="list">
+          <?php foreach ($highlightItems as $highlight): ?>
+            <li>
+              <span class="landing-hero__bullet" aria-hidden="true"></span>
+              <span><?= $highlight['label'] ?></span>
+            </li>
+          <?php endforeach; ?>
+        </ul>
       </div>
-      <div class="landing-hero__card" aria-label="<?= htmlspecialchars(t($t, 'landing_snapshot_label', 'Snapshot of platform highlights'), ENT_QUOTES, 'UTF-8') ?>">
-        <div class="landing-hero__card-body">
-          <p class="landing-hero__card-title"><?= htmlspecialchars(t($t, 'landing_card_title', 'Designed for modern HR teams'), ENT_QUOTES, 'UTF-8') ?></p>
-          <ul class="landing-hero__list">
-            <li><?= htmlspecialchars(t($t, 'landing_card_point_one', 'Assess workforce readiness with confidence'), ENT_QUOTES, 'UTF-8') ?></li>
-            <li><?= htmlspecialchars(t($t, 'landing_card_point_two', 'Track completion rates and feedback in real time'), ENT_QUOTES, 'UTF-8') ?></li>
-            <li><?= htmlspecialchars(t($t, 'landing_card_point_three', 'Celebrate achievements with automated kudos'), ENT_QUOTES, 'UTF-8') ?></li>
-          </ul>
+      <div class="landing-hero__summary" aria-label="<?= htmlspecialchars(t($t, 'landing_snapshot_label', 'Snapshot of platform highlights'), ENT_QUOTES, 'UTF-8') ?>">
+        <div class="landing-summary__card">
+          <h2><?= htmlspecialchars(t($t, 'landing_summary_title', 'Built for confident, modern HR teams'), ENT_QUOTES, 'UTF-8') ?></h2>
+          <p><?= htmlspecialchars(t($t, 'landing_summary_body', 'Use a single hub to align feedback, track completion, and surface development wins.'), ENT_QUOTES, 'UTF-8') ?></p>
+          <dl class="landing-summary__stats">
+            <div>
+              <dt><?= htmlspecialchars(t($t, 'landing_summary_metric_one', 'Assessments submitted'), ENT_QUOTES, 'UTF-8') ?></dt>
+              <dd><?= htmlspecialchars(number_format((int)($cfg['landing_metric_submissions'] ?? 4280))) ?></dd>
+            </div>
+            <div>
+              <dt><?= htmlspecialchars(t($t, 'landing_summary_metric_two', 'Average completion time'), ENT_QUOTES, 'UTF-8') ?></dt>
+              <dd><?= htmlspecialchars($cfg['landing_metric_completion'] ?? '12 min') ?></dd>
+            </div>
+            <div>
+              <dt><?= htmlspecialchars(t($t, 'landing_summary_metric_three', 'Leadership adoption'), ENT_QUOTES, 'UTF-8') ?></dt>
+              <dd><?= htmlspecialchars($cfg['landing_metric_adoption'] ?? '94%') ?></dd>
+            </div>
+          </dl>
         </div>
       </div>
     </header>
