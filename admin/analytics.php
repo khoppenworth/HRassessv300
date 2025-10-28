@@ -1378,8 +1378,11 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
         };
       }
 
-      canvas.width = canvas.clientWidth || canvas.width;
-      canvas.height = canvas.clientHeight || canvas.height;
+      const containerHeight = container ? container.clientHeight : 0;
+      const containerWidth = container ? container.clientWidth : 0;
+
+      canvas.width = canvas.clientWidth || containerWidth || canvas.width;
+      canvas.height = canvas.clientHeight || containerHeight || canvas.height || 320;
       createChartInstance(chartLib, context, chartConfig);
     }
 
