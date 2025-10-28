@@ -46,7 +46,7 @@ if ($targetUserId <= 0) {
     exit;
 }
 
-$stmt = $pdo->prepare("SELECT qr.score, qr.created_at, pp.label AS period_label
+$stmt = $pdo->prepare("SELECT qr.score, qr.created_at, pp.label AS period_label, pp.period_start
     FROM questionnaire_response qr
     LEFT JOIN performance_period pp ON pp.id = qr.performance_period_id
     WHERE qr.user_id = ?
@@ -97,10 +97,26 @@ require_once __DIR__ . '/../lib/jpgraph-lite.php';
 $labels = [];
 $dataPoints = [];
 foreach ($rows as $row) {
-    $timestamp = strtotime((string) ($row['created_at'] ?? 'now'));
-    $dateLabel = $timestamp ? date('M j, Y', $timestamp) : (string) ($row['created_at'] ?? '');
-    $periodLabel = trim((string) ($row['period_label'] ?? ''));
-    $labels[] = $periodLabel !== '' ? $dateLabel . ' · ' . $periodLabel : $dateLabel;
+    $periodYear = '';
+    if (!empty($row['period_start'])) {
+        $periodTime = strtotime((string) $row['period_start']);
+        if ($periodTime) {
+            $periodYear = date('Y', $periodTime);
+        }
+    }
+    if ($periodYear === '' && !empty($row['period_label'])) {
+        $candidate = trim((string) $row['period_label']);
+        if (preg_match('/(20\d{2}|19\d{2})/u', $candidate, $match)) {
+            $periodYear = $match[1];
+        } else {
+            $periodYear = $candidate;
+        }
+    }
+    if ($periodYear === '') {
+        $timestamp = strtotime((string) ($row['created_at'] ?? 'now'));
+        $periodYear = $timestamp ? date('Y', $timestamp) : (string) ($row['created_at'] ?? '');
+    }
+    $labels[] = $periodYear;
     $dataPoints[] = $row['score'] !== null ? (float) $row['score'] : null;
 }
 

@@ -148,7 +148,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
                     }
-                    if ($scoreValue !== null) {
+                    if ($selected !== '' && $scoreValue === null && $validOptions) {
+                        $optionIndex = array_search($selected, $validOptions, true);
+                        if ($optionIndex !== false) {
+                            $scoreValue = $optionIndex + 1;
+                            $scaleMax = max(1, count($validOptions));
+                            $achievedPoints = $effectiveWeight * ($scoreValue / $scaleMax);
+                        }
+                    } elseif ($scoreValue !== null) {
                         $achievedPoints = $effectiveWeight * ($scoreValue / 5.0);
                     }
                     if ($selected !== '') {

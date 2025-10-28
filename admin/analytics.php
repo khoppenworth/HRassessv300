@@ -861,7 +861,12 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
     <?php if ($questionnaires): ?>
       <p class="md-upgrade-meta"><?=t($t, 'questionnaire_drilldown_hint', 'Select a questionnaire to drill into individual responses.')?></p>
       <?php if ($questionnaireChartData): ?>
-        <div class="md-chart-container">
+        <div
+          class="md-chart-container"
+          data-chart-target="questionnaire-performance-heatmap"
+          data-has-data="true"
+          data-empty-message="<?= htmlspecialchars(t($t, 'questionnaire_heatmap_empty', 'Questionnaire performance data will appear here once submissions include scores.'), ENT_QUOTES, 'UTF-8') ?>"
+        >
           <canvas id="questionnaire-performance-heatmap" role="img" aria-label="<?=htmlspecialchars(t($t, 'questionnaire_heatmap_alt', 'Horizontal bar chart highlighting questionnaire averages with heatmap colours.'), ENT_QUOTES, 'UTF-8')?>"></canvas>
         </div>
         <p class="md-analytics-meta md-analytics-meta--hint"><?=t($t, 'performance_heatmap_hint', 'Heatmap colours shift from red to green so low scores stand out for follow-up.')?></p>
@@ -1069,7 +1074,12 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
     <h2 class="md-card-title"><?=t($t, 'work_function_performance', 'Work Function Performance')?></h2>
     <?php if ($workFunctionSummary): ?>
       <?php if ($workFunctionChartData): ?>
-        <div class="md-chart-container">
+        <div
+          class="md-chart-container"
+          data-chart-target="work-function-heatmap"
+          data-has-data="true"
+          data-empty-message="<?= htmlspecialchars(t($t, 'work_function_heatmap_empty', 'Performance by work function will display after a few submissions are recorded.'), ENT_QUOTES, 'UTF-8') ?>"
+        >
           <canvas id="work-function-heatmap" role="img" aria-label="<?=htmlspecialchars(t($t, 'work_function_heatmap_alt', 'Horizontal bar chart comparing work function averages using heatmap colours.'), ENT_QUOTES, 'UTF-8')?>"></canvas>
         </div>
       <?php endif; ?>
@@ -1208,16 +1218,32 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
     }
 
     function renderHeatmap(chartLib, targetId, dataset, renderOptions = {}) {
-      if (!dataset || !Array.isArray(dataset.labels) || !dataset.labels.length) {
+      const canvas = document.getElementById(targetId);
+      const container = canvas
+        ? canvas.closest('.md-chart-container')
+        : document.querySelector(`.md-chart-container[data-chart-target="${targetId}"]`);
+      const hasDataset = dataset && Array.isArray(dataset.labels) && dataset.labels.length;
+      if (!hasDataset) {
+        if (container) {
+          container.setAttribute('data-has-data', 'false');
+        }
         return;
       }
-      const canvas = document.getElementById(targetId);
       if (!canvas) {
+        if (container) {
+          container.setAttribute('data-has-data', 'false');
+        }
         return;
       }
       const context = canvas.getContext('2d');
       if (!context) {
+        if (container) {
+          container.setAttribute('data-has-data', 'false');
+        }
         return;
+      }
+      if (container) {
+        container.setAttribute('data-has-data', 'true');
       }
       const scores = dataset.scores.map((score) => (typeof score === 'number' ? score : 0));
       const colors = scores.map((score) => heatColor(score, 0.8));
