@@ -198,20 +198,51 @@ class SimplePdfDocument
     public function addTable(array $headers, array $rows, array $columnWidths, float $fontSize = 10.0): void
     {
         $this->ensurePage();
+        $resolvedWidths = $this->resolveTableColumnWidths($columnWidths, $fontSize);
         $lineHeight = $this->lineHeight($fontSize, 1.35);
-        $formattedHeader = $this->formatTableRow($headers, $columnWidths);
+        $formattedHeader = $this->formatTableRow($headers, $resolvedWidths);
         $this->writeMonospaceLine($formattedHeader, $fontSize);
         $this->cursorY -= $lineHeight;
         $this->ensureSpace($lineHeight);
-        $separator = $this->formatTableSeparator($columnWidths);
+        $separator = $this->formatTableSeparator($resolvedWidths);
         $this->writeMonospaceLine($separator, $fontSize);
         $this->cursorY -= $lineHeight;
         foreach ($rows as $row) {
             $this->ensureSpace($lineHeight);
-            $this->writeMonospaceLine($this->formatTableRow($row, $columnWidths), $fontSize);
+            $this->writeMonospaceLine($this->formatTableRow($row, $resolvedWidths), $fontSize);
             $this->cursorY -= $lineHeight;
         }
         $this->addSpacer(6.0);
+    }
+
+    public function addRightAlignedText(array $lines, float $fontSize = 10.0, float $lineSpacing = 1.3): void
+    {
+        $content = [];
+        foreach ($lines as $line) {
+            $text = trim((string)$line);
+            if ($text !== '') {
+                $content[] = $text;
+            }
+        }
+
+        if ($content === []) {
+            return;
+        }
+
+        $this->ensurePage();
+        $lineHeight = $this->lineHeight($fontSize, $lineSpacing);
+        $totalHeight = $lineHeight * count($content);
+        $this->ensureSpace($totalHeight);
+
+        $currentY = $this->cursorY;
+        foreach ($content as $text) {
+            $textWidth = $this->estimateTextWidth($text, $fontSize);
+            $x = max($this->marginLeft, $this->width - $this->marginRight - $textWidth);
+            $this->drawText($text, 'F1', $fontSize, $x, $currentY);
+            $currentY -= $lineHeight;
+        }
+
+        $this->cursorY = $currentY - 2.0;
     }
 
     public function output(): string
@@ -628,7 +659,7 @@ class SimplePdfDocument
         $count = min(count($row), count($columnWidths));
         for ($i = 0; $i < $count; $i++) {
             $cell = (string)$row[$i];
-            $width = max(1, (int)$columnWidths[$i]);
+            $width = max(1, (int)round($columnWidths[$i]));
             $cell = mb_strimwidth($cell, 0, $width, '', 'UTF-8');
             $cells[] = str_pad($cell, $width);
         }
@@ -639,9 +670,110 @@ class SimplePdfDocument
     {
         $parts = [];
         foreach ($columnWidths as $width) {
-            $parts[] = str_repeat('-', max(1, (int)$width));
+            $parts[] = str_repeat('-', max(1, (int)round($width)));
         }
         return implode('  ', $parts);
+    }
+
+    private function resolveTableColumnWidths(array $columnWidths, float $fontSize): array
+    {
+        $count = count($columnWidths);
+        if ($count === 0) {
+            return [];
+        }
+
+        $availableWidth = max(0.0, $this->width - $this->marginLeft - $this->marginRight);
+        if ($availableWidth <= 0.0) {
+            return array_fill(0, $count, 1);
+        }
+
+        $charWidth = $this->monospaceCharacterWidth($fontSize);
+        $availableChars = max($count, (int)floor($availableWidth / $charWidth));
+        $spacingChars = 2 * max(0, $count - 1);
+        $usableChars = max($count, $availableChars - $spacingChars);
+
+        $weights = [];
+        foreach ($columnWidths as $width) {
+            $weights[] = max(1.0, (float)$width);
+        }
+
+        $weightTotal = array_sum($weights);
+        if ($weightTotal <= 0.0) {
+            $weights = array_fill(0, $count, 1.0);
+            $weightTotal = (float)$count;
+        }
+
+        $assignments = [];
+        $fractions = [];
+        $allocated = 0;
+        foreach ($weights as $index => $weight) {
+            $ideal = $usableChars * ($weight / $weightTotal);
+            $rawFloor = (int)floor($ideal);
+            $fraction = $ideal - $rawFloor;
+            $value = max(1, $rawFloor);
+            $assignments[$index] = $value;
+            $fractions[$index] = $fraction;
+            $allocated += $value;
+        }
+
+        if ($allocated > $usableChars) {
+            $excess = $allocated - $usableChars;
+            $order = array_keys($assignments);
+            usort($order, static function ($a, $b) use ($fractions, $assignments): int {
+                $cmp = $fractions[$a] <=> $fractions[$b];
+                if ($cmp === 0) {
+                    return $assignments[$b] <=> $assignments[$a];
+                }
+                return $cmp;
+            });
+            while ($excess > 0) {
+                $adjusted = false;
+                foreach ($order as $idx) {
+                    if ($excess <= 0) {
+                        break 2;
+                    }
+                    if ($assignments[$idx] <= 1) {
+                        continue;
+                    }
+                    $assignments[$idx]--;
+                    $excess--;
+                    $adjusted = true;
+                    if ($excess <= 0) {
+                        break;
+                    }
+                }
+                if (!$adjusted) {
+                    break;
+                }
+            }
+            $allocated = array_sum($assignments);
+        }
+
+        if ($allocated < $usableChars) {
+            $remaining = $usableChars - $allocated;
+            $order = array_keys($assignments);
+            usort($order, static function ($a, $b) use ($fractions): int {
+                return $fractions[$b] <=> $fractions[$a];
+            });
+            while ($remaining > 0) {
+                foreach ($order as $idx) {
+                    if ($remaining <= 0) {
+                        break 2;
+                    }
+                    $assignments[$idx]++;
+                    $remaining--;
+                }
+            }
+        }
+
+        ksort($assignments);
+
+        return array_values($assignments);
+    }
+
+    private function monospaceCharacterWidth(float $fontSize): float
+    {
+        return max(0.1, $fontSize * 0.6);
     }
 
     private function formatFloat(float $value): string

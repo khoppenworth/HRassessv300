@@ -47,6 +47,11 @@ if ($nextAssessmentRaw !== '') {
     }
 }
 
+$departmentLabel = '';
+if (!empty($user['work_function'])) {
+    $departmentLabel = work_function_label($pdo, (string) $user['work_function']);
+}
+
 $submittedCount = 0;
 $approvedCount = 0;
 $draftCount = 0;
@@ -93,6 +98,30 @@ $siteName = (string) ($cfg['site_name'] ?? 'My Performance');
 $pdf = new SimplePdfDocument();
 $logoSpec = analytics_report_header_logo_spec($pdf, $cfg);
 $pdf->setHeader($siteName, t($t, 'my_performance_pdf_subtitle', 'Personal performance summary'), $logoSpec);
+$userDetails = [];
+$nameLine = trim((string) ($user['full_name'] ?? ''));
+if ($nameLine === '') {
+    $nameLine = (string) ($user['username'] ?? '');
+}
+$userDetails[] = t($t, 'employee_name', 'Name') . ': ' . $nameLine;
+if (!empty($user['username'])) {
+    $userDetails[] = t($t, 'employee_username', 'Username') . ': ' . $user['username'];
+}
+if ($departmentLabel !== '') {
+    $userDetails[] = t($t, 'employee_department', 'Department') . ': ' . $departmentLabel;
+}
+$roleKey = trim((string) ($user['role'] ?? ''));
+if ($roleKey !== '') {
+    $userDetails[] = t($t, 'employee_role', 'Role') . ': ' . ucfirst($roleKey);
+}
+$emailValue = trim((string) ($user['email'] ?? ''));
+if ($emailValue !== '') {
+    $userDetails[] = t($t, 'employee_email', 'Email') . ': ' . $emailValue;
+}
+if ($nextAssessmentDisplay !== '') {
+    $userDetails[] = t($t, 'next_assessment', 'Next Assessment Date') . ': ' . $nextAssessmentDisplay;
+}
+$pdf->addRightAlignedText($userDetails, 10.0);
 $pdf->addHeading(t($t, 'my_performance', 'My Performance'));
 $pdf->addParagraph(sprintf(
     '%s %s',
@@ -174,6 +203,16 @@ if ($recommendedCourses) {
 }
 
 $pdf->addParagraph(t($t, 'my_performance_pdf_footer', 'For the most up-to-date analytics and section breakdowns, sign in to the portal.'));
+$pdf->addSignatureFields([
+    [
+        t($t, 'staff_name', 'Staff name'),
+        t($t, 'staff_signature', 'Staff signature'),
+    ],
+    [
+        t($t, 'supervisor_name', 'Supervisor name'),
+        t($t, 'supervisor_signature', 'Supervisor signature'),
+    ],
+]);
 
 $filename = sprintf(
     'my-performance-%s-%s.pdf',
