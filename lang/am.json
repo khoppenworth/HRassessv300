@@ -409,6 +409,7 @@
   "unknown": "Unknown",
   "unknown_action": "Unknown dashboard action.",
   "upgrade_available": "Version %s is available for installation.",
+  "upgrade_available_label": "Release name",
   "upgrade_check_failed": "የቅርብ ልቀትን ለማረጋገጥ GitHub ማድረስ አልተቻለም። እባክዎን በኋላ ይሞክሩ።",
   "upgrade_check_no_release": "No GitHub releases were found for the configured repository.",
   "upgrade_command_failed": "The upgrade command returned a non-zero exit code. Review the log for details.",

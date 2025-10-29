@@ -7,7 +7,6 @@ const ADMIN_UPGRADE_STORAGE_DIR = 'storage/upgrades';
 const ADMIN_UPGRADE_RUN_DIR = 'storage/upgrades/runs';
 const ADMIN_UPGRADE_MANUAL_DIR = 'storage/upgrades/manual';
 const ADMIN_UPGRADE_INSTALLED_FILE = 'storage/upgrades/installed.json';
-const ADMIN_UPGRADE_MIN_VERSION = '3.0.0';
 
 final class UpgradeEngine
 {
@@ -1037,11 +1036,19 @@ function upgrade_engine(): UpgradeEngine
 function upgrade_current_version(): string
 {
     $info = upgrade_current_release_info();
-    if ($info !== null && isset($info['label']) && $info['label'] !== '') {
-        return (string)$info['label'];
+    if ($info !== null) {
+        $tag = trim((string)($info['tag'] ?? ''));
+        if ($tag !== '') {
+            return $tag;
+        }
+
+        $label = trim((string)($info['label'] ?? ''));
+        if ($label !== '') {
+            return $label;
+        }
     }
 
-    return ADMIN_UPGRADE_MIN_VERSION;
+    return '';
 }
 
 function upgrade_current_release_info(): ?array

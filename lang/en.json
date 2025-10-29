@@ -399,6 +399,7 @@
   "unknown": "Unknown",
   "unknown_action": "Unknown dashboard action.",
   "upgrade_available": "Version %s is available for installation.",
+  "upgrade_available_label": "Release name",
   "upgrade_check_failed": "Unable to reach GitHub to verify the latest release. Please try again later.",
   "upgrade_check_no_release": "No GitHub releases were found for the configured repository.",
   "upgrade_complete": "Upgrade installed successfully. Database patches have been applied.",
