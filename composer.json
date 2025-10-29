@@ -1,6 +1,6 @@
 {
     "name": "hrassess/hrassessv300",
-    "description": "Performance assessment portal for HRassess v3.0.0",
+    "description": "Performance assessment portal for HRassess v3.0.1",
     "type": "project",
     "license": "MIT",
     "require": {

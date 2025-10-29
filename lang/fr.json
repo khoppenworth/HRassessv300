@@ -409,6 +409,7 @@
   "unknown": "Unknown",
   "unknown_action": "Unknown dashboard action.",
   "upgrade_available": "Version %s is available for installation.",
+  "upgrade_available_label": "Nom de la version",
   "upgrade_check_failed": "Impossible de contacter GitHub pour vérifier la dernière version. Veuillez réessayer plus tard.",
   "upgrade_check_no_release": "No GitHub releases were found for the configured repository.",
   "upgrade_command_failed": "La commande de mise à jour a retourné un code de sortie non nul. Consultez le journal pour plus de détails.",

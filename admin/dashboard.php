@@ -61,13 +61,36 @@ $runSqlScript = static function (PDO $pdo, string $path): void {
 
 $currentVersion = upgrade_current_version();
 $currentReleaseInfo = upgrade_current_release_info();
-$currentVersionLabel = $currentReleaseInfo['label'] ?? $currentVersion;
-$currentVersionTag = $currentReleaseInfo['tag'] ?? null;
-$currentVersionUrl = $currentReleaseInfo['url'] ?? null;
-$currentVersionInstalledAt = $currentReleaseInfo['installed_at'] ?? null;
+$currentVersionTag = null;
+$currentVersionLabel = null;
+$currentVersionUrl = null;
+$currentVersionInstalledAt = null;
+if ($currentReleaseInfo !== null) {
+    $tagValue = trim((string)($currentReleaseInfo['tag'] ?? ''));
+    if ($tagValue !== '') {
+        $currentVersionTag = $tagValue;
+    }
+
+    $labelValue = trim((string)($currentReleaseInfo['label'] ?? ''));
+    if ($labelValue !== '') {
+        $currentVersionLabel = $labelValue;
+    }
+
+    $currentVersionUrl = isset($currentReleaseInfo['url']) ? (string)$currentReleaseInfo['url'] : null;
+    $currentVersionInstalledAt = isset($currentReleaseInfo['installed_at'])
+        ? (string)$currentReleaseInfo['installed_at']
+        : null;
+}
+
+$normalizedCurrentVersion = trim((string)$currentVersion);
+if ($currentVersionTag === null && $normalizedCurrentVersion !== '') {
+    $currentVersionTag = $normalizedCurrentVersion;
+}
+
+$currentVersionName = $currentVersionLabel ?? $currentVersionTag ?? ($normalizedCurrentVersion !== '' ? $normalizedCurrentVersion : null);
 $upgradeRepo = upgrade_effective_source($cfg);
 $upgradeDefaults = [
-    'current_version' => $currentVersionLabel,
+    'current_version' => $currentVersionName,
     'current_version_tag' => $currentVersionTag,
     'current_version_url' => $currentVersionUrl,
     'current_version_installed_at' => $currentVersionInstalledAt,
@@ -82,7 +105,7 @@ $upgradeDefaults = [
 ];
 $upgradeState = array_replace($upgradeDefaults, $_SESSION['admin_upgrade_state'] ?? []);
 $releaseState = [
-    'current_version' => $currentVersionLabel,
+    'current_version' => $currentVersionName,
     'current_version_tag' => $currentVersionTag,
     'current_version_url' => $currentVersionUrl,
     'current_version_installed_at' => $currentVersionInstalledAt,
@@ -164,6 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $availableVersion = $release['tag'];
                     $availableLabel = $release['name'];
+                    $availableVersionDisplay = $availableVersion !== '' ? $availableVersion : $availableLabel;
                     $availableUrl = $release['url'];
                     $installedTagForComparison = $upgradeState['current_version_tag'] ?? $currentVersionTag;
                     $installedLabelForComparison = $upgradeState['current_version'] ?? $currentVersionLabel;
@@ -178,7 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $upgradeState['backup_ready'] = false;
                         $flashMessage = sprintf(
                             t($t, 'upgrade_available', 'Version %s is available for installation.'),
-                            $availableLabel
+                            $availableVersionDisplay
                         );
                         $flashType = 'success';
                     } else {
@@ -409,12 +433,23 @@ if ($latestSubmissionRaw) {
 }
 
 $availableVersion = $upgradeState['available_version'] ?? null;
-$availableVersionLabel = $upgradeState['available_version_label'] ?? $availableVersion;
+$availableVersionLabel = $upgradeState['available_version_label'] ?? null;
 $availableVersionUrl = $upgradeState['available_version_url'] ?? null;
-$currentVersionDisplay = $upgradeState['current_version'] ?? $currentVersionLabel;
+$availableVersionDisplay = $availableVersion ?? $availableVersionLabel;
+$availableVersionSecondary = null;
+if ($availableVersion && $availableVersionLabel && $availableVersionLabel !== $availableVersionDisplay) {
+    $availableVersionSecondary = $availableVersionLabel;
+}
+
 $currentVersionTag = $upgradeState['current_version_tag'] ?? $currentVersionTag;
+$currentVersionName = $upgradeState['current_version'] ?? $currentVersionName;
 $currentVersionUrl = $upgradeState['current_version_url'] ?? $currentVersionUrl;
 $currentVersionInstalledAt = $upgradeState['current_version_installed_at'] ?? $currentVersionInstalledAt;
+$currentVersionDisplay = $currentVersionTag ?? $currentVersionName ?? '—';
+$currentVersionSecondary = null;
+if ($currentVersionName && $currentVersionName !== $currentVersionDisplay) {
+    $currentVersionSecondary = $currentVersionName;
+}
 $currentVersionInstalledAtDisplay = null;
 if ($currentVersionInstalledAt) {
     $parsedInstalledAt = strtotime($currentVersionInstalledAt);
@@ -497,9 +532,9 @@ foreach ($upgradeBackups as $backupMeta) {
           <?php else: ?>
             <span><?=htmlspecialchars((string)$currentVersionDisplay, ENT_QUOTES, 'UTF-8')?></span>
           <?php endif; ?>
-          <?php if ($currentVersionTag && $currentVersionTag !== $currentVersionDisplay): ?>
+          <?php if ($currentVersionSecondary): ?>
             <span class="md-upgrade-chip">
-              <?=htmlspecialchars((string)$currentVersionTag, ENT_QUOTES, 'UTF-8')?>
+              <?=htmlspecialchars((string)$currentVersionSecondary, ENT_QUOTES, 'UTF-8')?>
             </span>
           <?php endif; ?>
         </div>
@@ -523,8 +558,14 @@ foreach ($upgradeBackups as $backupMeta) {
         <h3 class="md-upgrade-heading"><?=t($t,'upgrade_overview_status','Update status')?></h3>
         <?php if ($availableVersion): ?>
           <p class="md-upgrade-meta md-upgrade-meta--strong">
-            <?=htmlspecialchars(sprintf(t($t,'upgrade_available','Version %s is available for installation.'), $availableVersionLabel ?? $availableVersion), ENT_QUOTES, 'UTF-8')?>
+            <?=htmlspecialchars(sprintf(t($t,'upgrade_available','Version %s is available for installation.'), $availableVersionDisplay), ENT_QUOTES, 'UTF-8')?>
           </p>
+          <?php if ($availableVersionSecondary): ?>
+            <p class="md-upgrade-meta">
+              <?=t($t,'upgrade_available_label','Release name')?>:
+              <?=htmlspecialchars($availableVersionSecondary, ENT_QUOTES, 'UTF-8')?>
+            </p>
+          <?php endif; ?>
           <?php if ($availableVersionUrl): ?>
             <p class="md-upgrade-meta">
               <a href="<?=htmlspecialchars($availableVersionUrl, ENT_QUOTES, 'UTF-8')?>" target="_blank" rel="noopener" class="md-upgrade-link">
