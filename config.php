@@ -267,8 +267,11 @@ function current_user() { return $_SESSION['user'] ?? null; }
 function require_profile_completion(PDO $pdo, string $redirect = 'profile.php'): void {
     if (!isset($_SESSION['user']['id'])) { return; }
     if (($_SESSION['user']['profile_completed'] ?? 0) == 1) { return; }
-    if (basename($_SERVER['SCRIPT_NAME']) === basename($redirect)) { return; }
-    header('Location: ' . BASE_URL . $redirect);
+
+    $currentScript = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    if ($currentScript === basename($redirect)) { return; }
+
+    header('Location: ' . url_for($redirect));
     exit;
 }
 
