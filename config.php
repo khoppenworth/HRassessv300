@@ -302,7 +302,7 @@ function require_profile_completion(PDO $pdo, string $redirect = 'profile.php'):
     $target = $defaultTarget;
 
     if ($redirectString !== '') {
-        $candidate = $redirectString;
+        $candidate = null;
         $parsedRedirect = $parsedRedirect === false ? null : $parsedRedirect;
         $hasScheme = is_array($parsedRedirect) && isset($parsedRedirect['scheme']) && $parsedRedirect['scheme'] !== '';
 
