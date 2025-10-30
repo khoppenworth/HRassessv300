@@ -69,6 +69,7 @@ if (!defined('APP_BOOTSTRAPPED')) {
         ensure_questionnaire_item_schema($pdo);
         ensure_questionnaire_work_function_schema($pdo);
         ensure_questionnaire_assignment_schema($pdo);
+        ensure_biannual_performance_periods($pdo);
         ensure_analytics_report_schedule_schema($pdo);
     } catch (PDOException $e) {
         $friendly = 'Unable to connect to the application database. Please try again later or contact support.';
@@ -805,6 +806,43 @@ function ensure_questionnaire_assignment_schema(PDO $pdo): void
         }
     } catch (PDOException $e) {
         error_log('ensure_questionnaire_assignment_schema: ' . $e->getMessage());
+    }
+}
+
+function ensure_biannual_performance_periods(PDO $pdo): void
+{
+    try {
+        $tableCheck = $pdo->query("SHOW TABLES LIKE 'performance_period'");
+    } catch (PDOException $e) {
+        error_log('ensure_biannual_performance_periods (table check): ' . $e->getMessage());
+        return;
+    }
+
+    if (!$tableCheck || !$tableCheck->fetch(PDO::FETCH_NUM)) {
+        return;
+    }
+
+    $currentYear = (int)date('Y');
+    $years = range($currentYear - 1, $currentYear + 1);
+
+    try {
+        $stmt = $pdo->prepare("INSERT INTO performance_period (label, period_start, period_end) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE period_start = VALUES(period_start), period_end = VALUES(period_end)");
+        foreach ($years as $year) {
+            $h1Label = sprintf('%d H1', $year);
+            $stmt->execute([
+                $h1Label,
+                sprintf('%d-01-01', $year),
+                sprintf('%d-06-30', $year),
+            ]);
+            $h2Label = sprintf('%d H2', $year);
+            $stmt->execute([
+                $h2Label,
+                sprintf('%d-07-01', $year),
+                sprintf('%d-12-31', $year),
+            ]);
+        }
+    } catch (PDOException $e) {
+        error_log('ensure_biannual_performance_periods: ' . $e->getMessage());
     }
 }
 

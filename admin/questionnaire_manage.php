@@ -17,6 +17,73 @@ const LIKERT_DEFAULT_OPTIONS = [
     '5 - Strongly Agree',
 ];
 
+const QB_IMPORT_MAX_QUESTIONNAIRE_TITLE = 255;
+const QB_IMPORT_MAX_SECTION_TITLE = 255;
+const QB_IMPORT_MAX_ITEM_TEXT = 500;
+const QB_IMPORT_MAX_LINK_ID = 64;
+const QB_IMPORT_MAX_OPTION_VALUE = 500;
+const QB_IMPORT_MAX_DESCRIPTION = 65535;
+
+function qb_import_extract_value($value): string
+{
+    if (is_array($value)) {
+        if (isset($value['@attributes']['value'])) {
+            $value = $value['@attributes']['value'];
+        } elseif (isset($value['value'])) {
+            $value = $value['value'];
+        } elseif (!empty($value)) {
+            $value = reset($value);
+        } else {
+            $value = '';
+        }
+    }
+    if (is_bool($value)) {
+        return $value ? 'true' : 'false';
+    }
+    if (is_scalar($value)) {
+        return (string)$value;
+    }
+    return '';
+}
+
+function qb_import_truncate(string $value, int $maxLength): string
+{
+    if ($maxLength <= 0) {
+        return '';
+    }
+    if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+        if (mb_strlen($value, 'UTF-8') > $maxLength) {
+            return mb_substr($value, 0, $maxLength, 'UTF-8');
+        }
+        return $value;
+    }
+    if (strlen($value) > $maxLength) {
+        return substr($value, 0, $maxLength);
+    }
+    return $value;
+}
+
+function qb_import_normalize_string($value, int $maxLength, string $fallback = ''): string
+{
+    $normalized = trim(qb_import_extract_value($value));
+    if ($normalized === '') {
+        $normalized = trim($fallback);
+    }
+    if ($normalized === '') {
+        return '';
+    }
+    return qb_import_truncate($normalized, $maxLength);
+}
+
+function qb_import_normalize_nullable_string($value, int $maxLength): ?string
+{
+    $normalized = trim(qb_import_extract_value($value));
+    if ($normalized === '') {
+        return null;
+    }
+    return qb_import_truncate($normalized, $maxLength);
+}
+
 function send_json(array $payload, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json');
@@ -503,155 +570,191 @@ if (isset($_POST['import'])) {
             } elseif (($data['resourceType'] ?? '') === 'Questionnaire') {
                 $qs[] = $data;
             }
-            foreach ($qs as $resource) {
-                $pdo->prepare('INSERT INTO questionnaire (title, description) VALUES (?, ?)')
-                    ->execute([
-                        $resource['title'] ?? 'FHIR Questionnaire',
-                        $resource['description'] ?? null,
-                    ]);
-                $qid = (int)$pdo->lastInsertId();
-                $recentImportId = $qid;
-                foreach ($availableWorkFunctions as $wf) {
-                    $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)')
-                        ->execute([$qid, $wf]);
+
+            if ($qs) {
+                $startedTransaction = false;
+                try {
+                    if (!$pdo->inTransaction()) {
+                        $pdo->beginTransaction();
+                        $startedTransaction = true;
+                    }
+
+                    $insertQuestionnaireStmt = $pdo->prepare('INSERT INTO questionnaire (title, description) VALUES (?, ?)');
+                    $insertWorkFunctionStmt = $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
+
+                    foreach ($qs as $resource) {
+                        $title = qb_import_normalize_string($resource['title'] ?? null, QB_IMPORT_MAX_QUESTIONNAIRE_TITLE, 'FHIR Questionnaire');
+                        if ($title === '') {
+                            $title = 'FHIR Questionnaire';
+                        }
+                        $description = qb_import_normalize_nullable_string($resource['description'] ?? null, QB_IMPORT_MAX_DESCRIPTION);
+                        $insertQuestionnaireStmt->execute([$title, $description]);
+                        $qid = (int)$pdo->lastInsertId();
+                        $recentImportId = $qid;
+
+                        foreach ($availableWorkFunctions as $wf) {
+                            $insertWorkFunctionStmt->execute([$qid, $wf]);
+                        }
+
+                        $insertSectionStmt = $pdo->prepare('INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index) VALUES (?, ?, ?, ?)');
+                        $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required) VALUES (?,?,?,?,?,?,?,?,?)');
+                        $insertOptionStmt = $pdo->prepare('INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index) VALUES (?,?,?)');
+
+                        $sectionOrder = 1;
+                        $itemOrder = 1;
+
+                        $toList = static function ($value) {
+                            if (!is_array($value)) {
+                                return [];
+                            }
+                            $expected = 0;
+                            foreach (array_keys($value) as $key) {
+                                if ((string)$key !== (string)$expected) {
+                                    return [$value];
+                                }
+                                $expected++;
+                            }
+                            return $value;
+                        };
+
+                        $mapType = static function ($type) {
+                            $type = strtolower((string)$type);
+                            switch ($type) {
+                                case 'boolean':
+                                    return 'boolean';
+                                case 'likert':
+                                case 'scale':
+                                    return 'likert';
+                                case 'choice':
+                                    return 'choice';
+                                case 'text':
+                                case 'textarea':
+                                    return 'textarea';
+                                default:
+                                    return 'text';
+                            }
+                        };
+
+                        $isTruthy = static function ($value): bool {
+                            if (is_array($value)) {
+                                if (isset($value['@attributes']['value'])) {
+                                    $value = $value['@attributes']['value'];
+                                } elseif (isset($value['value'])) {
+                                    $value = $value['value'];
+                                } else {
+                                    $value = reset($value);
+                                }
+                            }
+                            if (is_string($value)) {
+                                $value = trim($value);
+                            }
+                            return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+                        };
+
+                        $processItems = function ($items, $sectionId = null) use (&$processItems, &$sectionOrder, &$itemOrder, $insertSectionStmt, $insertItemStmt, $insertOptionStmt, $qid, $toList, $mapType, $pdo, $isTruthy) {
+                            $items = $toList($items);
+                            foreach ($items as $it) {
+                                if (!is_array($it)) {
+                                    continue;
+                                }
+                                $children = $it['item'] ?? [];
+                                $childList = $toList($children);
+                                $type = strtolower($it['type'] ?? '');
+                                $hasChildren = !empty($childList);
+
+                                if ($hasChildren || $type === 'group') {
+                                    $sectionTitle = qb_import_normalize_string($it['text'] ?? null, QB_IMPORT_MAX_SECTION_TITLE, $it['linkId'] ?? ('Section ' . $sectionOrder));
+                                    if ($sectionTitle === '') {
+                                        $sectionTitle = 'Section ' . $sectionOrder;
+                                    }
+                                    $sectionDescription = qb_import_normalize_nullable_string($it['description'] ?? null, QB_IMPORT_MAX_DESCRIPTION);
+                                    $insertSectionStmt->execute([$qid, $sectionTitle, $sectionDescription, $sectionOrder]);
+                                    $newSectionId = (int)$pdo->lastInsertId();
+                                    $sectionOrder++;
+                                    if ($hasChildren) {
+                                        $processItems($childList, $newSectionId);
+                                    }
+                                    continue;
+                                }
+
+                                if ($type === 'display') {
+                                    // Display items are headers or text blocks; skip them.
+                                    continue;
+                                }
+
+                                $linkId = qb_import_normalize_string($it['linkId'] ?? null, QB_IMPORT_MAX_LINK_ID, 'i' . $itemOrder);
+                                if ($linkId === '') {
+                                    $linkId = 'i' . $itemOrder;
+                                }
+                                $text = qb_import_normalize_string($it['text'] ?? null, QB_IMPORT_MAX_ITEM_TEXT, $linkId);
+                                if ($text === '') {
+                                    $text = $linkId;
+                                }
+                                $allowMultiple = isset($it['repeats']) ? $isTruthy($it['repeats']) : false;
+                                $dbType = $mapType($type);
+                                $itemOrderIndex = $itemOrder;
+                                $insertItemStmt->execute([
+                                    $qid,
+                                    $sectionId,
+                                    $linkId,
+                                    $text,
+                                    $dbType,
+                                    $itemOrderIndex,
+                                    0,
+                                    $dbType === 'choice' && $allowMultiple ? 1 : 0,
+                                    $isTruthy($it['required'] ?? false) ? 1 : 0,
+                                ]);
+                                $itemId = (int)$pdo->lastInsertId();
+                                if ($dbType === 'choice' || $dbType === 'likert') {
+                                    $options = $toList($it['answerOption'] ?? []);
+                                    $optionOrder = 1;
+                                    foreach ($options as $option) {
+                                        if (!is_array($option)) {
+                                            continue;
+                                        }
+                                        $value = null;
+                                        if (isset($option['valueString'])) {
+                                            $value = $option['valueString'];
+                                        } elseif (isset($option['valueCoding']['display'])) {
+                                            $value = $option['valueCoding']['display'];
+                                        } elseif (isset($option['valueCoding']['code'])) {
+                                            $value = $option['valueCoding']['code'];
+                                        }
+                                        $normalizedValue = qb_import_normalize_string($value, QB_IMPORT_MAX_OPTION_VALUE);
+                                        if ($normalizedValue === '') {
+                                            continue;
+                                        }
+                                        $insertOptionStmt->execute([$itemId, $normalizedValue, $optionOrder]);
+                                        $optionOrder++;
+                                    }
+                                    if ($dbType === 'likert' && $optionOrder === 1) {
+                                        foreach (LIKERT_DEFAULT_OPTIONS as $label) {
+                                            $insertOptionStmt->execute([$itemId, qb_import_truncate($label, QB_IMPORT_MAX_OPTION_VALUE), $optionOrder]);
+                                            $optionOrder++;
+                                        }
+                                    }
+                                }
+                                $itemOrder++;
+                            }
+                        };
+
+                        $processItems($resource['item'] ?? []);
+                    }
+
+                    if ($startedTransaction) {
+                        $pdo->commit();
+                    }
+                    $msg = t($t, 'fhir_import_complete', 'FHIR import complete');
+                } catch (Throwable $e) {
+                    if ($startedTransaction && $pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    error_log('FHIR questionnaire import failed: ' . $e->getMessage());
+                    $msg = t($t, 'fhir_import_failed', 'FHIR import failed. Please check your file and try again.');
                 }
-
-                $insertSectionStmt = $pdo->prepare('INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index) VALUES (?, ?, ?, ?)');
-                $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required) VALUES (?,?,?,?,?,?,?,?,?)');
-                $insertOptionStmt = $pdo->prepare('INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index) VALUES (?,?,?)');
-
-                $sectionOrder = 1;
-                $itemOrder = 1;
-
-                $toList = static function ($value) {
-                    if (!is_array($value)) {
-                        return [];
-                    }
-                    $expected = 0;
-                    foreach (array_keys($value) as $key) {
-                        if ((string)$key !== (string)$expected) {
-                            return [$value];
-                        }
-                        $expected++;
-                    }
-                    return $value;
-                };
-
-                $mapType = static function ($type) {
-                    $type = strtolower((string)$type);
-                    switch ($type) {
-                        case 'boolean':
-                            return 'boolean';
-                        case 'likert':
-                        case 'scale':
-                            return 'likert';
-                        case 'choice':
-                            return 'choice';
-                        case 'text':
-                        case 'textarea':
-                            return 'textarea';
-                        default:
-                            return 'text';
-                    }
-                };
-
-                $isTruthy = static function ($value): bool {
-                    if (is_array($value)) {
-                        if (isset($value['@attributes']['value'])) {
-                            $value = $value['@attributes']['value'];
-                        } elseif (isset($value['value'])) {
-                            $value = $value['value'];
-                        } else {
-                            $value = reset($value);
-                        }
-                    }
-                    if (is_string($value)) {
-                        $value = trim($value);
-                    }
-                    return filter_var($value, FILTER_VALIDATE_BOOLEAN);
-                };
-
-                $processItems = function ($items, $sectionId = null) use (&$processItems, &$sectionOrder, &$itemOrder, $insertSectionStmt, $insertItemStmt, $insertOptionStmt, $qid, $toList, $mapType, $pdo, $isTruthy) {
-                    $items = $toList($items);
-                    foreach ($items as $it) {
-                        if (!is_array($it)) {
-                            continue;
-                        }
-                        $children = $it['item'] ?? [];
-                        $childList = $toList($children);
-                        $type = strtolower($it['type'] ?? '');
-                        $hasChildren = !empty($childList);
-
-                        if ($hasChildren || $type === 'group') {
-                            $title = $it['text'] ?? ($it['linkId'] ?? ('Section '.$sectionOrder));
-                            $description = $it['description'] ?? null;
-                            $insertSectionStmt->execute([$qid, $title, $description, $sectionOrder]);
-                            $newSectionId = (int)$pdo->lastInsertId();
-                            $sectionOrder++;
-                            if ($hasChildren) {
-                                $processItems($childList, $newSectionId);
-                            }
-                            continue;
-                        }
-
-                        if ($type === 'display') {
-                            // Display items are headers or text blocks; skip them.
-                            continue;
-                        }
-
-                        $linkId = $it['linkId'] ?? ('i'.$itemOrder);
-                        $text = $it['text'] ?? $linkId;
-                        $allowMultiple = isset($it['repeats']) ? $isTruthy($it['repeats']) : false;
-                        $dbType = $mapType($type);
-                        $itemOrderIndex = $itemOrder;
-                        $insertItemStmt->execute([
-                            $qid,
-                            $sectionId,
-                            $linkId,
-                            $text,
-                            $dbType,
-                            $itemOrderIndex,
-                            0,
-                            $dbType === 'choice' && $allowMultiple ? 1 : 0,
-                            $isTruthy($it['required'] ?? false) ? 1 : 0,
-                        ]);
-                        $itemId = (int)$pdo->lastInsertId();
-                        if ($dbType === 'choice' || $dbType === 'likert') {
-                            $options = $toList($it['answerOption'] ?? []);
-                            $optionOrder = 1;
-                            foreach ($options as $option) {
-                                if (!is_array($option)) {
-                                    continue;
-                                }
-                                $value = null;
-                                if (isset($option['valueString'])) {
-                                    $value = $option['valueString'];
-                                } elseif (isset($option['valueCoding']['display'])) {
-                                    $value = $option['valueCoding']['display'];
-                                } elseif (isset($option['valueCoding']['code'])) {
-                                    $value = $option['valueCoding']['code'];
-                                }
-                                $value = trim((string)($value ?? ''));
-                                if ($value === '') {
-                                    continue;
-                                }
-                                $insertOptionStmt->execute([$itemId, $value, $optionOrder]);
-                                $optionOrder++;
-                            }
-                            if ($dbType === 'likert' && $optionOrder === 1) {
-                                foreach (LIKERT_DEFAULT_OPTIONS as $label) {
-                                    $insertOptionStmt->execute([$itemId, $label, $optionOrder]);
-                                    $optionOrder++;
-                                }
-                            }
-                        }
-                        $itemOrder++;
-                    }
-                };
-
-                $processItems($resource['item'] ?? []);
+            } else {
+                $msg = t($t, 'no_questionnaires_found', 'No questionnaires found in the import file.');
             }
-            $msg = t($t, 'fhir_import_complete', 'FHIR import complete');
         } else {
             $msg = t($t, 'invalid_file', 'Invalid file');
         }
