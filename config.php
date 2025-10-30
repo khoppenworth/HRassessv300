@@ -267,8 +267,73 @@ function current_user() { return $_SESSION['user'] ?? null; }
 function require_profile_completion(PDO $pdo, string $redirect = 'profile.php'): void {
     if (!isset($_SESSION['user']['id'])) { return; }
     if (($_SESSION['user']['profile_completed'] ?? 0) == 1) { return; }
-    if (basename($_SERVER['SCRIPT_NAME']) === basename($redirect)) { return; }
-    header('Location: ' . BASE_URL . $redirect);
+
+    $scriptSources = [
+        (string)($_SERVER['SCRIPT_NAME'] ?? ''),
+        (string)($_SERVER['PHP_SELF'] ?? ''),
+    ];
+
+    $currentScript = '';
+    foreach ($scriptSources as $source) {
+        if ($source === '') {
+            continue;
+        }
+        $basename = basename($source);
+        if ($basename !== '') {
+            $currentScript = $basename;
+            break;
+        }
+    }
+
+    $redirectString = (string)$redirect;
+    $redirectPath = $redirectString;
+    $parsedRedirect = @parse_url($redirectString);
+    if (is_array($parsedRedirect) && isset($parsedRedirect['path'])) {
+        $redirectPath = (string)$parsedRedirect['path'];
+    }
+
+    $redirectScript = basename($redirectPath);
+    if ($currentScript !== '' && $redirectScript !== '' && $currentScript === $redirectScript) {
+        return;
+    }
+
+    $defaultTarget = function_exists('url_for') ? url_for('profile.php') : ((defined('BASE_URL') ? (string)BASE_URL : '/') . 'profile.php');
+    $target = $redirectString;
+
+    $isAbsolute = is_array($parsedRedirect) && isset($parsedRedirect['scheme']) && $parsedRedirect['scheme'] !== '';
+    if (!$isAbsolute) {
+        if (function_exists('cleanRedirect')) {
+            $target = cleanRedirect($redirectString, $defaultTarget);
+        } elseif (function_exists('url_for')) {
+            $target = url_for($redirectString);
+        } else {
+            $base = defined('BASE_URL') ? (string)BASE_URL : '/';
+            $normalizedBase = rtrim($base, '/');
+            $normalizedPath = '/' . ltrim($redirectPath, '/');
+            if ($redirectPath === '' || $redirectPath === '/') {
+                $normalizedPath = '/';
+            }
+            if ($normalizedBase === '') {
+                $target = $normalizedPath;
+            } else {
+                $target = $normalizedBase . $normalizedPath;
+            }
+            if (is_array($parsedRedirect)) {
+                if (isset($parsedRedirect['query']) && $parsedRedirect['query'] !== '') {
+                    $target .= '?' . $parsedRedirect['query'];
+                }
+                if (isset($parsedRedirect['fragment']) && $parsedRedirect['fragment'] !== '') {
+                    $target .= '#' . $parsedRedirect['fragment'];
+                }
+            }
+        }
+    }
+
+    if ($target === '' || $target === null) {
+        $target = $defaultTarget;
+    }
+
+    header('Location: ' . $target);
     exit;
 }
 
