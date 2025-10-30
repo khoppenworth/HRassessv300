@@ -591,12 +591,40 @@ final class UpgradeEngine
 
     public function downloadReleaseArchive(string $source, string $reference, ?string $token = null): array
     {
-        $slug = $this->extractSlug($source);
-        if ($slug === null) {
+        $normalized = $this->normalizeSource($source);
+        if ($normalized === '') {
             throw new RuntimeException('Unable to determine repository slug from ' . $source);
         }
 
-        $downloadUrl = 'https://codeload.github.com/' . $slug . '/zip/' . rawurlencode($reference);
+        $downloadUrl = null;
+        $slug = null;
+
+        if ($this->looksLikeSlug($normalized)) {
+            $slug = $normalized;
+        } elseif (preg_match('#^https?://#i', $normalized) === 1) {
+            $downloadUrl = $normalized;
+
+            $parsed = @parse_url($normalized);
+            if ($parsed !== false) {
+                $path = trim((string)($parsed['path'] ?? ''), '/');
+                $segments = $path !== '' ? explode('/', $path) : [];
+                if (count($segments) === 2) {
+                    $extracted = $this->extractSlug($normalized);
+                    if ($extracted !== null) {
+                        $slug = $extracted;
+                    }
+                }
+            }
+        }
+
+        if ($downloadUrl === null) {
+            if ($slug === null) {
+                throw new RuntimeException('Unable to determine repository slug from ' . $source);
+            }
+
+            $downloadUrl = 'https://codeload.github.com/' . $slug . '/zip/' . rawurlencode($reference);
+        }
+
         $tmpDir = $this->temporaryDirectory('release_');
         $archivePath = $tmpDir . DIRECTORY_SEPARATOR . 'release.zip';
 
