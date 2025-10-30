@@ -190,17 +190,21 @@ try {
         </select>
       </label>
       <label class="md-field md-field-inline">
-        <span><?=t($t,'brand_color','Brand Color')?></span>
+        <span>
+          <?=t($t,'brand_color','Brand Color')?>
+          <?=render_help_icon(t($t,'brand_color_hint','Pick any brand color to personalize buttons, highlights, and gradients.'))?>
+        </span>
         <div class="md-color-picker" data-brand-color-picker data-default-color="<?=htmlspecialchars(site_default_brand_color($cfg), ENT_QUOTES, 'UTF-8')?>">
           <input type="color" name="brand_color" value="<?=htmlspecialchars(site_brand_color($cfg), ENT_QUOTES, 'UTF-8')?>" aria-label="<?=t($t,'brand_color_picker','Choose a brand color')?>">
           <span class="md-color-value"><?=htmlspecialchars(strtoupper(site_brand_color($cfg)), ENT_QUOTES, 'UTF-8')?></span>
           <button type="button" class="md-button md-outline md-compact" data-brand-color-reset><?=t($t,'brand_color_reset','Use default brand color')?></button>
           <input type="hidden" name="brand_color_reset" value="0" data-brand-color-reset-field>
         </div>
-        <small class="md-field-hint"><?=t($t,'brand_color_hint','Pick any brand color to personalize buttons, highlights, and gradients.')?></small>
       </label>
-      <h3 class="md-subhead"><?=t($t,'language_settings','Languages')?></h3>
-      <p class="md-field-hint"><?=t($t,'language_settings_hint','Choose which interface languages are available to users.')?></p>
+      <h3 class="md-subhead">
+        <?=t($t,'language_settings','Languages')?>
+        <?=render_help_icon(t($t,'language_settings_hint','Choose which interface languages are available to users.'))?>
+      </h3>
       <?php foreach (SUPPORTED_LOCALES as $localeOption): ?>
         <?php $isChecked = in_array($localeOption, $enabledLocales, true); ?>
         <div class="md-control">
@@ -210,7 +214,9 @@ try {
           </label>
         </div>
       <?php endforeach; ?>
-      <p class="md-field-hint"><?=t($t,'language_required_notice','At least English or French must remain enabled.')?></p>
+      <div class="md-help-note">
+        <?=render_help_icon(t($t,'language_required_notice','At least English or French must remain enabled.'), true)?>
+      </div>
       <h3 class="md-subhead"><?=t($t,'sso_settings','Single Sign-On (SSO)')?></h3>
       <div class="md-control">
         <label>
