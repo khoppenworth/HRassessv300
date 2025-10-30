@@ -46,10 +46,19 @@ function qb_import_extract_value($value): string
     return '';
 }
 
-function qb_import_truncate(string $value, int $maxLength): string
+function qb_import_truncate(string $value, int $maxLength, bool $limitByBytes = false): string
 {
     if ($maxLength <= 0) {
         return '';
+    }
+    if ($limitByBytes) {
+        if (strlen($value) <= $maxLength) {
+            return $value;
+        }
+        if (function_exists('mb_strcut')) {
+            return mb_strcut($value, 0, $maxLength, 'UTF-8');
+        }
+        return substr($value, 0, $maxLength);
     }
     if (function_exists('mb_strlen') && function_exists('mb_substr')) {
         if (mb_strlen($value, 'UTF-8') > $maxLength) {
@@ -63,7 +72,7 @@ function qb_import_truncate(string $value, int $maxLength): string
     return $value;
 }
 
-function qb_import_normalize_string($value, int $maxLength, string $fallback = ''): string
+function qb_import_normalize_string($value, int $maxLength, string $fallback = '', bool $limitByBytes = false): string
 {
     $normalized = trim(qb_import_extract_value($value));
     if ($normalized === '') {
@@ -72,16 +81,16 @@ function qb_import_normalize_string($value, int $maxLength, string $fallback = '
     if ($normalized === '') {
         return '';
     }
-    return qb_import_truncate($normalized, $maxLength);
+    return qb_import_truncate($normalized, $maxLength, $limitByBytes);
 }
 
-function qb_import_normalize_nullable_string($value, int $maxLength): ?string
+function qb_import_normalize_nullable_string($value, int $maxLength, bool $limitByBytes = false): ?string
 {
     $normalized = trim(qb_import_extract_value($value));
     if ($normalized === '') {
         return null;
     }
-    return qb_import_truncate($normalized, $maxLength);
+    return qb_import_truncate($normalized, $maxLength, $limitByBytes);
 }
 
 function send_json(array $payload, int $status = 200): void {
@@ -587,7 +596,7 @@ if (isset($_POST['import'])) {
                         if ($title === '') {
                             $title = 'FHIR Questionnaire';
                         }
-                        $description = qb_import_normalize_nullable_string($resource['description'] ?? null, QB_IMPORT_MAX_DESCRIPTION);
+                        $description = qb_import_normalize_nullable_string($resource['description'] ?? null, QB_IMPORT_MAX_DESCRIPTION, true);
                         $insertQuestionnaireStmt->execute([$title, $description]);
                         $qid = (int)$pdo->lastInsertId();
                         $recentImportId = $qid;
@@ -667,7 +676,7 @@ if (isset($_POST['import'])) {
                                     if ($sectionTitle === '') {
                                         $sectionTitle = 'Section ' . $sectionOrder;
                                     }
-                                    $sectionDescription = qb_import_normalize_nullable_string($it['description'] ?? null, QB_IMPORT_MAX_DESCRIPTION);
+                                    $sectionDescription = qb_import_normalize_nullable_string($it['description'] ?? null, QB_IMPORT_MAX_DESCRIPTION, true);
                                     $insertSectionStmt->execute([$qid, $sectionTitle, $sectionDescription, $sectionOrder]);
                                     $newSectionId = (int)$pdo->lastInsertId();
                                     $sectionOrder++;
