@@ -285,7 +285,8 @@ function require_profile_completion(PDO $pdo, string $redirect = 'profile.php'):
         }
     }
 
-    $redirectString = (string)$redirect;
+    $redirectString = trim((string)$redirect);
+    $redirectString = str_replace(["\r", "\n"], '', $redirectString);
     $redirectPath = $redirectString;
     $parsedRedirect = @parse_url($redirectString);
     if (is_array($parsedRedirect) && isset($parsedRedirect['path'])) {
@@ -298,34 +299,87 @@ function require_profile_completion(PDO $pdo, string $redirect = 'profile.php'):
     }
 
     $defaultTarget = function_exists('url_for') ? url_for('profile.php') : ((defined('BASE_URL') ? (string)BASE_URL : '/') . 'profile.php');
-    $target = $redirectString;
+    $target = $defaultTarget;
 
-    $isAbsolute = is_array($parsedRedirect) && isset($parsedRedirect['scheme']) && $parsedRedirect['scheme'] !== '';
-    if (!$isAbsolute) {
-        if (function_exists('cleanRedirect')) {
-            $target = cleanRedirect($redirectString, $defaultTarget);
-        } elseif (function_exists('url_for')) {
-            $target = url_for($redirectString);
-        } else {
+    if ($redirectString !== '') {
+        $candidate = $redirectString;
+        $parsedRedirect = $parsedRedirect === false ? null : $parsedRedirect;
+        $hasScheme = is_array($parsedRedirect) && isset($parsedRedirect['scheme']) && $parsedRedirect['scheme'] !== '';
+
+        $buildTargetFromPath = function () use ($parsedRedirect, $redirectPath) {
+            $path = (string)$redirectPath;
+            $hadTrailingSlash = $path !== '' && substr($path, -1) === '/';
+            $normalizedPath = '/' . ltrim($path, '/');
+            if ($path === '' || $path === '/') {
+                $normalizedPath = '/';
+                $hadTrailingSlash = true;
+            }
+
+            $segments = [];
+            foreach (explode('/', $normalizedPath) as $segment) {
+                if ($segment === '' || $segment === '.') {
+                    continue;
+                }
+                if ($segment === '..') {
+                    array_pop($segments);
+                    continue;
+                }
+                $segments[] = $segment;
+            }
+
+            $cleanPath = '/';
+            if (!empty($segments)) {
+                $cleanPath = '/' . implode('/', $segments);
+                if ($hadTrailingSlash && substr($cleanPath, -1) !== '/') {
+                    $cleanPath .= '/';
+                }
+            }
+
             $base = defined('BASE_URL') ? (string)BASE_URL : '/';
             $normalizedBase = rtrim($base, '/');
-            $normalizedPath = '/' . ltrim($redirectPath, '/');
-            if ($redirectPath === '' || $redirectPath === '/') {
-                $normalizedPath = '/';
-            }
-            if ($normalizedBase === '') {
-                $target = $normalizedPath;
-            } else {
-                $target = $normalizedBase . $normalizedPath;
-            }
+            $result = $normalizedBase === '' ? $cleanPath : $normalizedBase . $cleanPath;
+
             if (is_array($parsedRedirect)) {
                 if (isset($parsedRedirect['query']) && $parsedRedirect['query'] !== '') {
-                    $target .= '?' . $parsedRedirect['query'];
+                    $result .= '?' . $parsedRedirect['query'];
                 }
                 if (isset($parsedRedirect['fragment']) && $parsedRedirect['fragment'] !== '') {
-                    $target .= '#' . $parsedRedirect['fragment'];
+                    $result .= '#' . $parsedRedirect['fragment'];
                 }
             }
+
+            return $result;
+        };
+
+        if (function_exists('cleanRedirect')) {
+            $candidate = cleanRedirect($redirectString, $defaultTarget);
+        } elseif ($hasScheme) {
+            $scheme = strtolower((string)($parsedRedirect['scheme'] ?? ''));
+            if (in_array($scheme, ['http', 'https'], true)) {
+                $base = defined('BASE_URL') ? (string)BASE_URL : '';
+                $baseForParse = $base === '' ? '/' : $base;
+                $baseParts = @parse_url($baseForParse);
+                $allowedHost = $baseParts['host'] ?? ($_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? ''));
+                $allowedPort = isset($baseParts['port']) ? (int)$baseParts['port'] : (isset($_SERVER['SERVER_PORT']) ? (int)$_SERVER['SERVER_PORT'] : null);
+                $redirectHost = (string)($parsedRedirect['host'] ?? '');
+                $redirectPort = isset($parsedRedirect['port']) ? (int)$parsedRedirect['port'] : null;
+
+                if ($redirectHost !== '' && $allowedHost !== '' && strcasecmp($redirectHost, $allowedHost) === 0) {
+                    if ($redirectPort === null || $allowedPort === null || $redirectPort === $allowedPort) {
+                        $candidate = $buildTargetFromPath();
+                    }
+                }
+            }
+        } else {
+            if (function_exists('url_for')) {
+                $candidate = url_for($redirectString);
+            } else {
+                $candidate = $buildTargetFromPath();
+            }
+        }
+
+        if ($candidate !== '' && $candidate !== null) {
+            $target = $candidate;
         }
     }
 
