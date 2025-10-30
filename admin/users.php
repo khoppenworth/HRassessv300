@@ -346,7 +346,7 @@ foreach ($rows as $r) {
   </select>
 </label>
 <label class="md-field"><span><?=t($t,'next_assessment','Next Assessment Date')?></span><input type="date" name="next_assessment_date"></label>
-<button name="create" class="md-button md-primary md-elev-2 md-button--wide"><?=t($t,'create','Create')?></button>
+<button name="create" class="md-button md-primary md-elev-2 md-user-action-button"><?=t($t,'create','Create')?></button>
 </form></div>
 
 <div class="md-card md-elev-2"><h2 class="md-card-title"><?=t($t,'manage_users','Manage Users')?></h2>
@@ -440,13 +440,13 @@ foreach ($rows as $r) {
                 </label>
               </div>
               <div class="md-user-form-actions">
-                <button name="reset" class="md-button md-elev-1"><?=t($t,'apply','Apply')?></button>
+                <button name="reset" class="md-button md-elev-1 md-user-action-button"><?=t($t,'apply','Apply')?></button>
               </div>
             </form>
             <form method="post" action="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" class="md-user-delete-form" data-verify-user="<?=htmlspecialchars($r['username'], ENT_QUOTES, 'UTF-8')?>" data-verify-prompt="<?=htmlspecialchars(t($t,'confirm_delete_prompt','Type the username to confirm deletion.'), ENT_QUOTES, 'UTF-8')?>" data-verify-mismatch="<?=htmlspecialchars(t($t,'delete_verification_failed','The entered username did not match. No changes were made.'), ENT_QUOTES, 'UTF-8')?>">
               <input type="hidden" name="csrf" value="<?=csrf_token()?>">
               <input type="hidden" name="id" value="<?=$record['id']?>">
-              <button name="delete" class="md-button md-danger md-elev-1" type="submit"><?=t($t,'delete','Delete')?></button>
+              <button name="delete" class="md-button md-danger md-elev-1 md-user-action-button" type="submit"><?=t($t,'delete','Delete')?></button>
             </form>
           </div>
         </article>
@@ -485,7 +485,7 @@ foreach ($rows as $r) {
               <td><?=htmlspecialchars($record['next_assessment_display'], ENT_QUOTES, 'UTF-8')?></td>
               <td><?=htmlspecialchars($record['created_display'], ENT_QUOTES, 'UTF-8')?></td>
               <td>
-                <button type="button" class="md-button md-outline md-user-manage" data-scroll-target="user-card-<?=$record['id']?>"><?=t($t,'manage','Manage')?></button>
+                <button type="button" class="md-button md-outline md-user-manage md-user-action-button" data-scroll-target="user-card-<?=$record['id']?>"><?=t($t,'manage','Manage')?></button>
               </td>
             </tr>
           <?php endforeach; ?>

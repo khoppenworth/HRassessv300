@@ -874,6 +874,10 @@ body.theme-dark .md-user-meta dd {
   padding-inline: 1rem;
 }
 
+.md-user-action-button {
+  min-width: clamp(8rem, 18vw, 10.5rem);
+}
+
 .md-user-update-form {
   flex: 1 1 320px;
   display: grid;
@@ -911,8 +915,8 @@ body.theme-dark .md-field.md-field--compact select {
   align-self: flex-end;
 }
 
-.md-user-delete-form .md-button {
-  min-width: 7.5rem;
+.md-user-delete-form .md-user-action-button {
+  min-width: clamp(8rem, 18vw, 10.5rem);
 }
 
 @media (max-width: 720px) {
@@ -924,7 +928,7 @@ body.theme-dark .md-field.md-field--compact select {
     align-self: stretch;
   }
 
-  .md-user-delete-form .md-button {
+  .md-user-delete-form .md-user-action-button {
     width: 100%;
   }
 }
