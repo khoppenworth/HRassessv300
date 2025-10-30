@@ -12,14 +12,20 @@ $cfg = get_site_config($pdo);
 $user = current_user();
 try {
     if ($user['role'] === 'staff') {
-        $stmt = $pdo->prepare(
-            "SELECT DISTINCT q.id, q.title FROM questionnaire_assignment qa " .
-            "JOIN questionnaire q ON q.id = qa.questionnaire_id " .
-            "WHERE qa.staff_id = :sid ORDER BY q.title"
-        );
-        $stmt->execute([
-            'sid' => $user['id'],
-        ]);
+        $workFunction = trim((string)($user['work_function'] ?? ''));
+        $selectParts = [
+            "SELECT q.id AS id, q.title AS title FROM questionnaire_assignment qa " .
+            "JOIN questionnaire q ON q.id = qa.questionnaire_id WHERE qa.staff_id = :sid",
+        ];
+        $params = [':sid' => $user['id']];
+        if ($workFunction !== '') {
+            $selectParts[] = "SELECT q2.id AS id, q2.title AS title FROM questionnaire_work_function qwf "
+                . "JOIN questionnaire q2 ON q2.id = qwf.questionnaire_id WHERE qwf.work_function = :wf";
+            $params[':wf'] = $workFunction;
+        }
+        $sql = 'SELECT id, title FROM (' . implode(' UNION ', $selectParts) . ') AS combined ORDER BY title';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         $q = $stmt->fetchAll();
     } else {
         $q = $pdo->query("SELECT id, title FROM questionnaire ORDER BY title")->fetchAll();

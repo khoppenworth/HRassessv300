@@ -12,11 +12,16 @@ $error = $_SESSION['questionnaire_assignment_error'] ?? '';
 unset($_SESSION['questionnaire_assignment_flash'], $_SESSION['questionnaire_assignment_error']);
 
 try {
-    $staffStmt = $pdo->query("SELECT id, username, full_name FROM users WHERE role='staff' AND account_status='active' ORDER BY full_name ASC, username ASC");
+    $staffStmt = $pdo->query("SELECT id, username, full_name, work_function FROM users WHERE role='staff' AND account_status='active' ORDER BY full_name ASC, username ASC");
     $staffMembers = $staffStmt ? $staffStmt->fetchAll(PDO::FETCH_ASSOC) : [];
 } catch (PDOException $e) {
     error_log('questionnaire_assignments staff fetch failed: ' . $e->getMessage());
     $staffMembers = [];
+}
+
+$staffById = [];
+foreach ($staffMembers as $member) {
+    $staffById[(int)$member['id']] = $member;
 }
 
 $selectedStaffId = 0;
@@ -105,6 +110,38 @@ if ($selectedStaffId <= 0) {
     $selectedStaffId = (int)($_GET['staff_id'] ?? ($staffMembers[0]['id'] ?? 0));
 }
 
+$selectedStaffRecord = $staffById[$selectedStaffId] ?? null;
+$selectedWorkFunction = '';
+if ($selectedStaffRecord) {
+    $selectedWorkFunction = trim((string)($selectedStaffRecord['work_function'] ?? ''));
+}
+$selectedWorkFunctionLabel = $selectedWorkFunction !== '' ? work_function_label($pdo, $selectedWorkFunction) : '';
+$defaultQuestionnaires = [];
+$defaultAssignmentIds = [];
+if ($selectedWorkFunction !== '') {
+    try {
+        $defaultStmt = $pdo->prepare(
+            'SELECT q.id, q.title FROM questionnaire_work_function qwf '
+            . 'JOIN questionnaire q ON q.id = qwf.questionnaire_id '
+            . 'WHERE qwf.work_function = ? ORDER BY q.title ASC'
+        );
+        $defaultStmt->execute([$selectedWorkFunction]);
+        $defaultQuestionnaires = $defaultStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $defaultAssignmentIds = array_map('intval', array_column($defaultQuestionnaires, 'id'));
+    } catch (PDOException $e) {
+        error_log('questionnaire_assignments default lookup failed: ' . $e->getMessage());
+        $defaultQuestionnaires = [];
+        $defaultAssignmentIds = [];
+    }
+}
+$defaultsLabelText = '';
+if ($selectedWorkFunctionLabel !== '') {
+    $defaultsLabelText = sprintf(
+        t($t, 'assignment_defaults_label', 'Work function: %s'),
+        $selectedWorkFunctionLabel
+    );
+}
+
 try {
     $questionnaireStmt = $pdo->query('SELECT id, title, description FROM questionnaire ORDER BY title ASC');
     $questionnaires = $questionnaireStmt ? $questionnaireStmt->fetchAll(PDO::FETCH_ASSOC) : [];
@@ -144,6 +181,16 @@ if ($selectedStaffId > 0) {
       display: grid;
       gap: 0.75rem;
     }
+    .md-assignment-defaults {
+      margin-bottom: 1rem;
+    }
+    .md-assignment-defaults ul {
+      margin: 0.5rem 0 0 1.25rem;
+      padding-left: 0;
+    }
+    .md-assignment-defaults li {
+      margin: 0.25rem 0;
+    }
     @media (min-width: 640px) {
       .md-assignment-grid {
         grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -158,6 +205,10 @@ if ($selectedStaffId > 0) {
       gap: 0.35rem;
       background: #fff;
     }
+    .md-assignment-option--default {
+      border-color: var(--app-primary, #2563eb);
+      background: rgba(37, 99, 235, 0.08);
+    }
     .md-assignment-option input[type="checkbox"] {
       margin-right: 0.5rem;
     }
@@ -167,6 +218,13 @@ if ($selectedStaffId > 0) {
       gap: 0.5rem;
       font-weight: 600;
       cursor: pointer;
+    }
+    .md-assignment-default-flag {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--app-primary, #2563eb);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
     }
     .md-assignment-option p {
       margin: 0;
@@ -202,17 +260,48 @@ if ($selectedStaffId > 0) {
         </select>
       </form>
       <?php if ($selectedStaffId > 0): ?>
+        <?php if ($selectedWorkFunctionLabel !== '' || $defaultQuestionnaires): ?>
+          <div class="md-alert info md-assignment-defaults">
+            <strong><?=htmlspecialchars(t($t,'assignment_defaults_heading','Work-function defaults'), ENT_QUOTES, 'UTF-8')?></strong>
+            <?php if ($defaultsLabelText !== ''): ?>
+              <p><?=htmlspecialchars($defaultsLabelText, ENT_QUOTES, 'UTF-8')?></p>
+            <?php endif; ?>
+            <p><?=htmlspecialchars(t($t,'assignment_defaults_hint','These questionnaires are automatically available because of the staff member\'s work function. They cannot be removed here.'), ENT_QUOTES, 'UTF-8')?></p>
+            <?php if ($defaultQuestionnaires): ?>
+              <ul>
+                <?php foreach ($defaultQuestionnaires as $defaultItem): ?>
+                  <?php
+                    $defaultTitle = trim((string)($defaultItem['title'] ?? ''));
+                    if ($defaultTitle === '') {
+                        $defaultTitle = t($t,'questionnaire','Questionnaire');
+                    }
+                  ?>
+                  <li><?=htmlspecialchars($defaultTitle, ENT_QUOTES, 'UTF-8')?></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php else: ?>
+              <p><?=htmlspecialchars(t($t,'assignment_defaults_none','This work function does not have default questionnaires yet.'), ENT_QUOTES, 'UTF-8')?></p>
+            <?php endif; ?>
+          </div>
+        <?php endif; ?>
       <form method="post" action="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="staff_id" value="<?=$selectedStaffId?>">
         <p><?=t($t,'assignment_instructions','Select the questionnaires that should be available to this staff member in addition to their work-function defaults.')?></p>
         <div class="md-assignment-grid">
           <?php foreach ($questionnaires as $questionnaire): ?>
-            <?php $qid = (int)$questionnaire['id']; ?>
-            <div class="md-assignment-option">
+            <?php
+              $qid = (int)$questionnaire['id'];
+              $isDefault = in_array($qid, $defaultAssignmentIds, true);
+              $optionClasses = 'md-assignment-option' . ($isDefault ? ' md-assignment-option--default' : '');
+            ?>
+            <div class="<?=htmlspecialchars($optionClasses, ENT_QUOTES, 'UTF-8')?>">
               <label>
                 <input type="checkbox" name="questionnaire_ids[]" value="<?=$qid?>" <?=(in_array($qid, $assignedIds, true) ? 'checked' : '')?>>
                 <span><?=htmlspecialchars($questionnaire['title'] ?? t($t,'questionnaire','Questionnaire'), ENT_QUOTES, 'UTF-8')?></span>
+                <?php if ($isDefault): ?>
+                  <span class="md-assignment-default-flag"><?=htmlspecialchars(t($t,'assignment_default_badge','Default'), ENT_QUOTES, 'UTF-8')?></span>
+                <?php endif; ?>
               </label>
               <?php if (!empty($questionnaire['description'])): ?>
                 <p><?=htmlspecialchars($questionnaire['description'], ENT_QUOTES, 'UTF-8')?></p>

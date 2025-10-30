@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS site_config (
   landing_text TEXT NULL,
   address VARCHAR(255) NULL,
   contact VARCHAR(255) NULL,
+  landing_metric_submissions INT NULL,
+  landing_metric_completion VARCHAR(50) NULL,
+  landing_metric_adoption VARCHAR(50) NULL,
   logo_path VARCHAR(255) NULL,
   footer_org_name VARCHAR(255) NULL,
   footer_org_short VARCHAR(100) NULL,
@@ -40,6 +43,9 @@ CREATE TABLE IF NOT EXISTS site_config (
   upgrade_repo VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ALTER TABLE site_config
+  ADD COLUMN IF NOT EXISTS landing_metric_submissions INT NULL AFTER contact,
+  ADD COLUMN IF NOT EXISTS landing_metric_completion VARCHAR(50) NULL AFTER landing_metric_submissions,
+  ADD COLUMN IF NOT EXISTS landing_metric_adoption VARCHAR(50) NULL AFTER landing_metric_completion,
   ADD COLUMN IF NOT EXISTS footer_org_name VARCHAR(255) NULL AFTER logo_path,
   ADD COLUMN IF NOT EXISTS footer_org_short VARCHAR(100) NULL AFTER footer_org_name,
   ADD COLUMN IF NOT EXISTS footer_website_label VARCHAR(255) NULL AFTER footer_org_short,
@@ -75,6 +81,9 @@ INSERT IGNORE INTO site_config (
   landing_text,
   address,
   contact,
+  landing_metric_submissions,
+  landing_metric_completion,
+  landing_metric_adoption,
   logo_path,
   footer_org_name,
   footer_org_short,
@@ -110,6 +119,9 @@ INSERT IGNORE INTO site_config (
   'My Performance',
   NULL,
   NULL,
+  4280,
+  '12 min',
+  '94%',
   NULL,
   NULL,
   'Ethiopian Pharmaceutical Supply Service',
@@ -143,9 +155,26 @@ INSERT IGNORE INTO site_config (
   'khoppenworth/HRassessv300'
 );
 
+-- Add supporting index for faster timeline queries without full table scans.
+SET @response_idx_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_response'
+    AND INDEX_NAME = 'idx_response_user_created'
+);
+SET @response_idx_sql = IF(
+  @response_idx_exists = 0,
+  'ALTER TABLE questionnaire_response ADD INDEX idx_response_user_created (user_id, created_at)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @response_idx_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 UPDATE site_config
-SET brand_color = NULL
-SET enabled_locales = '["en","fr","am"]'
+SET brand_color = NULL,
+    enabled_locales = '["en","fr","am"]'
 WHERE id = 1 AND (enabled_locales IS NULL OR enabled_locales = '');
 
 UPDATE site_config

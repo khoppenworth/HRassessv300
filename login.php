@@ -102,11 +102,17 @@ $signInSubheading = t(
     'sign_in_subheading',
     'Use your credentials to continue to your personalized workspace.'
 );
-$supportingPoints = array_values(array_filter(array_map('trim', [
-    t($t, 'login_supporting_point_one', 'Complete assessments without losing context.'),
-    t($t, 'login_supporting_point_two', 'Compare results across performance periods instantly.'),
-    t($t, 'login_supporting_point_three', 'Share feedback securely with your leadership team.'),
-])));
+$formAction = htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8');
+$offlineRedirect = htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8');
+$offlineWarmRoutes = htmlspecialchars(implode(',', [
+    url_for('my_performance.php'),
+    url_for('submit_assessment.php'),
+    url_for('profile.php'),
+    url_for('dashboard.php'),
+]), ENT_QUOTES, 'UTF-8');
+$offlineUnavailable = htmlspecialchars(t($t, 'offline_login_unavailable', 'Offline login is not available yet. Connect to the internet and sign in once to enable offline access.'), ENT_QUOTES, 'UTF-8');
+$offlineInvalid = htmlspecialchars(t($t, 'offline_login_invalid', 'Offline sign-in failed. Double-check your username and password.'), ENT_QUOTES, 'UTF-8');
+$offlineError = htmlspecialchars(t($t, 'offline_login_error', 'We could not complete offline sign-in. Try again when you have a connection.'), ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
 <html lang="<?= $langAttr ?>" data-base-url="<?= $baseUrl ?>">
@@ -123,7 +129,6 @@ $supportingPoints = array_values(array_filter(array_map('trim', [
   <?php endif; ?>
 </head>
 <body class="<?= $bodyClass ?>" style="<?= $bodyStyle ?>">
-  <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
   <div class="md-container">
     <div class="md-card md-elev-3 md-login md-login--simple">
       <div class="md-login-simple">
@@ -139,22 +144,10 @@ $supportingPoints = array_values(array_filter(array_map('trim', [
         </header>
 
         <section class="md-login-simple__body" aria-labelledby="sign-in-heading">
-          <div class="md-login-simple__copy">
-            <h2 id="sign-in-heading"><?= htmlspecialchars($signInHeading, ENT_QUOTES, 'UTF-8') ?></h2>
-            <?php if (trim($signInSubheading) !== ''): ?>
-              <p><?= htmlspecialchars($signInSubheading, ENT_QUOTES, 'UTF-8') ?></p>
-            <?php endif; ?>
-            <?php if (!empty($supportingPoints)): ?>
-              <ul class="md-login-simple__list" role="list">
-                <?php foreach ($supportingPoints as $point): ?>
-                  <li>
-                    <span class="md-login-simple__bullet" aria-hidden="true"></span>
-                    <span><?= htmlspecialchars($point, ENT_QUOTES, 'UTF-8') ?></span>
-                  </li>
-                <?php endforeach; ?>
-              </ul>
-            <?php endif; ?>
-          </div>
+          <h2 id="sign-in-heading"><?= htmlspecialchars($signInHeading, ENT_QUOTES, 'UTF-8') ?></h2>
+          <?php if (trim($signInSubheading) !== ''): ?>
+            <p class="md-muted"><?= htmlspecialchars($signInSubheading, ENT_QUOTES, 'UTF-8') ?></p>
+          <?php endif; ?>
 
           <?php if ($err !== ''): ?>
             <div class="md-alert error" role="alert"><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
@@ -163,17 +156,12 @@ $supportingPoints = array_values(array_filter(array_map('trim', [
           <form
             method="post"
             class="md-form md-login-form"
-            action="<?= htmlspecialchars(url_for('login.php'), ENT_QUOTES, 'UTF-8') ?>"
-            data-offline-redirect="<?= htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8') ?>"
-            data-offline-unavailable="<?= htmlspecialchars(t($t, 'offline_login_unavailable', 'Offline login is not available yet. Connect to the internet and sign in once to enable offline access.'), ENT_QUOTES, 'UTF-8') ?>"
-            data-offline-invalid="<?= htmlspecialchars(t($t, 'offline_login_invalid', 'Offline sign-in failed. Double-check your username and password.'), ENT_QUOTES, 'UTF-8') ?>"
-            data-offline-error="<?= htmlspecialchars(t($t, 'offline_login_error', 'We could not complete offline sign-in. Try again when you have a connection.'), ENT_QUOTES, 'UTF-8') ?>"
-            data-offline-warm-routes="<?= htmlspecialchars(implode(',', [
-              url_for('my_performance.php'),
-              url_for('submit_assessment.php'),
-              url_for('profile.php'),
-              url_for('dashboard.php'),
-            ]), ENT_QUOTES, 'UTF-8') ?>"
+            action="<?= $formAction ?>"
+            data-offline-redirect="<?= $offlineRedirect ?>"
+            data-offline-unavailable="<?= $offlineUnavailable ?>"
+            data-offline-invalid="<?= $offlineInvalid ?>"
+            data-offline-error="<?= $offlineError ?>"
+            data-offline-warm-routes="<?= $offlineWarmRoutes ?>"
           >
             <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
             <label class="md-field">

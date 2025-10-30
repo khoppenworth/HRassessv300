@@ -246,10 +246,68 @@ function compute_section_breakdowns(PDO $pdo, array $responses, array $translati
     return $sectionBreakdowns;
 }
 
-$stmt = $pdo->prepare("SELECT qr.*, q.title, pp.label AS period_label, pp.period_start FROM questionnaire_response qr JOIN questionnaire q ON q.id=qr.questionnaire_id JOIN performance_period pp ON pp.id = qr.performance_period_id WHERE qr.user_id=? ORDER BY qr.created_at ASC");
+function resolve_timeline_label(array $row): string
+{
+    $periodStart = $row['period_start'] ?? null;
+    if ($periodStart) {
+        $startTime = strtotime((string)$periodStart);
+        if ($startTime) {
+            return date('Y', $startTime);
+        }
+    }
+
+    $periodLabel = trim((string)($row['period_label'] ?? ''));
+    if ($periodLabel !== '') {
+        if (preg_match('/(20\d{2}|19\d{2})/u', $periodLabel, $matches)) {
+            return $matches[1];
+        }
+
+        return $periodLabel;
+    }
+
+    $createdAt = (string)($row['created_at'] ?? '');
+    $createdTime = strtotime($createdAt);
+    if ($createdTime) {
+        return date('Y', $createdTime);
+    }
+
+    return $createdAt;
+}
+
+$stmt = $pdo->prepare(
+    "SELECT qr.id, qr.questionnaire_id, qr.performance_period_id, qr.status, qr.score, qr.created_at, " .
+    "q.title, pp.label AS period_label, pp.period_start " .
+    "FROM questionnaire_response qr " .
+    "JOIN questionnaire q ON q.id = qr.questionnaire_id " .
+    "JOIN performance_period pp ON pp.id = qr.performance_period_id " .
+    "WHERE qr.user_id = ? ORDER BY qr.created_at ASC, qr.id ASC"
+);
 $stmt->execute([$user['id']]);
-$rows = $stmt->fetchAll();
-$draftResponses = array_values(array_filter($rows, static fn($row) => ($row['status'] ?? '') === 'draft'));
+
+$responses = [];
+$draftResponses = [];
+$latestScores = [];
+$latestEntry = null;
+$belowThreshold = [];
+$chartLabels = [];
+$chartScores = [];
+
+while (($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== false) {
+    $responses[] = $row;
+    if (($row['status'] ?? '') === 'draft') {
+        $draftResponses[] = $row;
+    }
+
+    $latestScores[$row['questionnaire_id']] = $row;
+    $latestEntry = $row;
+
+    if (isset($row['score']) && $row['score'] !== null && (int)$row['score'] < 100) {
+        $belowThreshold[] = $row;
+    }
+
+    $chartLabels[] = resolve_timeline_label($row);
+    $chartScores[] = $row['score'] !== null ? (int)$row['score'] : null;
+}
 $nextAssessmentRaw = $user['next_assessment_date'] ?? null;
 $nextAssessmentDisplay = null;
 if ($nextAssessmentRaw) {
@@ -261,64 +319,10 @@ if ($nextAssessmentRaw) {
     }
 }
 
-$latestScores = [];
-$latestEntry = null;
-foreach ($rows as $row) {
-    $latestScores[$row['questionnaire_id']] = $row;
-    if ($latestEntry === null || strtotime($row['created_at']) > strtotime($latestEntry['created_at'])) {
-        $latestEntry = $row;
-    }
-}
-
 $sectionBreakdowns = compute_section_breakdowns($pdo, array_values($latestScores), $t);
 $chartDataFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
 if (defined('JSON_THROW_ON_ERROR')) {
     $chartDataFlags |= JSON_THROW_ON_ERROR;
-}
-
-$belowThreshold = array_values(array_filter($rows, static function ($row) {
-    return isset($row['score']) && $row['score'] !== null && (int)$row['score'] < 100;
-}));
-
-$chartLabels = [];
-$chartScores = [];
-$timelineRows = $rows;
-usort($timelineRows, static function (array $a, array $b): int {
-    $aTime = isset($a['created_at']) ? strtotime((string)$a['created_at']) : false;
-    $bTime = isset($b['created_at']) ? strtotime((string)$b['created_at']) : false;
-    if ($aTime === $bTime) {
-        return (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
-    }
-    if ($aTime === false) {
-        return -1;
-    }
-    if ($bTime === false) {
-        return 1;
-    }
-    return $aTime <=> $bTime;
-});
-foreach ($timelineRows as $row) {
-    $periodYear = '';
-    if (!empty($row['period_start'])) {
-        $startTime = strtotime((string)$row['period_start']);
-        if ($startTime) {
-            $periodYear = date('Y', $startTime);
-        }
-    }
-    if ($periodYear === '' && !empty($row['period_label'])) {
-        $labelCandidate = (string)$row['period_label'];
-        if (preg_match('/(20\d{2}|19\d{2})/u', $labelCandidate, $matches)) {
-            $periodYear = $matches[1];
-        } else {
-            $periodYear = $labelCandidate;
-        }
-    }
-    if ($periodYear === '') {
-        $createdTime = strtotime((string)$row['created_at']);
-        $periodYear = $createdTime ? date('Y', $createdTime) : (string)$row['created_at'];
-    }
-    $chartLabels[] = $periodYear;
-    $chartScores[] = $row['score'] !== null ? (int)$row['score'] : null;
 }
 
 $recommendedCourses = [];
@@ -431,7 +435,7 @@ if ($flash === 'submitted') {
     <table class="md-table">
       <thead><tr><th><?=t($t,'date','Date')?></th><th><?=t($t,'questionnaire','Questionnaire')?></th><th><?=t($t,'performance_period','Performance Period')?></th><th><?=t($t,'score','Score (%)')?></th><th><?=t($t,'status','Status')?></th><th><?=t($t,'actions','Actions')?></th></tr></thead>
       <tbody>
-      <?php foreach ($rows as $r): ?>
+      <?php foreach ($responses as $r): ?>
         <?php
           $statusKey = $r['status'] ?? 'submitted';
           $statusLabel = $statusLabels[$statusKey] ?? ucfirst($statusKey);
