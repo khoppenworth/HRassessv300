@@ -22,6 +22,9 @@ CREATE TABLE site_config (
   landing_text TEXT NULL,
   address VARCHAR(255) NULL,
   contact VARCHAR(255) NULL,
+  landing_metric_submissions INT NULL,
+  landing_metric_completion VARCHAR(50) NULL,
+  landing_metric_adoption VARCHAR(50) NULL,
   logo_path VARCHAR(255) NULL,
   footer_org_name VARCHAR(255) NULL,
   footer_org_short VARCHAR(100) NULL,
@@ -151,7 +154,8 @@ CREATE TABLE questionnaire_response (
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE,
   FOREIGN KEY (performance_period_id) REFERENCES performance_period(id) ON DELETE RESTRICT,
   FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
-  UNIQUE KEY uniq_user_questionnaire_period (user_id, questionnaire_id, performance_period_id)
+  UNIQUE KEY uniq_user_questionnaire_period (user_id, questionnaire_id, performance_period_id),
+  KEY idx_response_user_created (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE questionnaire_response_item (
@@ -227,6 +231,9 @@ INSERT INTO site_config (
   landing_text,
   address,
   contact,
+  landing_metric_submissions,
+  landing_metric_completion,
+  landing_metric_adoption,
   logo_path,
   footer_org_name,
   footer_org_short,
@@ -262,6 +269,9 @@ INSERT INTO site_config (
   'My Performance',
   NULL,
   NULL,
+  4280,
+  '12 min',
+  '94%',
   NULL,
   NULL,
   'Ethiopian Pharmaceutical Supply Service',
