@@ -967,6 +967,22 @@ function site_body_style(array $cfg): string
     return site_brand_style($cfg);
 }
 
+function render_help_icon(string $tooltip, bool $standalone = false): string
+{
+    $escaped = htmlspecialchars($tooltip, ENT_QUOTES, 'UTF-8');
+    $classes = ['md-help-bubble'];
+    if ($standalone) {
+        $classes[] = 'md-help-bubble--standalone';
+    }
+
+    return sprintf(
+        '<span class="%s" tabindex="0" data-tooltip="%s" aria-label="%s"><span class="md-help-icon" aria-hidden="true">i</span></span>',
+        implode(' ', $classes),
+        $escaped,
+        $escaped
+    );
+}
+
 function site_theme_tokens(array $cfg): array
 {
     $palette = site_brand_palette($cfg);

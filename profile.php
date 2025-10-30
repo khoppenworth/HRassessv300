@@ -202,7 +202,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input type="date" name="date_of_birth" value="<?=htmlspecialchars($user['date_of_birth'] ?? '')?>" required>
       </label>
       <label class="md-field md-field-inline">
-        <span><?=t($t,'phone','Phone Number')?></span>
+        <span>
+          <?=t($t,'phone','Phone Number')?>
+          <?=render_help_icon(t($t,'phone_number_hint','Choose a country code and enter digits only.'))?>
+        </span>
         <div class="md-phone-input" data-phone-field>
           <span class="md-phone-flag" data-phone-flag><?=htmlspecialchars($phoneFlagValue, ENT_QUOTES, 'UTF-8')?></span>
           <select class="md-phone-country" name="phone_country" id="phone_country" data-phone-country aria-label="<?=htmlspecialchars(t($t,'phone_country','Country code'), ENT_QUOTES, 'UTF-8')?>">
@@ -215,7 +218,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <input class="md-phone-local" type="text" name="phone_local" id="phone_local" data-phone-local inputmode="numeric" pattern="[0-9]*" minlength="6" maxlength="12" placeholder="<?=htmlspecialchars(t($t,'phone_number_placeholder','9-digit number'), ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars($phoneLocalValue, ENT_QUOTES, 'UTF-8')?>" aria-label="<?=htmlspecialchars(t($t,'phone','Phone Number'), ENT_QUOTES, 'UTF-8')?>" required>
           <input type="hidden" name="phone" value="<?=htmlspecialchars($phoneCountryValue . $phoneLocalValue, ENT_QUOTES, 'UTF-8')?>" data-phone-full>
         </div>
-        <small class="md-field-hint"><?=t($t,'phone_number_hint','Choose a country code and enter digits only.')?></small>
       </label>
       <label class="md-field">
         <span><?=t($t,'department','Department')?></span>
