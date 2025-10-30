@@ -1,4 +1,4 @@
-# HRassess v3.0.1
+# HRassess
 
 Performance assessment portal built with PHP and MySQL.
 
