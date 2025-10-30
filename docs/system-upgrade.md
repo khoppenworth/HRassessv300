@@ -1,8 +1,8 @@
 # System upgrade utility
 
 The `scripts/system_upgrade.php` CLI script automates application and database
-upgrades by downloading release archives, capturing snapshots, and staging
-deployments in a repeatable fashion.
+upgrades by downloading release archives, capturing snapshots, staging
+deployments, and applying bundled SQL migrations in a repeatable fashion.
 
 ## Prerequisites
 

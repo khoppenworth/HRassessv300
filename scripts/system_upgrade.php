@@ -119,6 +119,14 @@ function runUpgrade(UpgradeEngine $engine, PDO $pdo, array $options): void
         $engine->deployRelease($download['extract_root'], $preservePaths);
         info('Release deployed successfully.');
 
+        info('Checking for database migrations...');
+        $appliedMigrations = applyDatabaseMigrations($engine, $pdo);
+        if ($appliedMigrations === 0) {
+            info('No migration scripts were executed.');
+        } else {
+            info('Applied ' . $appliedMigrations . ' database migration statement' . ($appliedMigrations === 1 ? '' : 's') . '.');
+        }
+
         $engine->completeRun($run, 'success');
         upgrade_store_installed_release([
             'tag' => $targetRef,
@@ -256,4 +264,121 @@ USAGE;
 function info(string $message): void
 {
     fwrite(STDOUT, '[INFO] ' . $message . PHP_EOL);
+}
+
+function applyDatabaseMigrations(UpgradeEngine $engine, PDO $pdo): int
+{
+    $totalStatements = 0;
+    $candidates = [
+        base_path('migration.sql'),
+    ];
+
+    foreach ($candidates as $path) {
+        if ($path === '' || !is_file($path)) {
+            continue;
+        }
+
+        $statements = readSqlStatements($path);
+        if ($statements === []) {
+            continue;
+        }
+
+        $relative = $engine->relativeToRoot($path);
+        info('Running ' . count($statements) . ' SQL statement' . (count($statements) === 1 ? '' : 's') . ' from ' . $relative . '...');
+        $totalStatements += executeSqlStatements($pdo, $statements, $relative);
+    }
+
+    return $totalStatements;
+}
+
+function readSqlStatements(string $filePath): array
+{
+    $contents = file_get_contents($filePath);
+    if ($contents === false) {
+        throw new RuntimeException('Unable to read SQL file at ' . $filePath);
+    }
+
+    $withoutBlockComments = preg_replace('~/\*.*?\*/~s', '', $contents);
+    if ($withoutBlockComments === null) {
+        $withoutBlockComments = $contents;
+    }
+
+    $lines = [];
+    foreach (preg_split('/\R/', $withoutBlockComments) as $line) {
+        if (preg_match('/^\s*(--|#)/', $line)) {
+            continue;
+        }
+        $lines[] = $line;
+    }
+
+    $sanitized = implode("\n", $lines);
+    return splitSqlStatements($sanitized);
+}
+
+function splitSqlStatements(string $sql): array
+{
+    $statements = [];
+    $buffer = '';
+    $inString = false;
+    $stringChar = '';
+    $length = strlen($sql);
+
+    for ($i = 0; $i < $length; $i++) {
+        $char = $sql[$i];
+
+        if ($inString) {
+            if ($char === $stringChar) {
+                $backslashes = 0;
+                for ($j = $i - 1; $j >= 0 && $sql[$j] === '\\'; $j--) {
+                    $backslashes++;
+                }
+                if ($backslashes % 2 === 0) {
+                    $inString = false;
+                    $stringChar = '';
+                }
+            }
+            $buffer .= $char;
+            continue;
+        }
+
+        if ($char === '\'' || $char === '"') {
+            $inString = true;
+            $stringChar = $char;
+            $buffer .= $char;
+            continue;
+        }
+
+        if ($char === ';') {
+            $statement = trim($buffer);
+            if ($statement !== '') {
+                $statements[] = $statement;
+            }
+            $buffer = '';
+            continue;
+        }
+
+        $buffer .= $char;
+    }
+
+    $statement = trim($buffer);
+    if ($statement !== '') {
+        $statements[] = $statement;
+    }
+
+    return $statements;
+}
+
+function executeSqlStatements(PDO $pdo, array $statements, string $context): int
+{
+    $count = 0;
+    foreach ($statements as $statement) {
+        try {
+            $pdo->exec($statement);
+            $count++;
+        } catch (PDOException $e) {
+            throw new RuntimeException('Failed to execute statement from ' . $context . ': ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    return $count;
 }

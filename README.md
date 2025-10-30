@@ -256,8 +256,10 @@ questionnaire aligned with EPSA requirements.
 Use the [`scripts/system_upgrade.php`](scripts/system_upgrade.php) CLI to deploy
 new releases safely. The tool backs up the application directory and database
 before applying updates from GitHub and provides downgrade capabilities if an
-upgrade fails. Refer to [`docs/system-upgrade.md`](docs/system-upgrade.md) for
-usage examples and options.
+upgrade fails. During deployment the script also runs bundled SQL migrations
+such as `migration.sql` so database changes are applied automatically. Refer to
+[`docs/system-upgrade.md`](docs/system-upgrade.md) for usage examples and
+options.
 
 ## Quality and compliance
 
