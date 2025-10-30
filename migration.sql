@@ -144,8 +144,8 @@ INSERT IGNORE INTO site_config (
 );
 
 UPDATE site_config
-SET brand_color = NULL
-SET enabled_locales = '["en","fr","am"]'
+SET brand_color = NULL,
+    enabled_locales = '["en","fr","am"]'
 WHERE id = 1 AND (enabled_locales IS NULL OR enabled_locales = '');
 
 UPDATE site_config
