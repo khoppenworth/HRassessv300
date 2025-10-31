@@ -1433,6 +1433,27 @@ body.theme-dark .md-help-bubble::before {
   color: var(--app-muted);
 }
 
+.md-login-recovery {
+  margin-top: 0.75rem;
+}
+
+.md-login-footer-link {
+  color: var(--app-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.md-login-footer-link:hover,
+.md-login-footer-link:focus-visible {
+  text-decoration: underline;
+}
+
+.md-login-footer-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--app-muted);
+}
+
 .md-login-footer-locale {
   display: inline-flex;
   gap: 0.75rem;

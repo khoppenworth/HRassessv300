@@ -205,6 +205,15 @@ $offlineError = htmlspecialchars(t($t, 'offline_login_error', 'We could not comp
               <span class="md-login-footer-value"><?= $contact ?></span>
             </div>
           <?php endif; ?>
+          <div class="md-login-recovery">
+            <span class="md-login-footer-label"><?= t($t, 'system_recovery_label', 'System recovery') ?></span>
+            <span class="md-login-footer-value">
+              <a class="md-login-footer-link" href="<?= htmlspecialchars(asset_url('docs/upgrade-recovery.html'), ENT_QUOTES, 'UTF-8') ?>">
+                <?= t($t, 'system_recovery_link', 'Revert to previous release') ?>
+              </a>
+            </span>
+            <p class="md-login-footer-hint"><?= t($t, 'system_recovery_hint', 'Follow the recovery guide to restore the latest working backup when an upgrade fails.') ?></p>
+          </div>
           <div>
             <span class="md-login-footer-label"><?= $languageLabel ?></span>
             <nav class="md-login-footer-value md-login-footer-locale lang-switch" aria-label="<?= $languageLabel ?>">

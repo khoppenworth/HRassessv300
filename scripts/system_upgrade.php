@@ -376,6 +376,14 @@ function executeSqlStatements(PDO $pdo, array $statements, string $context): int
             $pdo->exec($statement);
             $count++;
         } catch (PDOException $e) {
+            if (upgrade_should_ignore_sql_error($e, $statement)) {
+                $preview = trim(preg_replace('/\s+/', ' ', $statement));
+                if (strlen($preview) > 120) {
+                    $preview = substr($preview, 0, 117) . '...';
+                }
+                error_log('Ignored SQL warning from ' . $context . ' while running "' . $preview . '": ' . $e->getMessage());
+                continue;
+            }
             throw new RuntimeException('Failed to execute statement from ' . $context . ': ' . $e->getMessage(), 0, $e);
         }
     }

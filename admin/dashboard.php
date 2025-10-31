@@ -54,7 +54,19 @@ $runSqlScript = static function (PDO $pdo, string $path): void {
     });
 
     foreach ($statements as $statement) {
-        $pdo->exec($statement);
+        try {
+            $pdo->exec($statement);
+        } catch (PDOException $e) {
+            if (upgrade_should_ignore_sql_error($e, $statement)) {
+                $preview = trim(preg_replace('/\s+/', ' ', $statement));
+                if (strlen($preview) > 120) {
+                    $preview = substr($preview, 0, 117) . '...';
+                }
+                error_log('Ignored SQL warning from migration script ' . $path . ' while running "' . $preview . '": ' . $e->getMessage());
+                continue;
+            }
+            throw $e;
+        }
     }
 };
 

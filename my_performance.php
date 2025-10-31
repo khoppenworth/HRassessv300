@@ -556,12 +556,27 @@ $pageHelpKey = 'workspace.my_performance';
     const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
     const mix = (start, end, ratio) => Math.round(start + (end - start) * ratio);
 
+    const prepareChartLibrary = (chartLib) => {
+      if (!chartLib) {
+        return null;
+      }
+      if (chartLib.register && Array.isArray(chartLib.registerables) && chartLib.registerables.length) {
+        try {
+          chartLib.register(...chartLib.registerables);
+        } catch (err) {
+          // Ignore duplicate registration errors.
+        }
+      }
+      return chartLib;
+    };
+
     const ensureChartLibrary = () => {
+      const finalize = (lib) => prepareChartLibrary(lib || window.Chart || null);
       if (window.Chart) {
-        return Promise.resolve(window.Chart);
+        return Promise.resolve(finalize(window.Chart));
       }
       if (chartLoaderPromise) {
-        return chartLoaderPromise;
+        return chartLoaderPromise.then(finalize);
       }
       chartLoaderPromise = new Promise((resolve) => {
         const script = document.createElement('script');
@@ -571,7 +586,7 @@ $pageHelpKey = 'workspace.my_performance';
         script.onerror = () => resolve(null);
         document.head.appendChild(script);
       });
-      return chartLoaderPromise;
+      return chartLoaderPromise.then(finalize);
     };
 
     const parseMajorVersion = (chartLib) => {

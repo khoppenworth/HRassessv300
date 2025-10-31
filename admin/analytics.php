@@ -1,6 +1,274 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../lib/analytics_report.php';
+
+/**
+ * Decode a stored questionnaire response answer payload.
+ */
+function analytics_decode_answer_json($raw): array
+{
+    if (!is_string($raw) || trim($raw) === '') {
+        return [];
+    }
+    $options = defined('JSON_THROW_ON_ERROR') ? JSON_THROW_ON_ERROR : 0;
+    try {
+        $decoded = json_decode($raw, true, 512, $options);
+    } catch (Throwable $e) {
+        return [];
+    }
+    return is_array($decoded) ? $decoded : [];
+}
+
+/**
+ * Score a single questionnaire item using the stored answers.
+ */
+function analytics_score_item(array $item, array $answerSet, float $weight): float
+{
+    if ($weight <= 0) {
+        return 0.0;
+    }
+    $type = (string)($item['type'] ?? 'text');
+    if ($type === 'boolean') {
+        foreach ($answerSet as $entry) {
+            if ((isset($entry['valueBoolean']) && $entry['valueBoolean'])
+                || (isset($entry['valueString']) && strtolower((string)$entry['valueString']) === 'true')
+            ) {
+                return $weight;
+            }
+        }
+        return 0.0;
+    }
+    if ($type === 'likert') {
+        $score = null;
+        foreach ($answerSet as $entry) {
+            if (isset($entry['valueInteger']) && is_numeric($entry['valueInteger'])) {
+                $score = (int)$entry['valueInteger'];
+                break;
+            }
+            if (isset($entry['valueString'])) {
+                $candidate = trim((string)$entry['valueString']);
+                if (preg_match('/^([1-5])/', $candidate, $matches)) {
+                    $score = (int)$matches[1];
+                    break;
+                }
+                if (is_numeric($candidate)) {
+                    $value = (int)$candidate;
+                    if ($value >= 1 && $value <= 5) {
+                        $score = $value;
+                        break;
+                    }
+                }
+            }
+        }
+        if ($score !== null && $score >= 1 && $score <= 5) {
+            return $weight * $score / 5.0;
+        }
+        return 0.0;
+    }
+    if ($type === 'choice') {
+        foreach ($answerSet as $entry) {
+            if (isset($entry['valueString']) && trim((string)$entry['valueString']) !== '') {
+                return $weight;
+            }
+        }
+        return 0.0;
+    }
+    foreach ($answerSet as $entry) {
+        if (isset($entry['valueString']) && trim((string)$entry['valueString']) !== '') {
+            return $weight;
+        }
+    }
+    return 0.0;
+}
+
+/**
+ * Fetch weighted questionnaire items for the supplied questionnaire identifiers.
+ *
+ * @return array<int, array<int, array<string, mixed>>> keyed by questionnaire id.
+ */
+function analytics_fetch_scoring_items(PDO $pdo, array $questionnaireIds): array
+{
+    $ids = array_values(array_unique(array_map('intval', $questionnaireIds)));
+    if ($ids === []) {
+        return [];
+    }
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $sql = 'SELECT questionnaire_id, linkId, type, allow_multiple, COALESCE(weight_percent,0) AS weight '
+        . 'FROM questionnaire_item '
+        . 'WHERE questionnaire_id IN (' . $placeholders . ') '
+        . 'ORDER BY questionnaire_id, order_index, id';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($ids);
+    $itemsByQuestionnaire = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $qid = (int)($row['questionnaire_id'] ?? 0);
+        if ($qid <= 0) {
+            continue;
+        }
+        $type = (string)($row['type'] ?? 'text');
+        $weight = (float)($row['weight'] ?? 0.0);
+        if ($weight <= 0.0) {
+            $scorableTypes = ['likert', 'text', 'textarea', 'boolean', 'choice'];
+            if (in_array($type, $scorableTypes, true)) {
+                $weight = 1.0;
+            }
+        }
+        if ($weight <= 0.0) {
+            continue;
+        }
+        $itemsByQuestionnaire[$qid][] = [
+            'linkId' => (string)($row['linkId'] ?? ''),
+            'type' => $type,
+            'allow_multiple' => !empty($row['allow_multiple']),
+            'weight' => $weight,
+        ];
+    }
+    return $itemsByQuestionnaire;
+}
+
+/**
+ * Fetch decoded answers for a set of response identifiers.
+ *
+ * @return array<int, array<string, array<int, mixed>>> keyed by response id then linkId.
+ */
+function analytics_fetch_answers(PDO $pdo, array $responseIds): array
+{
+    $ids = array_values(array_unique(array_map('intval', $responseIds)));
+    if ($ids === []) {
+        return [];
+    }
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $sql = 'SELECT response_id, linkId, answer FROM questionnaire_response_item '
+        . 'WHERE response_id IN (' . $placeholders . ')';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($ids);
+    $answers = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $rid = (int)($row['response_id'] ?? 0);
+        if ($rid <= 0) {
+            continue;
+        }
+        $linkId = (string)($row['linkId'] ?? '');
+        if ($linkId === '') {
+            continue;
+        }
+        $answers[$rid][$linkId] = analytics_decode_answer_json($row['answer'] ?? '');
+    }
+    return $answers;
+}
+
+/**
+ * Calculate a weighted score for a response.
+ */
+function analytics_compute_response_score(array $items, array $answers): ?float
+{
+    $totalWeight = 0.0;
+    $achieved = 0.0;
+    foreach ($items as $item) {
+        $weight = (float)($item['weight'] ?? 0.0);
+        if ($weight <= 0) {
+            continue;
+        }
+        $totalWeight += $weight;
+        $answerSet = $answers[$item['linkId']] ?? [];
+        $achieved += analytics_score_item($item, $answerSet, $weight);
+    }
+    if ($totalWeight <= 0) {
+        return null;
+    }
+    return round(($achieved / $totalWeight) * 100, 1);
+}
+
+/**
+ * Compute fallback scores and averages for analytics visualisations.
+ *
+ * @return array{array<int,float>, array<int,float>, array<string,float>, ?float}
+ */
+function analytics_resolve_score_fallbacks(PDO $pdo, array $responseRows): array
+{
+    $responseQuestionnaire = [];
+    $responsesNeedingScore = [];
+    foreach ($responseRows as $row) {
+        $rid = (int)($row['id'] ?? 0);
+        $qid = (int)($row['questionnaire_id'] ?? 0);
+        if ($rid <= 0 || $qid <= 0) {
+            continue;
+        }
+        $responseQuestionnaire[$rid] = $qid;
+        $status = strtolower((string)($row['status'] ?? 'submitted'));
+        if ($status !== 'draft' && $row['score'] === null) {
+            $responsesNeedingScore[] = $rid;
+        }
+    }
+
+    $computedScores = [];
+    if ($responsesNeedingScore) {
+        $questionnaireIds = array_map(static function ($rid) use ($responseQuestionnaire) {
+            return $responseQuestionnaire[$rid] ?? 0;
+        }, $responsesNeedingScore);
+        $itemsByQuestionnaire = analytics_fetch_scoring_items($pdo, $questionnaireIds);
+        $answersByResponse = analytics_fetch_answers($pdo, $responsesNeedingScore);
+        foreach ($responsesNeedingScore as $rid) {
+            $qid = $responseQuestionnaire[$rid] ?? 0;
+            if ($qid <= 0 || empty($itemsByQuestionnaire[$qid])) {
+                continue;
+            }
+            $score = analytics_compute_response_score($itemsByQuestionnaire[$qid], $answersByResponse[$rid] ?? []);
+            if ($score !== null) {
+                $computedScores[$rid] = $score;
+            }
+        }
+    }
+
+    $questionnaireSums = [];
+    $workFunctionSums = [];
+    $overall = ['sum' => 0.0, 'count' => 0];
+    foreach ($responseRows as $row) {
+        $rid = (int)($row['id'] ?? 0);
+        if ($rid <= 0) {
+            continue;
+        }
+        $status = strtolower((string)($row['status'] ?? 'submitted'));
+        if ($status === 'draft') {
+            continue;
+        }
+        $score = $row['score'];
+        if ($score === null && isset($computedScores[$rid])) {
+            $score = $computedScores[$rid];
+        } elseif ($score !== null) {
+            $score = (float)$score;
+        }
+        if ($score === null) {
+            continue;
+        }
+        $qid = (int)($row['questionnaire_id'] ?? 0);
+        $wf = (string)($row['work_function'] ?? '');
+        if ($qid > 0) {
+            $questionnaireSums[$qid]['sum'] = ($questionnaireSums[$qid]['sum'] ?? 0.0) + $score;
+            $questionnaireSums[$qid]['count'] = ($questionnaireSums[$qid]['count'] ?? 0) + 1;
+        }
+        $workFunctionSums[$wf]['sum'] = ($workFunctionSums[$wf]['sum'] ?? 0.0) + $score;
+        $workFunctionSums[$wf]['count'] = ($workFunctionSums[$wf]['count'] ?? 0) + 1;
+        $overall['sum'] += $score;
+        $overall['count'] += 1;
+    }
+
+    $questionnaireAverages = [];
+    foreach ($questionnaireSums as $qid => $agg) {
+        if (($agg['count'] ?? 0) > 0) {
+            $questionnaireAverages[$qid] = round($agg['sum'] / $agg['count'], 1);
+        }
+    }
+    $workFunctionAverages = [];
+    foreach ($workFunctionSums as $wf => $agg) {
+        if (($agg['count'] ?? 0) > 0) {
+            $workFunctionAverages[$wf] = round($agg['sum'] / $agg['count'], 1);
+        }
+    }
+    $overallAverage = $overall['count'] > 0 ? round($overall['sum'] / $overall['count'], 1) : null;
+
+    return [$computedScores, $questionnaireAverages, $workFunctionAverages, $overallAverage];
+}
 auth_required(['admin', 'supervisor']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
@@ -179,7 +447,19 @@ $questionnaireStmt = $pdo->query(
     . "GROUP BY q.id, q.title "
     . "ORDER BY q.title"
 );
-$questionnaires = $questionnaireStmt ? $questionnaireStmt->fetchAll() : [];
+$questionnaires = $questionnaireStmt ? $questionnaireStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+
+$responseMetaStmt = $pdo->query(
+    'SELECT qr.id, qr.questionnaire_id, qr.score, qr.status, u.work_function '
+    . 'FROM questionnaire_response qr '
+    . 'JOIN users u ON u.id = qr.user_id'
+);
+$responseMetaRows = $responseMetaStmt ? $responseMetaStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+[$computedResponseScores, $questionnaireFallbackAverages, $workFunctionFallbackAverages, $overallFallbackAverage]
+    = analytics_resolve_score_fallbacks($pdo, $responseMetaRows);
+if (($summary['avg_score'] ?? null) === null && $overallFallbackAverage !== null) {
+    $summary['avg_score'] = $overallFallbackAverage;
+}
 
 $questionnaireIds = array_map(static fn($row) => (int)$row['id'], $questionnaires);
 $selectedQuestionnaireId = (int)($_GET['questionnaire_id'] ?? 0);
@@ -190,6 +470,20 @@ if ($questionnaires) {
 } else {
     $selectedQuestionnaireId = 0;
 }
+
+if (isset($summary['avg_score']) && $summary['avg_score'] !== null) {
+    $summary['avg_score'] = (float)$summary['avg_score'];
+}
+
+foreach ($questionnaires as &$questionnaireRow) {
+    $qid = (int)($questionnaireRow['id'] ?? 0);
+    if ($questionnaireRow['avg_score'] !== null) {
+        $questionnaireRow['avg_score'] = (float)$questionnaireRow['avg_score'];
+    } elseif (isset($questionnaireFallbackAverages[$qid])) {
+        $questionnaireRow['avg_score'] = $questionnaireFallbackAverages[$qid];
+    }
+}
+unset($questionnaireRow);
 
 $selectedResponses = [];
 $selectedUserBreakdown = [];
@@ -245,7 +539,7 @@ foreach ($questionnaires as $qRow) {
 if ($selectedQuestionnaireId) {
     $responseStmt = $pdo->prepare(
         'SELECT qr.id, qr.status, qr.score, qr.created_at, qr.review_comment, '
-        . 'u.username, u.full_name, u.work_function, pp.label AS period_label '
+        . 'u.id AS user_id, u.username, u.full_name, u.work_function, pp.label AS period_label '
         . 'FROM questionnaire_response qr '
         . 'JOIN users u ON u.id = qr.user_id '
         . 'LEFT JOIN performance_period pp ON pp.id = qr.performance_period_id '
@@ -253,7 +547,7 @@ if ($selectedQuestionnaireId) {
         . 'ORDER BY qr.created_at DESC'
     );
     $responseStmt->execute([$selectedQuestionnaireId]);
-    $selectedResponses = $responseStmt->fetchAll();
+    $selectedResponses = $responseStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $userStmt = $pdo->prepare(
         'SELECT u.id AS user_id, u.username, u.full_name, u.work_function, '
@@ -267,7 +561,47 @@ if ($selectedQuestionnaireId) {
         . 'ORDER BY avg_score DESC'
     );
     $userStmt->execute([$selectedQuestionnaireId]);
-    $selectedUserBreakdown = $userStmt->fetchAll();
+    $selectedUserBreakdown = $userStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if ($selectedResponses) {
+        $selectedUserScoreSums = [];
+        foreach ($selectedResponses as &$responseRow) {
+            $rid = (int)($responseRow['id'] ?? 0);
+            if ($responseRow['score'] === null && isset($computedResponseScores[$rid])) {
+                $responseRow['score'] = $computedResponseScores[$rid];
+            } elseif ($responseRow['score'] !== null) {
+                $responseRow['score'] = (float)$responseRow['score'];
+            }
+            $status = strtolower((string)($responseRow['status'] ?? ''));
+            if ($status === 'draft') {
+                continue;
+            }
+            $userId = (int)($responseRow['user_id'] ?? 0);
+            if ($userId <= 0 || $responseRow['score'] === null) {
+                continue;
+            }
+            $selectedUserScoreSums[$userId]['sum'] = ($selectedUserScoreSums[$userId]['sum'] ?? 0.0) + (float)$responseRow['score'];
+            $selectedUserScoreSums[$userId]['count'] = ($selectedUserScoreSums[$userId]['count'] ?? 0) + 1;
+        }
+        unset($responseRow);
+
+        if ($selectedUserBreakdown) {
+            foreach ($selectedUserBreakdown as &$userRow) {
+                $uid = (int)($userRow['user_id'] ?? 0);
+                if ($userRow['avg_score'] !== null) {
+                    $userRow['avg_score'] = (float)$userRow['avg_score'];
+                    continue;
+                }
+                if (isset($selectedUserScoreSums[$uid]) && $selectedUserScoreSums[$uid]['count'] > 0) {
+                    $userRow['avg_score'] = round(
+                        $selectedUserScoreSums[$uid]['sum'] / $selectedUserScoreSums[$uid]['count'],
+                        1
+                    );
+                }
+            }
+            unset($userRow);
+        }
+    }
 
     if ($selectedResponses) {
         $sectionStmt = $pdo->prepare(
@@ -341,15 +675,7 @@ if ($selectedQuestionnaireId) {
                 $answerStmt->execute($responseIds);
                 foreach ($answerStmt->fetchAll(PDO::FETCH_ASSOC) as $answerRow) {
                     $rid = (int)$answerRow['response_id'];
-                    $decoded = [];
-                    $rawAnswer = $answerRow['answer'] ?? '[]';
-                    if (is_string($rawAnswer) && $rawAnswer !== '') {
-                        $decoded = json_decode($rawAnswer, true);
-                        if (!is_array($decoded)) {
-                            $decoded = [];
-                        }
-                    }
-                    $answersByResponse[$rid][$answerRow['linkId']] = $decoded;
+                    $answersByResponse[$rid][$answerRow['linkId']] = analytics_decode_answer_json($answerRow['answer'] ?? '');
                 }
             }
 
@@ -451,7 +777,7 @@ if ($selectedQuestionnaireId) {
                     'full_name' => $row['full_name'] ?? '',
                     'period' => $row['period_label'] ?? '',
                     'status' => $row['status'] ?? '',
-                    'overall' => isset($row['score']) && $row['score'] !== null ? (int)$row['score'] : null,
+                    'overall' => is_numeric($row['score']) ? round((float)$row['score'], 1) : null,
                     'sections' => $sectionScores,
                 ];
             }
@@ -478,7 +804,16 @@ $workFunctionStmt = $pdo->query(
     . "GROUP BY u.work_function "
     . "ORDER BY total_responses DESC"
 );
-$workFunctionSummary = $workFunctionStmt ? $workFunctionStmt->fetchAll() : [];
+$workFunctionSummary = $workFunctionStmt ? $workFunctionStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+foreach ($workFunctionSummary as &$wfRow) {
+    $wfKey = (string)($wfRow['work_function'] ?? '');
+    if ($wfRow['avg_score'] !== null) {
+        $wfRow['avg_score'] = (float)$wfRow['avg_score'];
+    } elseif (isset($workFunctionFallbackAverages[$wfKey])) {
+        $wfRow['avg_score'] = $workFunctionFallbackAverages[$wfKey];
+    }
+}
+unset($wfRow);
 
 $questionnaireChartData = [];
 foreach ($questionnaires as $row) {
@@ -1181,12 +1516,27 @@ $pageHelpKey = 'team.analytics';
       return null;
     };
 
+    const prepareChartLibrary = (chartLib) => {
+      if (!chartLib) {
+        return null;
+      }
+      if (chartLib.register && Array.isArray(chartLib.registerables) && chartLib.registerables.length) {
+        try {
+          chartLib.register(...chartLib.registerables);
+        } catch (err) {
+          // Ignore duplicate registration errors.
+        }
+      }
+      return chartLib;
+    };
+
     const ensureChartLibrary = () => {
+      const finalize = (lib) => prepareChartLibrary(lib || window.Chart || null);
       if (window.Chart) {
-        return Promise.resolve(window.Chart);
+        return Promise.resolve(finalize(window.Chart));
       }
       if (chartLoaderPromise) {
-        return chartLoaderPromise;
+        return chartLoaderPromise.then(finalize);
       }
       chartLoaderPromise = new Promise((resolve) => {
         const script = document.createElement('script');
@@ -1196,7 +1546,7 @@ $pageHelpKey = 'team.analytics';
         script.onerror = () => resolve(null);
         document.head.appendChild(script);
       });
-      return chartLoaderPromise;
+      return chartLoaderPromise.then(finalize);
     };
 
     const heatStops = [

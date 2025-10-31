@@ -8,6 +8,14 @@ $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $workFunctionChoices = work_function_choices($pdo);
 $availableWorkFunctions = array_keys($workFunctionChoices);
+$qbStrings = [
+    'scoreWeightLabel' => t($t, 'qb_weight_label', 'Score weight (%)'),
+    'scoreWeightHint' => t(
+        $t,
+        'qb_weight_hint',
+        'Only weighted questions contribute to scoring and analytics. Items left at 0 are excluded from scores and charts.'
+    ),
+];
 
 const LIKERT_DEFAULT_OPTIONS = [
     '1 - Strongly Disagree',
@@ -782,6 +790,7 @@ if (isset($_POST['import'])) {
 <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/questionnaire-builder.css')?>">
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">window.QB_STRINGS = <?=json_encode($qbStrings, JSON_THROW_ON_ERROR)?>;</script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer></script>
 <script type="module" src="<?=asset_url('assets/js/questionnaire-builder.js')?>" defer></script>
 </head>
@@ -801,6 +810,14 @@ if (isset($_POST['import'])) {
           <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
         </div>
         <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
+        <div class="qb-scoring-note">
+          <strong><?=t($t, 'qb_scoring_hint_title', 'Scoring & analytics')?></strong>
+          <p><?=t(
+              $t,
+              'qb_scoring_hint_text',
+              'Assign weights so priority questions total about 100%. Items left at 0 are informational only and do not affect scores or analytics.'
+          )?></p>
+        </div>
         <div id="qb-list" class="qb-list" aria-live="polite"></div>
       </div>
     </div>
