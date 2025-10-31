@@ -215,6 +215,30 @@ class SimplePdfDocument
         $this->addSpacer(6.0);
     }
 
+    public function addImageBlock(string $binary, int $pixelWidth, int $pixelHeight, ?float $maxDisplayWidth = null): void
+    {
+        if ($binary === '' || $pixelWidth <= 0 || $pixelHeight <= 0) {
+            return;
+        }
+
+        $this->ensurePage();
+
+        $availableWidth = $this->width - $this->marginLeft - $this->marginRight;
+        $targetWidth = $maxDisplayWidth !== null ? min($maxDisplayWidth, $availableWidth) : $availableWidth;
+        $targetWidth = max(120.0, $targetWidth);
+        $scale = $targetWidth / $pixelWidth;
+        $renderWidth = $pixelWidth * $scale;
+        $renderHeight = $pixelHeight * $scale;
+
+        $this->ensureSpace($renderHeight + 16.0);
+
+        $x = max($this->marginLeft, ($this->width - $renderWidth) / 2);
+        $y = $this->cursorY - $renderHeight;
+        $resource = $this->registerJpegImage($binary, $pixelWidth, $pixelHeight);
+        $this->drawImage($resource, $x, $y, $renderWidth, $renderHeight);
+        $this->cursorY = $y - 12.0;
+    }
+
     public function addRightAlignedText(array $lines, float $fontSize = 10.0, float $lineSpacing = 1.3): void
     {
         $content = [];

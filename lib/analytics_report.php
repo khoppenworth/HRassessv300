@@ -115,6 +115,38 @@ function analytics_report_snapshot(PDO $pdo, ?int $questionnaireId = null, bool 
         }
     }
 
+    $workFunctionRows = [];
+    try {
+        $workFunctionStmt = $pdo->query(
+            "SELECT u.work_function, COUNT(*) AS total_responses, "
+            . "SUM(qr.status='approved') AS approved_count, "
+            . "AVG(qr.score) AS avg_score "
+            . "FROM questionnaire_response qr "
+            . "JOIN users u ON u.id = qr.user_id "
+            . "GROUP BY u.work_function "
+            . "ORDER BY total_responses DESC"
+        );
+        if ($workFunctionStmt) {
+            $workFunctionRows = $workFunctionStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
+    } catch (PDOException $e) {
+        error_log('analytics_report work function summary failed: ' . $e->getMessage());
+        $workFunctionRows = [];
+    }
+
+    $workFunctionChoices = function_exists('work_function_choices') ? work_function_choices($pdo) : [];
+    $workFunctions = [];
+    foreach ($workFunctionRows as $row) {
+        $key = trim((string)($row['work_function'] ?? ''));
+        $label = $workFunctionChoices[$key] ?? ($key !== '' ? $key : 'Unknown');
+        $workFunctions[] = [
+            'label' => (string)$label,
+            'total_responses' => (int)($row['total_responses'] ?? 0),
+            'approved_count' => (int)($row['approved_count'] ?? 0),
+            'avg_score' => isset($row['avg_score']) ? (float)$row['avg_score'] : null,
+        ];
+    }
+
     $userBreakdown = [];
     if ($includeDetails && $selectedId) {
         $userStmt = $pdo->prepare(
@@ -135,16 +167,107 @@ function analytics_report_snapshot(PDO $pdo, ?int $questionnaireId = null, bool 
         }
     }
 
+    $questionnaireChart = [];
+    foreach ($questionnaires as $row) {
+        if (!isset($row['avg_score']) || $row['avg_score'] === null) {
+            continue;
+        }
+        $questionnaireChart[] = [
+            'label' => (string)($row['title'] ?? 'Questionnaire'),
+            'value' => (float)$row['avg_score'],
+            'count' => (int)($row['total_responses'] ?? 0),
+        ];
+    }
+    usort($questionnaireChart, static function (array $a, array $b): int {
+        $aScore = $a['value'] ?? -INF;
+        $bScore = $b['value'] ?? -INF;
+        if ($aScore === $bScore) {
+            return strcmp((string)($a['label'] ?? ''), (string)($b['label'] ?? ''));
+        }
+        return $bScore <=> $aScore;
+    });
+    if (count($questionnaireChart) > 12) {
+        $questionnaireChart = array_slice($questionnaireChart, 0, 12);
+    }
+
+    $workFunctionChart = [];
+    foreach ($workFunctions as $row) {
+        if (!isset($row['avg_score']) || $row['avg_score'] === null) {
+            continue;
+        }
+        $workFunctionChart[] = [
+            'label' => (string)($row['label'] ?? 'Work function'),
+            'value' => (float)$row['avg_score'],
+            'count' => (int)($row['total_responses'] ?? 0),
+        ];
+    }
+    usort($workFunctionChart, static function (array $a, array $b): int {
+        $aScore = $a['value'] ?? -INF;
+        $bScore = $b['value'] ?? -INF;
+        if ($aScore === $bScore) {
+            return strcmp((string)($a['label'] ?? ''), (string)($b['label'] ?? ''));
+        }
+        return $bScore <=> $aScore;
+    });
+    if (count($workFunctionChart) > 12) {
+        $workFunctionChart = array_slice($workFunctionChart, 0, 12);
+    }
+
+    $periodSeries = analytics_report_collect_period_series($pdo, null);
+    $selectedPeriodSeries = $selectedId ? analytics_report_collect_period_series($pdo, $selectedId) : [];
+
     return [
         'summary' => $summary,
         'total_participants' => $totalParticipants,
         'questionnaires' => $questionnaires,
+        'work_functions' => $workFunctions,
         'selected_questionnaire_id' => $selectedId,
         'selected_questionnaire_title' => $selectedTitle,
         'user_breakdown' => $userBreakdown,
+        'questionnaire_chart' => $questionnaireChart,
+        'work_function_chart' => $workFunctionChart,
+        'period_chart' => $periodSeries,
+        'period_chart_selected' => $selectedPeriodSeries,
         'include_details' => $includeDetails,
         'generated_at' => new DateTimeImmutable('now'),
     ];
+}
+
+function analytics_report_collect_period_series(PDO $pdo, ?int $questionnaireId = null): array
+{
+    $sql = 'SELECT pp.label, pp.period_start, AVG(qr.score) AS avg_score, COUNT(*) AS total_responses '
+        . 'FROM questionnaire_response qr '
+        . 'JOIN performance_period pp ON pp.id = qr.performance_period_id '
+        . 'WHERE qr.score IS NOT NULL';
+    $params = [];
+    if ($questionnaireId) {
+        $sql .= ' AND qr.questionnaire_id = ?';
+        $params[] = $questionnaireId;
+    }
+    $sql .= ' GROUP BY pp.id, pp.label, pp.period_start ORDER BY pp.period_start ASC';
+
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (PDOException $e) {
+        error_log('analytics_report period series failed: ' . $e->getMessage());
+        return [];
+    }
+
+    $series = [];
+    foreach ($rows as $row) {
+        if (!isset($row['avg_score']) || $row['avg_score'] === null) {
+            continue;
+        }
+        $series[] = [
+            'label' => (string)($row['label'] ?? ''),
+            'value' => (float)$row['avg_score'],
+            'count' => (int)($row['total_responses'] ?? 0),
+        ];
+    }
+
+    return $series;
 }
 
 function analytics_report_render_pdf(array $snapshot, array $cfg): string
@@ -202,6 +325,106 @@ function analytics_report_render_pdf(array $snapshot, array $cfg): string
         $pdf->addParagraph('No questionnaire responses have been recorded yet.');
     }
 
+    if (!empty($snapshot['work_functions'])) {
+        $workRows = [];
+        foreach ($snapshot['work_functions'] as $row) {
+            $workRows[] = [
+                (string)($row['label'] ?? 'Work function'),
+                analytics_report_format_number($row['total_responses'] ?? 0),
+                analytics_report_format_number($row['approved_count'] ?? 0),
+                analytics_report_format_score($row['avg_score'] ?? null),
+            ];
+        }
+        if ($workRows) {
+            $pdf->addSubheading('Performance by work function');
+            $pdf->addTable(
+                ['Work function', 'Responses', 'Approved', 'Avg'],
+                $workRows,
+                [40, 14, 14, 10]
+            );
+        }
+    }
+
+    $pdf->addSubheading('Performance charts');
+    $chartsAdded = false;
+    $palette = analytics_report_palette_colors($cfg);
+
+    $questionnaireChartData = $snapshot['questionnaire_chart'] ?? [];
+    $questionnaireChartImage = analytics_report_generate_bar_chart($questionnaireChartData, $palette, [
+        'max_value' => 100,
+        'value_suffix' => '%',
+        'decimal_places' => 1,
+    ]);
+    if ($questionnaireChartImage) {
+        $chartsAdded = true;
+        $label = 'Average score by questionnaire';
+        if ($questionnaireChartData) {
+            $label .= ' (top ' . count($questionnaireChartData) . ')';
+        }
+        $pdf->addParagraph($label);
+        $pdf->addImageBlock(
+            $questionnaireChartImage['data'],
+            $questionnaireChartImage['width'],
+            $questionnaireChartImage['height'],
+            520.0
+        );
+    }
+
+    $workFunctionChartData = $snapshot['work_function_chart'] ?? [];
+    $workFunctionChartImage = analytics_report_generate_bar_chart($workFunctionChartData, $palette, [
+        'max_value' => 100,
+        'value_suffix' => '%',
+        'decimal_places' => 1,
+    ]);
+    if ($workFunctionChartImage) {
+        $chartsAdded = true;
+        $pdf->addParagraph('Average score by work function');
+        $pdf->addImageBlock(
+            $workFunctionChartImage['data'],
+            $workFunctionChartImage['width'],
+            $workFunctionChartImage['height'],
+            520.0
+        );
+    }
+
+    $periodChartData = $snapshot['period_chart'] ?? [];
+    $periodChartImage = analytics_report_generate_line_chart($periodChartData, $palette, [
+        'max_value' => 100,
+        'value_suffix' => '%',
+    ]);
+    if ($periodChartImage) {
+        $chartsAdded = true;
+        $pdf->addParagraph('Average score by performance period');
+        $pdf->addImageBlock(
+            $periodChartImage['data'],
+            $periodChartImage['width'],
+            $periodChartImage['height'],
+            520.0
+        );
+    }
+
+    $selectedPeriodChart = $snapshot['period_chart_selected'] ?? [];
+    if ($selectedPeriodChart && $snapshot['selected_questionnaire_title']) {
+        $selectedPeriodImage = analytics_report_generate_line_chart($selectedPeriodChart, $palette, [
+            'max_value' => 100,
+            'value_suffix' => '%',
+        ]);
+        if ($selectedPeriodImage) {
+            $chartsAdded = true;
+            $pdf->addParagraph('Period trend · ' . (string)$snapshot['selected_questionnaire_title']);
+            $pdf->addImageBlock(
+                $selectedPeriodImage['data'],
+                $selectedPeriodImage['width'],
+                $selectedPeriodImage['height'],
+                520.0
+            );
+        }
+    }
+
+    if (!$chartsAdded) {
+        $pdf->addParagraph('Not enough response data is available to generate charts yet.');
+    }
+
     if (!empty($snapshot['include_details']) && !empty($snapshot['user_breakdown'])) {
         $selectedTitle = trim((string)($snapshot['selected_questionnaire_title'] ?? ''));
         $pdf->addSubheading('Top contributors' . ($selectedTitle !== '' ? ': ' . $selectedTitle : ''));
@@ -234,6 +457,405 @@ function analytics_report_render_pdf(array $snapshot, array $cfg): string
     ]);
 
     return $pdf->output();
+}
+
+function analytics_report_generate_bar_chart(array $points, array $palette, array $options = []): ?array
+{
+    if (!function_exists('imagecreatetruecolor')) {
+        return null;
+    }
+
+    $normalized = [];
+    foreach ($points as $point) {
+        $value = $point['value'] ?? ($point['score'] ?? null);
+        if (!is_numeric($value)) {
+            continue;
+        }
+        $normalized[] = [
+            'label' => analytics_report_truncate_label((string)($point['label'] ?? '')),
+            'value' => (float)$value,
+            'count' => isset($point['count']) ? (int)$point['count'] : (int)($point['responses'] ?? 0),
+        ];
+    }
+
+    if ($normalized === []) {
+        return null;
+    }
+
+    $width = (int)($options['width'] ?? 1200);
+    $height = (int)($options['height'] ?? 640);
+    $image = imagecreatetruecolor($width, $height);
+    if (!$image) {
+        return null;
+    }
+
+    if (function_exists('imageantialias')) {
+        @imageantialias($image, true);
+    }
+
+    $background = imagecolorallocate($image, 255, 255, 255);
+    imagefilledrectangle($image, 0, 0, $width, $height, $background);
+
+    $axisColor = imagecolorallocate($image, 148, 163, 184);
+    $gridColor = imagecolorallocate($image, 226, 232, 240);
+    $textColor = imagecolorallocate($image, 30, 41, 59);
+    $plotBackground = imagecolorallocate($image, 248, 250, 252);
+
+    $primaryRgb = analytics_report_color_to_rgb($palette['primary'] ?? '#2563eb');
+    $barRgb = $primaryRgb;
+    $barShadowRgb = analytics_report_adjust_color($primaryRgb, -0.25);
+    $barHighlightRgb = analytics_report_adjust_color($primaryRgb, 0.2);
+    $barColor = imagecolorallocate($image, $barRgb[0], $barRgb[1], $barRgb[2]);
+    $barShadow = imagecolorallocate($image, $barShadowRgb[0], $barShadowRgb[1], $barShadowRgb[2]);
+    $barHighlight = imagecolorallocate($image, $barHighlightRgb[0], $barHighlightRgb[1], $barHighlightRgb[2]);
+
+    $marginLeft = 150;
+    $marginRight = 80;
+    $marginTop = 90;
+    $marginBottom = 160;
+
+    $chartWidth = $width - $marginLeft - $marginRight;
+    $chartHeight = $height - $marginTop - $marginBottom;
+    if ($chartWidth <= 0 || $chartHeight <= 0) {
+        imagedestroy($image);
+        return null;
+    }
+
+    imagefilledrectangle($image, $marginLeft, $marginTop, $marginLeft + $chartWidth, $marginTop + $chartHeight, $plotBackground);
+
+    $values = array_column($normalized, 'value');
+    $maxValue = max($values);
+    if (isset($options['max_value']) && is_numeric($options['max_value'])) {
+        $maxValue = max($maxValue, (float)$options['max_value']);
+    }
+    if ($maxValue <= 0) {
+        $maxValue = 1;
+    }
+    $valueSuffix = isset($options['value_suffix']) ? (string)$options['value_suffix'] : '';
+    if ($valueSuffix === '%' && $maxValue < 100) {
+        $maxValue = 100;
+    }
+    $stepCount = (int)($options['grid_steps'] ?? 4);
+    if ($stepCount < 2) {
+        $stepCount = 4;
+    }
+    $axisMax = ceil($maxValue / 10) * 10;
+    if ($valueSuffix === '%' && $axisMax < 100) {
+        $axisMax = 100;
+    }
+
+    for ($i = 0; $i <= $stepCount; $i++) {
+        $ratio = $i / $stepCount;
+        $y = (int)round($marginTop + $chartHeight - ($ratio * $chartHeight));
+        imageline($image, $marginLeft, $y, $marginLeft + $chartWidth, $y, $gridColor);
+        $value = $axisMax * $ratio;
+        $precision = (int)($options['decimal_places'] ?? 0);
+        $label = number_format($value, $precision) . $valueSuffix;
+        analytics_report_draw_text($image, $label, $textColor, 18, $marginLeft - 20, $y, [
+            'align' => 'right',
+            'baseline' => 'middle',
+        ]);
+    }
+
+    imageline($image, $marginLeft, $marginTop + $chartHeight, $marginLeft + $chartWidth, $marginTop + $chartHeight, $axisColor);
+    imageline($image, $marginLeft, $marginTop, $marginLeft, $marginTop + $chartHeight, $axisColor);
+
+    $count = count($normalized);
+    $segment = $chartWidth / max($count, 1);
+    $barWidth = max(24, min(80, $segment * 0.6));
+    $baseline = $marginTop + $chartHeight;
+    $precision = (int)($options['decimal_places'] ?? 0);
+
+    foreach ($normalized as $index => $point) {
+        $value = max(0.0, min($axisMax, $point['value']));
+        $heightRatio = $axisMax > 0 ? ($value / $axisMax) : 0;
+        $barHeight = $heightRatio * $chartHeight;
+        $centerX = $marginLeft + ($segment * $index) + ($segment / 2);
+        $x1 = (int)round($centerX - ($barWidth / 2));
+        $x2 = (int)round($centerX + ($barWidth / 2));
+        $y1 = (int)round($baseline - $barHeight);
+        $y2 = (int)round($baseline);
+
+        imagefilledrectangle($image, $x1, $y1, $x2, $y2, $barColor);
+        imageline($image, $x1, $y2, $x2, $y2, $barShadow);
+        imageline($image, $x1, $y1, $x2, $y1, $barHighlight);
+
+        $valueLabel = number_format($point['value'], $precision) . $valueSuffix;
+        analytics_report_draw_text($image, $valueLabel, $textColor, 18, (int)round($centerX), $y1 - 12, [
+            'align' => 'center',
+            'baseline' => 'top',
+        ]);
+
+        $labelY = $baseline + 16;
+        analytics_report_draw_text($image, $point['label'], $textColor, 18, (int)round($centerX), $labelY, [
+            'align' => 'center',
+            'baseline' => 'top',
+        ]);
+    }
+
+    $result = analytics_report_export_gd_image($image);
+    if ($result === null) {
+        return null;
+    }
+
+    return $result;
+}
+
+function analytics_report_generate_line_chart(array $points, array $palette, array $options = []): ?array
+{
+    if (!function_exists('imagecreatetruecolor')) {
+        return null;
+    }
+
+    $normalized = [];
+    foreach ($points as $point) {
+        $value = $point['value'] ?? ($point['score'] ?? null);
+        if (!is_numeric($value)) {
+            continue;
+        }
+        $normalized[] = [
+            'label' => analytics_report_truncate_label((string)($point['label'] ?? '')),
+            'value' => (float)$value,
+            'count' => isset($point['count']) ? (int)$point['count'] : (int)($point['responses'] ?? 0),
+        ];
+    }
+
+    if ($normalized === []) {
+        return null;
+    }
+
+    $width = (int)($options['width'] ?? 1200);
+    $height = (int)($options['height'] ?? 640);
+    $image = imagecreatetruecolor($width, $height);
+    if (!$image) {
+        return null;
+    }
+
+    if (function_exists('imageantialias')) {
+        @imageantialias($image, true);
+    }
+
+    $background = imagecolorallocate($image, 255, 255, 255);
+    imagefilledrectangle($image, 0, 0, $width, $height, $background);
+
+    $axisColor = imagecolorallocate($image, 148, 163, 184);
+    $gridColor = imagecolorallocate($image, 226, 232, 240);
+    $textColor = imagecolorallocate($image, 30, 41, 59);
+    $plotBackground = imagecolorallocate($image, 248, 250, 252);
+
+    $primaryRgb = analytics_report_color_to_rgb($palette['primary'] ?? '#2563eb');
+    $lineRgb = $primaryRgb;
+    $fillRgb = analytics_report_adjust_color($primaryRgb, 0.55);
+    $pointRgb = analytics_report_adjust_color($primaryRgb, -0.1);
+    $lineColor = imagecolorallocate($image, $lineRgb[0], $lineRgb[1], $lineRgb[2]);
+    $fillColor = imagecolorallocate($image, $fillRgb[0], $fillRgb[1], $fillRgb[2]);
+    $pointColor = imagecolorallocate($image, $pointRgb[0], $pointRgb[1], $pointRgb[2]);
+
+    $marginLeft = 140;
+    $marginRight = 80;
+    $marginTop = 90;
+    $marginBottom = 160;
+
+    $chartWidth = $width - $marginLeft - $marginRight;
+    $chartHeight = $height - $marginTop - $marginBottom;
+    if ($chartWidth <= 0 || $chartHeight <= 0) {
+        imagedestroy($image);
+        return null;
+    }
+
+    imagefilledrectangle($image, $marginLeft, $marginTop, $marginLeft + $chartWidth, $marginTop + $chartHeight, $plotBackground);
+
+    $values = array_column($normalized, 'value');
+    $maxValue = max($values);
+    if (isset($options['max_value']) && is_numeric($options['max_value'])) {
+        $maxValue = max($maxValue, (float)$options['max_value']);
+    }
+    if ($maxValue <= 0) {
+        $maxValue = 1;
+    }
+    $valueSuffix = isset($options['value_suffix']) ? (string)$options['value_suffix'] : '';
+    if ($valueSuffix === '%' && $maxValue < 100) {
+        $maxValue = 100;
+    }
+    $stepCount = (int)($options['grid_steps'] ?? 4);
+    if ($stepCount < 2) {
+        $stepCount = 4;
+    }
+    $axisMax = ceil($maxValue / 10) * 10;
+    if ($valueSuffix === '%' && $axisMax < 100) {
+        $axisMax = 100;
+    }
+
+    for ($i = 0; $i <= $stepCount; $i++) {
+        $ratio = $i / $stepCount;
+        $y = (int)round($marginTop + $chartHeight - ($ratio * $chartHeight));
+        imageline($image, $marginLeft, $y, $marginLeft + $chartWidth, $y, $gridColor);
+        $value = $axisMax * $ratio;
+        $label = number_format($value, (int)($options['decimal_places'] ?? 0)) . $valueSuffix;
+        analytics_report_draw_text($image, $label, $textColor, 18, $marginLeft - 20, $y, [
+            'align' => 'right',
+            'baseline' => 'middle',
+        ]);
+    }
+
+    imageline($image, $marginLeft, $marginTop + $chartHeight, $marginLeft + $chartWidth, $marginTop + $chartHeight, $axisColor);
+    imageline($image, $marginLeft, $marginTop, $marginLeft, $marginTop + $chartHeight, $axisColor);
+
+    $count = count($normalized);
+    $baseline = $marginTop + $chartHeight;
+    $segment = $count > 1 ? ($chartWidth / ($count - 1)) : 0;
+    $points = [];
+    $polyline = [];
+
+    foreach ($normalized as $index => $point) {
+        $value = max(0.0, min($axisMax, $point['value']));
+        $ratio = $axisMax > 0 ? ($value / $axisMax) : 0;
+        $x = $count > 1
+            ? $marginLeft + ($segment * $index)
+            : $marginLeft + ($chartWidth / 2);
+        $y = $baseline - ($ratio * $chartHeight);
+        $points[] = [$x, $y, $point];
+        $polyline[] = [$x, $y];
+    }
+
+    if (count($polyline) >= 2) {
+        $polygon = [
+            $marginLeft,
+            $baseline,
+        ];
+        foreach ($polyline as [$x, $y]) {
+            $polygon[] = (int)round($x);
+            $polygon[] = (int)round($y);
+        }
+        $last = end($polyline);
+        $polygon[] = (int)round($last[0]);
+        $polygon[] = (int)round($baseline);
+        imagefilledpolygon($image, $polygon, (int)(count($polygon) / 2), $fillColor);
+    }
+
+    if (function_exists('imagesetthickness')) {
+        imagesetthickness($image, 3);
+    }
+    for ($i = 0; $i < count($polyline) - 1; $i++) {
+        $start = $polyline[$i];
+        $end = $polyline[$i + 1];
+        imageline(
+            $image,
+            (int)round($start[0]),
+            (int)round($start[1]),
+            (int)round($end[0]),
+            (int)round($end[1]),
+            $lineColor
+        );
+    }
+    if (function_exists('imagesetthickness')) {
+        imagesetthickness($image, 1);
+    }
+
+    foreach ($points as [$x, $y, $meta]) {
+        $radius = 8;
+        imagefilledellipse($image, (int)round($x), (int)round($y), $radius, $radius, $pointColor);
+        imageellipse($image, (int)round($x), (int)round($y), $radius + 2, $radius + 2, $lineColor);
+
+        $valueLabel = number_format($meta['value'], (int)($options['decimal_places'] ?? 0)) . $valueSuffix;
+        analytics_report_draw_text($image, $valueLabel, $textColor, 18, (int)round($x), (int)round($y) - 14, [
+            'align' => 'center',
+            'baseline' => 'bottom',
+        ]);
+
+        analytics_report_draw_text($image, $meta['label'], $textColor, 18, (int)round($x), $baseline + 16, [
+            'align' => 'center',
+            'baseline' => 'top',
+        ]);
+    }
+
+    $result = analytics_report_export_gd_image($image);
+    if ($result === null) {
+        return null;
+    }
+
+    return $result;
+}
+
+function analytics_report_adjust_color(array $rgb, float $factor): array
+{
+    $factor = max(-1.0, min(1.0, $factor));
+    $result = [];
+    foreach ($rgb as $channel) {
+        $channel = (int)$channel;
+        if ($factor >= 0) {
+            $result[] = (int)round($channel + (255 - $channel) * $factor);
+        } else {
+            $result[] = (int)round($channel * (1.0 + $factor));
+        }
+    }
+    return $result;
+}
+
+function analytics_report_draw_text($image, string $text, int $color, float $fontSize, int $x, int $y, array $options = []): void
+{
+    $align = $options['align'] ?? 'left';
+    $baseline = $options['baseline'] ?? 'alphabetic';
+    $fontPath = analytics_report_default_font_path();
+
+    if ($fontPath && function_exists('imagettftext') && function_exists('imagettfbbox')) {
+        $box = imagettfbbox($fontSize, 0, $fontPath, $text);
+        $textWidth = analytics_report_ttf_box_width($box);
+        $textHeight = analytics_report_ttf_box_height($box);
+        $drawX = $x;
+        if ($align === 'center') {
+            $drawX = (int)round($x - $textWidth / 2);
+        } elseif ($align === 'right') {
+            $drawX = (int)round($x - $textWidth);
+        }
+        $drawY = $y;
+        if ($baseline === 'top') {
+            $drawY = (int)round($y + $textHeight);
+        } elseif ($baseline === 'middle') {
+            $drawY = (int)round($y + $textHeight / 2);
+        }
+        imagettftext($image, $fontSize, 0, $drawX, $drawY, $color, $fontPath, $text);
+        return;
+    }
+
+    $font = $options['font'] ?? 3;
+    $charWidth = imagefontwidth($font);
+    $charHeight = imagefontheight($font);
+    $textWidth = $charWidth * strlen($text);
+    $drawX = $x;
+    if ($align === 'center') {
+        $drawX = (int)round($x - $textWidth / 2);
+    } elseif ($align === 'right') {
+        $drawX = (int)round($x - $textWidth);
+    }
+    $drawY = $y;
+    if ($baseline === 'top') {
+        $drawY = $y;
+    } elseif ($baseline === 'middle') {
+        $drawY = (int)round($y - ($charHeight / 2));
+    } else { // baseline or bottom
+        $drawY = (int)round($y - $charHeight);
+    }
+    imagestring($image, $font, $drawX, $drawY, $text, $color);
+}
+
+function analytics_report_truncate_label(string $label, int $limit = 22): string
+{
+    $trimmed = trim($label);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    $length = function_exists('mb_strlen') ? mb_strlen($trimmed, 'UTF-8') : strlen($trimmed);
+    if ($length <= $limit) {
+        return $trimmed;
+    }
+
+    $slice = function_exists('mb_substr')
+        ? mb_substr($trimmed, 0, $limit - 1, 'UTF-8')
+        : substr($trimmed, 0, $limit - 1);
+
+    return rtrim($slice) . '…';
 }
 
 function analytics_report_header_logo_spec(SimplePdfDocument $pdf, array $cfg): ?array

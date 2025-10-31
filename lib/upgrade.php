@@ -407,7 +407,7 @@ final class UpgradeEngine
         }
     }
 
-    public function streamDownload(string $path, string $filename, ?int $size = null): void
+    public function streamDownload(string $path, string $filename, ?int $size = null, string $contentType = 'application/zip'): void
     {
         if (!is_file($path)) {
             throw new RuntimeException('Download source not found at ' . $path);
@@ -425,7 +425,8 @@ final class UpgradeEngine
         }
 
         if (!headers_sent()) {
-            header('Content-Type: application/zip');
+            $type = trim($contentType) !== '' ? $contentType : 'application/zip';
+            header('Content-Type: ' . $type);
             header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
             header('Cache-Control: private, max-age=0, must-revalidate');
             header('Pragma: public');
@@ -1333,7 +1334,7 @@ function upgrade_create_manual_backup(PDO $pdo): array
     return upgrade_engine()->createManualBackup($pdo);
 }
 
-function upgrade_stream_download(string $filePath, string $downloadName, ?int $size = null): void
+function upgrade_stream_download(string $filePath, string $downloadName, ?int $size = null, string $contentType = 'application/zip'): void
 {
-    upgrade_engine()->streamDownload($filePath, $downloadName, $size);
+    upgrade_engine()->streamDownload($filePath, $downloadName, $size, $contentType);
 }

@@ -15,6 +15,9 @@
   const backdrop = document.querySelector('[data-topnav-backdrop]');
   const body = document.body;
   const mobileMedia = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 900px)') : null;
+  const appStrings = (typeof window.APP_STRINGS === 'object' && window.APP_STRINGS !== null)
+    ? window.APP_STRINGS
+    : {};
   const isMobileView = () => (mobileMedia ? mobileMedia.matches : window.innerWidth <= 900);
   let closeTopnavSubmenus = null;
   const updateBackdrop = (shouldShow) => {
@@ -243,9 +246,43 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register(normalizedBase + '/service-worker.js', { scope: normalizedBase + '/' }).catch(() => {
-        // Ignore registration failures silently
-      });
+      navigator.serviceWorker.register(normalizedBase + '/service-worker.js', { scope: normalizedBase + '/' })
+        .then((registration) => {
+          const role = (window.APP_USER && window.APP_USER.role) ? String(window.APP_USER.role).toLowerCase() : '';
+          const baseBuilder = (path) => {
+            const trimmed = typeof path === 'string' ? path.replace(/^\/+/, '') : '';
+            if (!trimmed) {
+              return normalizedBase ? normalizedBase + '/' : '/';
+            }
+            if (!normalizedBase) {
+              return '/' + trimmed;
+            }
+            return normalizedBase + '/' + trimmed;
+          };
+          const warmRoutes = ['my_performance.php', 'submit_assessment.php', 'profile.php'];
+          if (role === 'admin' || role === 'supervisor') {
+            warmRoutes.push('admin/analytics.php', 'admin/questionnaire_assignments.php');
+          }
+          const warmUrls = Array.from(new Set(warmRoutes.map(baseBuilder)));
+          if (warmUrls.length === 0) {
+            return;
+          }
+          const sendWarmMessage = (worker) => {
+            if (worker && typeof worker.postMessage === 'function') {
+              worker.postMessage({ type: 'WARM_ROUTE_CACHE', urls: warmUrls });
+            }
+          };
+          if (registration.active) {
+            sendWarmMessage(registration.active);
+          } else {
+            navigator.serviceWorker.ready.then((readyReg) => {
+              sendWarmMessage(readyReg.active);
+            }).catch(() => { /* ignore readiness errors */ });
+          }
+        })
+        .catch(() => {
+          // Ignore registration failures silently
+        });
     });
   }
   const brandPickers = document.querySelectorAll('[data-brand-color-picker]');
@@ -518,8 +555,8 @@
   let offlineDismissedWhileOffline = false;
 
   const offlineMessages = {
-    offline: 'You are offline. Recent data will stay available until you reconnect.',
-    online: 'Back online. Syncing the latest updates now.',
+    offline: appStrings.offline_banner_offline || 'You are offline. Recent data will stay available until you reconnect.',
+    online: appStrings.offline_banner_online || 'Back online. Syncing the latest updates now.',
   };
 
   const ensureOfflineBanner = () => {
@@ -539,8 +576,9 @@
     const dismiss = document.createElement('button');
     dismiss.type = 'button';
     dismiss.className = 'md-offline-banner__dismiss';
-    dismiss.textContent = 'Dismiss';
-    dismiss.setAttribute('aria-label', 'Dismiss offline status message');
+    const dismissLabel = appStrings.offline_banner_dismiss || 'Dismiss';
+    dismiss.textContent = dismissLabel;
+    dismiss.setAttribute('aria-label', appStrings.offline_banner_dismiss_aria || dismissLabel || 'Dismiss offline status message');
     dismiss.addEventListener('click', () => {
       if (offlineBanner.dataset.state === 'offline') {
         offlineDismissedWhileOffline = true;
@@ -593,6 +631,77 @@
       }, 4000);
     }
   };
+
+  const helpToggle = document.querySelector('[data-help-toggle]');
+  const helpOverlay = document.querySelector('[data-help-overlay]');
+  const helpClose = helpOverlay ? helpOverlay.querySelector('[data-help-close]') : null;
+  let helpReturnFocus = null;
+  let helpHideTimer = null;
+
+  const setHelpVisibility = (shouldShow) => {
+    if (!helpOverlay) {
+      return;
+    }
+    if (shouldShow) {
+      if (helpHideTimer) {
+        clearTimeout(helpHideTimer);
+        helpHideTimer = null;
+      }
+      helpOverlay.hidden = false;
+      helpOverlay.classList.add('is-visible');
+      if (helpToggle) {
+        helpToggle.setAttribute('aria-expanded', 'true');
+      }
+      if (helpClose) {
+        helpClose.focus({ preventScroll: true });
+      }
+    } else {
+      helpOverlay.classList.remove('is-visible');
+      if (helpToggle) {
+        helpToggle.setAttribute('aria-expanded', 'false');
+      }
+      helpHideTimer = window.setTimeout(() => {
+        helpOverlay.hidden = true;
+        helpHideTimer = null;
+      }, 180);
+      if (helpReturnFocus && typeof helpReturnFocus.focus === 'function') {
+        helpReturnFocus.focus();
+      }
+    }
+  };
+
+  if (helpToggle && helpOverlay) {
+    helpToggle.addEventListener('click', () => {
+      const isOpen = helpOverlay.classList.contains('is-visible');
+      if (!isOpen) {
+        helpReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setHelpVisibility(true);
+      } else {
+        setHelpVisibility(false);
+      }
+    });
+  }
+
+  if (helpClose) {
+    helpClose.addEventListener('click', () => {
+      setHelpVisibility(false);
+    });
+  }
+
+  if (helpOverlay) {
+    helpOverlay.addEventListener('click', (event) => {
+      if (event.target === helpOverlay) {
+        setHelpVisibility(false);
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && helpOverlay && helpOverlay.classList.contains('is-visible')) {
+      event.preventDefault();
+      setHelpVisibility(false);
+    }
+  });
 
   const offlineStorageKeys = {
     credentials: 'hrassess:offlineCredentials',

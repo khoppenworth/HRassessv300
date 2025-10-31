@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/help.php';
 
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $user = current_user();
 $role = $user['role'] ?? ($_SESSION['user']['role'] ?? null);
+$reviewEnabled = (int)($cfg['review_enabled'] ?? 1) === 1;
 $logoUrl = site_logo_url($cfg);
 $logoPathSmall = htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8');
 $siteTitle = htmlspecialchars($cfg['site_name'] ?? 'My Performance');
@@ -33,6 +35,14 @@ $navKeyMap = [
 if ($drawerKey === null && $scriptName !== '') {
     $drawerKey = $navKeyMap[$scriptName] ?? null;
 }
+$helpKey = $pageHelpKey ?? $drawerKey ?? 'global.default';
+$helpContent = get_page_help($helpKey, $t);
+$clientStrings = [
+    'offline_banner_offline' => t($t, 'offline_banner_offline', 'You are offline. Recent data will stay available until you reconnect.'),
+    'offline_banner_online' => t($t, 'offline_banner_online', 'Back online. Syncing the latest updates now.'),
+    'offline_banner_dismiss' => t($t, 'offline_banner_dismiss', 'Dismiss'),
+    'offline_banner_dismiss_aria' => t($t, 'offline_banner_dismiss_aria', 'Dismiss offline status message'),
+];
 $isActiveNav = static function (string ...$keys) use ($drawerKey): bool {
     if ($drawerKey === null) {
         return false;
@@ -61,6 +71,7 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
       'full_name' => $user['full_name'] ?? null,
       'role' => $role,
   ], JSON_THROW_ON_ERROR)?>;
+  window.APP_STRINGS = <?=json_encode($clientStrings, JSON_THROW_ON_ERROR)?>;
 </script>
 <header class="md-appbar md-elev-2">
   <button class="md-appbar-toggle" aria-label="Toggle navigation" data-drawer-toggle aria-controls="app-topnav" aria-expanded="false">
@@ -100,6 +111,9 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
     </button>
     <button type="button" class="md-appbar-button" id="appbar-reload-btn">
       <?=htmlspecialchars(t($t, 'reload_app', 'Reload App'), ENT_QUOTES, 'UTF-8')?>
+    </button>
+    <button type="button" class="md-appbar-button" data-help-toggle aria-haspopup="dialog" aria-expanded="false">
+      <?=htmlspecialchars(t($t, 'system_help', 'Help & tips'), ENT_QUOTES, 'UTF-8')?>
     </button>
     <div class="md-lang-switch">
       <?php foreach ($availableLocales as $loc): ?>
@@ -321,14 +335,22 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
       </ul>
     </li>
     <?php if (in_array($role, ['admin', 'supervisor'], true)): ?>
-      <?php $teamActive = $isActiveNav('team.review_queue', 'team.pending_accounts', 'team.assignments', 'team.analytics'); ?>
+      <?php
+      $teamNavKeys = ['team.pending_accounts', 'team.assignments', 'team.analytics'];
+      if ($reviewEnabled) {
+          array_unshift($teamNavKeys, 'team.review_queue');
+      }
+      $teamActive = $teamNavKeys ? $isActiveNav(...$teamNavKeys) : false;
+      ?>
       <li class="md-topnav-item<?=$teamActive ? ' is-active' : ''?>" data-topnav-item>
         <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
           <span><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
           <span class="md-topnav-chevron" aria-hidden="true"></span>
         </button>
         <ul class="md-topnav-submenu">
+          <?php if ($reviewEnabled): ?>
           <li><a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.review_queue')?>><?=t($t, 'review_queue', 'Review Queue')?></a></li>
+          <?php endif; ?>
           <li><a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.pending_accounts')?>><?=t($t, 'pending_accounts', 'Pending Approvals')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.analytics')?>><?=t($t, 'analytics', 'Analytics')?></a></li>
@@ -356,5 +378,20 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
   </ul>
 </nav>
 <div class="md-topnav-backdrop" data-topnav-backdrop aria-hidden="true" hidden></div>
+<div class="md-help-overlay" data-help-overlay hidden>
+  <div class="md-help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-dialog-title">
+    <div class="md-help-dialog__header">
+      <h2 id="help-dialog-title"><?=htmlspecialchars($helpContent['title'] ?? t($t, 'help_default_title', 'Need a hand?'), ENT_QUOTES, 'UTF-8')?></h2>
+      <button type="button" class="md-help-close" data-help-close aria-label="<?=htmlspecialchars(t($t, 'help_close', 'Close'), ENT_QUOTES, 'UTF-8')?>">&times;</button>
+    </div>
+    <div class="md-help-dialog__body">
+      <ul class="md-help-list">
+        <?php foreach (($helpContent['tips'] ?? []) as $tip): ?>
+          <li><?=htmlspecialchars($tip, ENT_QUOTES, 'UTF-8')?></li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+  </div>
+</div>
 <main class="md-main">
 

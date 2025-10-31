@@ -2665,3 +2665,97 @@ body.theme-dark .md-upgrade-card--accent {
 }
 
 
+
+.md-help-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(4px);
+  z-index: 1100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.md-help-overlay.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.md-help-dialog {
+  background: var(--app-surface, #ffffff);
+  color: var(--app-text-primary, #111827);
+  border-radius: 18px;
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.35);
+  max-width: 560px;
+  width: calc(100% - 2.5rem);
+  padding: 1.5rem 1.75rem;
+  transform: translateY(16px);
+  transition: transform 0.2s ease;
+}
+
+.md-help-overlay.is-visible .md-help-dialog {
+  transform: translateY(0);
+}
+
+.md-help-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.md-help-dialog__header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.md-help-close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--app-muted, #4b5563);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.md-help-close:focus,
+.md-help-close:hover {
+  color: var(--app-text-primary, #111827);
+}
+
+.md-help-dialog__body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.md-help-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.md-help-list li {
+  position: relative;
+  padding-left: 1.5rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--app-muted, #475467);
+}
+
+.md-help-list li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--app-primary, #2563eb);
+  font-size: 1.2rem;
+  line-height: 1;
+}

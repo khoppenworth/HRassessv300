@@ -11,15 +11,24 @@ if ($filename === '') {
     exit;
 }
 
+$manualDirectory = upgrade_manual_backup_directory();
+$manualRoot = $manualDirectory !== '' ? realpath($manualDirectory) : false;
 $resolvedPath = upgrade_resolve_manual_backup_path($filename);
-if ($resolvedPath === null || !is_file($resolvedPath)) {
+$resolvedRealPath = $resolvedPath !== null ? realpath($resolvedPath) : false;
+$manualIsValid = $manualRoot !== false && $resolvedRealPath !== false && strpos($resolvedRealPath, $manualRoot) === 0;
+
+if (!$manualIsValid || !is_file($resolvedRealPath)) {
     http_response_code(404);
     echo 'Backup not found.';
     exit;
 }
 
 try {
-    upgrade_stream_download($resolvedPath, $filename);
+    $size = @filesize($resolvedRealPath);
+    $contentType = detect_mime_type($resolvedRealPath) ?: 'application/zip';
+    $downloadName = basename($resolvedRealPath);
+    upgrade_stream_download($resolvedRealPath, $downloadName, $size !== false ? (int)$size : null, $contentType);
+    exit;
 } catch (Throwable $e) {
     error_log('Manual backup download failed: ' . $e->getMessage());
     if (!headers_sent()) {

@@ -352,6 +352,7 @@ $flashMessage = '';
 if ($flash === 'submitted') {
     $flashMessage = t($t, 'submission_success', 'Assessment submitted successfully.');
 }
+$pageHelpKey = 'workspace.my_performance';
 ?>
 <!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head>
 <meta charset="utf-8"><title><?=htmlspecialchars(t($t,'my_performance','My Performance'), ENT_QUOTES, 'UTF-8')?></title>
