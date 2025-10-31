@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Upgrade recovery guide</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f7f9fb;
+      color: #123;
+    }
+    main {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 3.5rem;
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(12, 66, 121, 0.08);
+      border-radius: 12px;
+    }
+    h1 {
+      font-size: 1.75rem;
+      margin-bottom: 1rem;
+      color: #0b3a75;
+    }
+    h2 {
+      font-size: 1.3rem;
+      margin-top: 2rem;
+      color: #0b3a75;
+    }
+    p {
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+    ol {
+      padding-left: 1.25rem;
+    }
+    li {
+      margin-bottom: 0.75rem;
+      line-height: 1.6;
+    }
+    code {
+      font-family: "Fira Code", "Courier New", monospace;
+      background: #edf2f8;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.95em;
+    }
+    pre {
+      background: #0f1f36;
+      color: #f8fbff;
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+    .tip {
+      border-left: 4px solid #0b84ff;
+      padding: 0.85rem 1rem;
+      background: #eaf4ff;
+      color: #0b3a75;
+      border-radius: 6px;
+      margin-top: 1.25rem;
+    }
+    footer {
+      margin-top: 3rem;
+      font-size: 0.85rem;
+      color: #456;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Upgrade recovery guide</h1>
+    <p>
+      If an upgrade fails and you can no longer sign in to the portal, follow this quick reference to restore the
+      last known good release. All commands should be executed from the project root on the application server.
+    </p>
+
+    <h2>Restore the previous release snapshot</h2>
+    <ol>
+      <li>Connect to the server that hosts HRassess and change to the project directory.</li>
+      <li>
+        Run the automated recovery command to roll back both the codebase and the database:
+        <pre><code>php scripts/system_upgrade.php --action=restore --restore-db</code></pre>
+        <ul>
+          <li>
+            Without <code>--backup-id</code> the tool restores the most recent successful upgrade snapshot located in
+            <code>storage/upgrades/runs/</code>.
+          </li>
+          <li>
+            Add <code>--backup-id=&lt;run-id&gt;</code> if you need to target a specific backup shown in the upgrade dashboard
+            or the JSON files inside <code>storage/upgrades/runs/</code>.
+          </li>
+        </ul>
+      </li>
+      <li>
+        Wait for the script to confirm that the application files (and optionally the database) were restored successfully.
+      </li>
+    </ol>
+
+    <div class="tip">
+      <strong>Tip:</strong> If you only need to roll back the application files and want to keep the current database,
+      omit the <code>--restore-db</code> flag.
+    </div>
+
+    <h2>After the rollback</h2>
+    <ol>
+      <li>Clear any reverse-proxy or application caches (for example, restart PHP-FPM or invalidate CDN caches if used).</li>
+      <li>Sign in to the portal and verify that dashboards and submissions load as expected.</li>
+      <li>Review the upgrade logs in <code>storage/upgrades/installed.json</code> and inside <code>storage/upgrades/runs/</code> to confirm the rollback details.</li>
+      <li>When ready to attempt the upgrade again, resolve the underlying issue, then rerun the normal upgrade process with <code>php scripts/system_upgrade.php --action=upgrade</code>.</li>
+    </ol>
+
+    <p>
+      Keeping a copy of this guide outside the system ensures administrators can quickly recover even when the UI is unavailable.
+    </p>
+
+    <footer>
+      &copy; 2024 HRassess recovery notes. Keep this page bookmarked for emergencies.
+    </footer>
+  </main>
+</body>
+</html>

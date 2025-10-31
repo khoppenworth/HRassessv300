@@ -3,12 +3,12 @@
 SET @password := '$2y$12$IQkYkVMIQE9G/dFkTcvObO1ekoYyOz2gk.d79KxQMOnPOrldv7drq';
 
 -- Clean up previous demo dataset ------------------------------------------------
-SET @epsa_questionnaire := (
-    SELECT id
-    FROM questionnaire
-    WHERE title = 'EPSA Annual Performance Review 360'
-    LIMIT 1
-);
+DROP TEMPORARY TABLE IF EXISTS tmp_demo_questionnaires;
+CREATE TEMPORARY TABLE tmp_demo_questionnaires (id INT PRIMARY KEY) ENGINE=Memory;
+INSERT INTO tmp_demo_questionnaires (id)
+SELECT id
+FROM questionnaire
+WHERE title IN ('EPSA Annual Performance Review 360', 'EPSA Leadership Confidence Pulse');
 
 DELETE tr
 FROM training_recommendation tr
@@ -23,23 +23,24 @@ JOIN users u ON u.id = qr.user_id
 WHERE u.username LIKE 'demo_%';
 
 DELETE FROM questionnaire_response
-WHERE questionnaire_id = @epsa_questionnaire
+WHERE questionnaire_id IN (SELECT id FROM tmp_demo_questionnaires)
    OR user_id IN (SELECT id FROM users WHERE username LIKE 'demo_%');
 
 DELETE FROM questionnaire_assignment
-WHERE questionnaire_id = @epsa_questionnaire
+WHERE questionnaire_id IN (SELECT id FROM tmp_demo_questionnaires)
    OR staff_id IN (SELECT id FROM users WHERE username LIKE 'demo_%');
 
-DELETE FROM questionnaire_work_function WHERE questionnaire_id = @epsa_questionnaire;
+DELETE FROM questionnaire_work_function WHERE questionnaire_id IN (SELECT id FROM tmp_demo_questionnaires);
 
 DELETE qio
 FROM questionnaire_item_option qio
 JOIN questionnaire_item qi ON qi.id = qio.questionnaire_item_id
-WHERE qi.questionnaire_id = @epsa_questionnaire;
+WHERE qi.questionnaire_id IN (SELECT id FROM tmp_demo_questionnaires);
 
-DELETE FROM questionnaire_item WHERE questionnaire_id = @epsa_questionnaire;
-DELETE FROM questionnaire_section WHERE questionnaire_id = @epsa_questionnaire;
-DELETE FROM questionnaire WHERE id = @epsa_questionnaire;
+DELETE FROM questionnaire_item WHERE questionnaire_id IN (SELECT id FROM tmp_demo_questionnaires);
+DELETE FROM questionnaire_section WHERE questionnaire_id IN (SELECT id FROM tmp_demo_questionnaires);
+DELETE FROM questionnaire WHERE id IN (SELECT id FROM tmp_demo_questionnaires);
+DROP TEMPORARY TABLE IF EXISTS tmp_demo_questionnaires;
 
 DELETE FROM analytics_report_schedule
 WHERE created_by IN (SELECT id FROM users WHERE username LIKE 'demo_%');
@@ -67,6 +68,11 @@ ON DUPLICATE KEY UPDATE
     period_start = VALUES(period_start),
     period_end = VALUES(period_end);
 
+SET @period_2023_h2 := (SELECT id FROM performance_period WHERE label = '2023 H2' LIMIT 1);
+SET @period_2024_h1 := (SELECT id FROM performance_period WHERE label = '2024 H1' LIMIT 1);
+SET @period_2024_h2 := (SELECT id FROM performance_period WHERE label = '2024 H2' LIMIT 1);
+SET @period_2025_h1 := (SELECT id FROM performance_period WHERE label = '2025 H1' LIMIT 1);
+
 -- Insert demo users representing realistic personas ----------------------------
 INSERT INTO users (username, password, role, full_name, email, gender, date_of_birth, phone,
                    department, cadre, work_function, profile_completed, must_reset_password,
@@ -93,6 +99,7 @@ SET @demo_admin_id := (SELECT id FROM users WHERE username = 'demo_strategy_admi
 SET @demo_people_lead_id := (SELECT id FROM users WHERE username = 'demo_people_lead');
 SET @demo_supply_lead_id := (SELECT id FROM users WHERE username = 'demo_supply_lead');
 SET @demo_region_lead_id := (SELECT id FROM users WHERE username = 'demo_region_lead');
+SET @demo_hr_partner_id := (SELECT id FROM users WHERE username = 'demo_hr_partner');
 
 UPDATE users
 SET approved_by = @demo_admin_id,
@@ -406,6 +413,144 @@ SELECT qr.id,
 FROM questionnaire_response qr
 JOIN users u ON u.id = qr.user_id
 WHERE qr.questionnaire_id = @demo_qid;
+
+-- Leadership confidence pulse questionnaire --------------------------------------
+INSERT INTO questionnaire (title, description)
+VALUES ('EPSA Leadership Confidence Pulse', 'Quarterly signal on leadership alignment and support needs.');
+SET @pulse_qid := LAST_INSERT_ID();
+
+INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index)
+VALUES
+(@pulse_qid, 'Leadership Behaviors', 'Signals from senior leaders on vision and coaching.', 1),
+(@pulse_qid, 'Support Systems', 'Escalation readiness and organisational clarity needs.', 2);
+
+SET @pulse_section_leadership := (SELECT id FROM questionnaire_section WHERE questionnaire_id = @pulse_qid AND order_index = 1);
+SET @pulse_section_support := (SELECT id FROM questionnaire_section WHERE questionnaire_id = @pulse_qid AND order_index = 2);
+
+INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required)
+VALUES
+(@pulse_qid, @pulse_section_leadership, 'vision_alignment', 'Alignment with EPSA transformation vision', 'likert', 1, 35, 0, 1),
+(@pulse_qid, @pulse_section_leadership, 'coaching_frequency', 'How frequently do you coach your team?', 'likert', 2, 25, 0, 1),
+(@pulse_qid, @pulse_section_support, 'escalation_clear', 'Escalation paths are clear and used effectively', 'boolean', 3, 10, 0, 0),
+(@pulse_qid, @pulse_section_support, 'priority_support', 'Where do you need senior support next?', 'textarea', 4, 15, 0, 0),
+(@pulse_qid, @pulse_section_support, 'org_clarity', 'Organisational direction is clear', 'likert', 5, 15, 0, 1);
+
+INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index)
+SELECT qi.id, opt.value, opt.order_index
+FROM questionnaire_item qi
+JOIN (
+    SELECT 'vision_alignment' AS linkId, '5 - Always aligns teams' AS value, 1 AS order_index UNION ALL
+    SELECT 'vision_alignment', '4 - Aligns across most initiatives', 2 UNION ALL
+    SELECT 'vision_alignment', '3 - Alignment requires reminders', 3 UNION ALL
+    SELECT 'vision_alignment', '2 - Alignment often drifts', 4 UNION ALL
+    SELECT 'vision_alignment', '1 - No clear alignment', 5 UNION ALL
+    SELECT 'coaching_frequency', '5 - Weekly coaching sessions', 1 UNION ALL
+    SELECT 'coaching_frequency', '4 - Bi-weekly conversations', 2 UNION ALL
+    SELECT 'coaching_frequency', '3 - Quarterly coaching cadence', 3 UNION ALL
+    SELECT 'coaching_frequency', '2 - Twice per year', 4 UNION ALL
+    SELECT 'coaching_frequency', '1 - Rarely or never', 5 UNION ALL
+    SELECT 'org_clarity', '5 - Vision is crystal clear', 1 UNION ALL
+    SELECT 'org_clarity', '4 - Clarity in most areas', 2 UNION ALL
+    SELECT 'org_clarity', '3 - Clarity improving but inconsistent', 3 UNION ALL
+    SELECT 'org_clarity', '2 - Needs significant clarification', 4 UNION ALL
+    SELECT 'org_clarity', '1 - Very unclear direction', 5
+) AS opt ON opt.linkId = qi.linkId
+WHERE qi.questionnaire_id = @pulse_qid;
+
+INSERT INTO questionnaire_work_function (questionnaire_id, work_function)
+SELECT @pulse_qid, wf
+FROM (
+    SELECT 'leadership_tn' AS wf UNION ALL
+    SELECT 'hrm' UNION ALL
+    SELECT 'quantification' UNION ALL
+    SELECT 'general_service' UNION ALL
+    SELECT 'ict'
+) AS functions;
+
+INSERT INTO questionnaire_assignment (staff_id, questionnaire_id, assigned_by, assigned_at)
+VALUES
+(@demo_people_lead_id, @pulse_qid, @demo_admin_id, DATE_SUB(NOW(), INTERVAL 10 DAY)),
+(@demo_supply_lead_id, @pulse_qid, @demo_admin_id, DATE_SUB(NOW(), INTERVAL 9 DAY)),
+(@demo_region_lead_id, @pulse_qid, @demo_admin_id, DATE_SUB(NOW(), INTERVAL 8 DAY)),
+(@demo_hr_partner_id, @pulse_qid, @demo_people_lead_id, DATE_SUB(NOW(), INTERVAL 7 DAY));
+
+INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at)
+VALUES
+(@demo_people_lead_id, @pulse_qid, @period_2024_h2, 'approved', 92, @demo_admin_id, DATE_SUB(NOW(), INTERVAL 28 DAY), 'Executive team endorsed regional mentoring pilots.', DATE_SUB(NOW(), INTERVAL 60 DAY));
+SET @pulse_resp_people := LAST_INSERT_ID();
+
+INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at)
+VALUES
+(@demo_supply_lead_id, @pulse_qid, @period_2024_h2, 'submitted', NULL, NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 35 DAY));
+SET @pulse_resp_supply := LAST_INSERT_ID();
+
+INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at)
+VALUES
+(@demo_region_lead_id, @pulse_qid, @period_2025_h1, 'submitted', NULL, NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 18 DAY));
+SET @pulse_resp_region := LAST_INSERT_ID();
+
+INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at)
+VALUES
+(@demo_hr_partner_id, @pulse_qid, @period_2025_h1, 'approved', 94, @demo_people_lead_id, DATE_SUB(NOW(), INTERVAL 12 DAY), 'Coaching cadence recognised during people committee.', DATE_SUB(NOW(), INTERVAL 22 DAY));
+SET @pulse_resp_hr := LAST_INSERT_ID();
+
+INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at)
+VALUES
+(@demo_people_lead_id, @pulse_qid, @period_2023_h2, 'approved', 88, @demo_admin_id, DATE_SUB(NOW(), INTERVAL 410 DAY), 'Leadership clinics accelerated approvals for strategic projects.', DATE_SUB(NOW(), INTERVAL 425 DAY));
+SET @pulse_resp_people_prev := LAST_INSERT_ID();
+
+INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at)
+VALUES
+(@demo_supply_lead_id, @pulse_qid, @period_2023_h2, 'approved', 85, @demo_admin_id, DATE_SUB(NOW(), INTERVAL 398 DAY), 'Supply dashboards stabilised weekly cadence expectations.', DATE_SUB(NOW(), INTERVAL 415 DAY));
+SET @pulse_resp_supply_prev := LAST_INSERT_ID();
+
+INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, score, reviewed_by, reviewed_at, review_comment, created_at)
+VALUES
+(@demo_admin_id, @pulse_qid, @period_2024_h1, 'approved', 96, @demo_people_lead_id, DATE_SUB(NOW(), INTERVAL 85 DAY), 'Transformation office showcased readiness labs for regions.', DATE_SUB(NOW(), INTERVAL 110 DAY));
+SET @pulse_resp_admin := LAST_INSERT_ID();
+
+INSERT INTO questionnaire_response_item (response_id, linkId, answer) VALUES
+(@pulse_resp_people, 'vision_alignment', '[{"valueInteger":5,"valueString":"5 - Always aligns teams"}]'),
+(@pulse_resp_people, 'coaching_frequency', '[{"valueInteger":4,"valueString":"4 - Coaching conversations monthly"}]'),
+(@pulse_resp_people, 'escalation_clear', '[{"valueBoolean":true}]'),
+(@pulse_resp_people, 'priority_support', '[{"valueString":"Maintaining executive visibility on distribution reforms."}]'),
+(@pulse_resp_people, 'org_clarity', '[{"valueInteger":4,"valueString":"4 - Direction is clear with minor gaps"}]'),
+(@pulse_resp_supply, 'vision_alignment', '[{"valueInteger":4,"valueString":"4 - Aligns across most initiatives"}]'),
+(@pulse_resp_supply, 'coaching_frequency', '[{"valueInteger":3,"valueString":"3 - Quarterly coaching cadence"}]'),
+(@pulse_resp_supply, 'escalation_clear', '[{"valueBoolean":true}]'),
+(@pulse_resp_supply, 'priority_support', '[{"valueString":"Need faster budget approvals for automation pilots."}]'),
+(@pulse_resp_supply, 'org_clarity', '[{"valueInteger":3,"valueString":"3 - Clarity in most areas"}]'),
+(@pulse_resp_region, 'vision_alignment', '[{"valueInteger":3,"valueString":"3 - Alignment requires reminders"}]'),
+(@pulse_resp_region, 'coaching_frequency', '[{"valueInteger":3,"valueString":"3 - Quarterly coaching cadence"}]'),
+(@pulse_resp_region, 'escalation_clear', '[{"valueBoolean":false}]'),
+(@pulse_resp_region, 'priority_support', '[{"valueString":"Request more structured mentoring for emerging coordinators."}]'),
+(@pulse_resp_region, 'org_clarity', '[{"valueInteger":3,"valueString":"3 - Clarity improving but inconsistent"}]'),
+(@pulse_resp_hr, 'vision_alignment', '[{"valueInteger":5,"valueString":"5 - Strong alignment with transformation goals"}]'),
+(@pulse_resp_hr, 'coaching_frequency', '[{"valueInteger":5,"valueString":"5 - Weekly coaching sessions"}]'),
+(@pulse_resp_hr, 'escalation_clear', '[{"valueBoolean":true}]'),
+(@pulse_resp_hr, 'priority_support', '[{"valueString":"Scaling wellbeing resources to regions."}]'),
+(@pulse_resp_hr, 'org_clarity', '[{"valueInteger":4,"valueString":"4 - Clarity in most areas"}]');
+
+INSERT INTO questionnaire_response_item (response_id, linkId, answer) VALUES
+(@pulse_resp_people_prev, 'vision_alignment', '[{"valueInteger":4,"valueString":"4 - Aligns across most initiatives"}]'),
+(@pulse_resp_people_prev, 'coaching_frequency', '[{"valueInteger":3,"valueString":"3 - Quarterly coaching cadence"}]'),
+(@pulse_resp_people_prev, 'escalation_clear', '[{"valueBoolean":true}]'),
+(@pulse_resp_people_prev, 'priority_support', '[{"valueString":"Extend executive storytelling support to regional leads."}]'),
+(@pulse_resp_people_prev, 'org_clarity', '[{"valueInteger":4,"valueString":"4 - Clarity in most areas"}]');
+
+INSERT INTO questionnaire_response_item (response_id, linkId, answer) VALUES
+(@pulse_resp_supply_prev, 'vision_alignment', '[{"valueInteger":3,"valueString":"3 - Alignment requires reminders"}]'),
+(@pulse_resp_supply_prev, 'coaching_frequency', '[{"valueInteger":3,"valueString":"3 - Quarterly coaching cadence"}]'),
+(@pulse_resp_supply_prev, 'escalation_clear', '[{"valueBoolean":false}]'),
+(@pulse_resp_supply_prev, 'priority_support', '[{"valueString":"Need clearer funding guardrails for automation pilots."}]'),
+(@pulse_resp_supply_prev, 'org_clarity', '[{"valueInteger":3,"valueString":"3 - Clarity in most areas"}]');
+
+INSERT INTO questionnaire_response_item (response_id, linkId, answer) VALUES
+(@pulse_resp_admin, 'vision_alignment', '[{"valueInteger":5,"valueString":"5 - Always aligns teams"}]'),
+(@pulse_resp_admin, 'coaching_frequency', '[{"valueInteger":5,"valueString":"5 - Weekly coaching sessions"}]'),
+(@pulse_resp_admin, 'escalation_clear', '[{"valueBoolean":true}]'),
+(@pulse_resp_admin, 'priority_support', '[{"valueString":"Share roadmap briefings with donor steering group."}]'),
+(@pulse_resp_admin, 'org_clarity', '[{"valueInteger":5,"valueString":"5 - Vision is crystal clear"}]');
 
 -- Training recommendations based on outcomes ------------------------------------
 INSERT INTO training_recommendation (questionnaire_response_id, course_id, recommendation_reason)

@@ -1338,3 +1338,34 @@ function upgrade_stream_download(string $filePath, string $downloadName, ?int $s
 {
     upgrade_engine()->streamDownload($filePath, $downloadName, $size, $contentType);
 }
+
+function upgrade_should_ignore_sql_error(PDOException $exception, string $statement): bool
+{
+    $info = $exception->errorInfo ?? [];
+    $sqlState = isset($info[0]) && is_string($info[0]) ? strtoupper($info[0]) : strtoupper((string)$exception->getCode());
+    $driverCode = isset($info[1]) ? (int)$info[1] : null;
+    $normalizedStatement = strtolower($statement);
+
+    $isAddColumn = strpos($normalizedStatement, 'add column') !== false;
+    if ($isAddColumn && ($driverCode === 1060 || $sqlState === '42S21')) {
+        return true;
+    }
+
+    $isAddIndex = strpos($normalizedStatement, 'add index') !== false
+        || strpos($normalizedStatement, 'add key') !== false
+        || strpos($normalizedStatement, 'add unique') !== false
+        || strpos($normalizedStatement, 'add constraint') !== false;
+    if ($isAddIndex && ($driverCode === 1061 || $sqlState === '42000')) {
+        return true;
+    }
+
+    $isDropClause = strpos($normalizedStatement, 'drop column') !== false
+        || strpos($normalizedStatement, 'drop index') !== false
+        || strpos($normalizedStatement, 'drop key') !== false
+        || strpos($normalizedStatement, 'drop foreign key') !== false;
+    if ($isDropClause && ($driverCode === 1091 || $sqlState === '42000')) {
+        return true;
+    }
+
+    return false;
+}

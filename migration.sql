@@ -1,9 +1,79 @@
 
 -- migration.sql: upgrade existing DB to enhanced schema
-ALTER TABLE questionnaire_item ADD COLUMN weight_percent INT NOT NULL DEFAULT 0;
-ALTER TABLE questionnaire_item ADD COLUMN allow_multiple TINYINT(1) NOT NULL DEFAULT 0;
+SET @qi_weight_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_item'
+    AND COLUMN_NAME = 'weight_percent'
+);
+SET @qi_weight_add_sql = IF(
+  @qi_weight_exists = 0,
+  'ALTER TABLE questionnaire_item ADD COLUMN weight_percent INT NOT NULL DEFAULT 0 AFTER order_index',
+  'SELECT 1'
+);
+PREPARE stmt FROM @qi_weight_add_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @qi_weight_needs_modification = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_item'
+    AND COLUMN_NAME = 'weight_percent'
+    AND NOT (
+      UPPER(DATA_TYPE) IN ('INT', 'INTEGER', 'SMALLINT', 'MEDIUMINT', 'TINYINT', 'BIGINT')
+      AND IS_NULLABLE = 'NO'
+      AND COALESCE(COLUMN_DEFAULT, '0') IN ('0', '0.0')
+    )
+);
+SET @qi_weight_modify_sql = IF(
+  @qi_weight_exists > 0 AND @qi_weight_needs_modification > 0,
+  'ALTER TABLE questionnaire_item MODIFY COLUMN weight_percent INT NOT NULL DEFAULT 0 AFTER order_index',
+  'SELECT 1'
+);
+PREPARE stmt FROM @qi_weight_modify_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE questionnaire_item
+SET weight_percent = 0
+WHERE weight_percent IS NULL;
+
+SET @qi_multiple_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_item'
+    AND COLUMN_NAME = 'allow_multiple'
+);
+SET @qi_multiple_sql = IF(
+  @qi_multiple_exists = 0,
+  'ALTER TABLE questionnaire_item ADD COLUMN allow_multiple TINYINT(1) NOT NULL DEFAULT 0',
+  'SELECT 1'
+);
+PREPARE stmt FROM @qi_multiple_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @qi_required_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_item'
+    AND COLUMN_NAME = 'is_required'
+);
+SET @qi_required_sql = IF(
+  @qi_required_exists = 0,
+  'ALTER TABLE questionnaire_item ADD COLUMN is_required TINYINT(1) NOT NULL DEFAULT 0',
+  'SELECT 1'
+);
+PREPARE stmt FROM @qi_required_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 ALTER TABLE questionnaire_item MODIFY COLUMN type ENUM('likert','text','textarea','boolean','choice') NOT NULL DEFAULT 'likert';
-ALTER TABLE questionnaire_item ADD COLUMN IF NOT EXISTS is_required TINYINT(1) NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS questionnaire_item_option (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -222,10 +292,79 @@ INSERT IGNORE INTO performance_period (id, label, period_start, period_end) VALU
 (4,'2024','2024-01-01','2024-12-31'),
 (5,'2025','2025-01-01','2025-12-31');
 
-ALTER TABLE questionnaire_response
-  ADD COLUMN performance_period_id INT NOT NULL DEFAULT 1 AFTER questionnaire_id,
-  ADD CONSTRAINT fk_qr_period FOREIGN KEY (performance_period_id) REFERENCES performance_period(id) ON DELETE RESTRICT,
-  ADD UNIQUE KEY uniq_user_questionnaire_period (user_id, questionnaire_id, performance_period_id);
+SET @qr_period_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_response'
+    AND COLUMN_NAME = 'performance_period_id'
+);
+SET @qr_period_sql = IF(
+  @qr_period_exists = 0,
+  'ALTER TABLE questionnaire_response ADD COLUMN performance_period_id INT NOT NULL DEFAULT 1 AFTER questionnaire_id',
+  'SELECT 1'
+);
+PREPARE stmt FROM @qr_period_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @qr_period_modify = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_response'
+    AND COLUMN_NAME = 'performance_period_id'
+    AND IS_NULLABLE = 'NO'
+);
+SET @qr_period_modify_sql = IF(
+  @qr_period_modify = 0,
+  'ALTER TABLE questionnaire_response MODIFY COLUMN performance_period_id INT NOT NULL DEFAULT 1',
+  'SELECT 1'
+);
+PREPARE stmt FROM @qr_period_modify_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @qr_period_fk_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND CONSTRAINT_NAME = 'fk_qr_period'
+    AND TABLE_NAME = 'questionnaire_response'
+);
+SET @qr_period_fk_sql = IF(
+  @qr_period_fk_exists = 0,
+  'ALTER TABLE questionnaire_response ADD CONSTRAINT fk_qr_period FOREIGN KEY (performance_period_id) REFERENCES performance_period(id) ON DELETE RESTRICT',
+  'SELECT 1'
+);
+PREPARE stmt FROM @qr_period_fk_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @qr_unique_conflicts = (
+  SELECT COUNT(1)
+  FROM (
+    SELECT user_id, questionnaire_id, performance_period_id
+    FROM questionnaire_response
+    GROUP BY user_id, questionnaire_id, performance_period_id
+    HAVING COUNT(*) > 1
+  ) AS dup
+);
+SET @qr_unique_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_response'
+    AND INDEX_NAME = 'uniq_user_questionnaire_period'
+);
+SET @qr_unique_sql = IF(
+  @qr_unique_exists = 0 AND @qr_unique_conflicts = 0,
+  'ALTER TABLE questionnaire_response ADD UNIQUE KEY uniq_user_questionnaire_period (user_id, questionnaire_id, performance_period_id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @qr_unique_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 ALTER TABLE questionnaire_response
   MODIFY COLUMN status ENUM('draft','submitted','approved','rejected') NOT NULL DEFAULT 'submitted';

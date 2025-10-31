@@ -33,6 +33,11 @@ const Builder = (() => {
     '5 - Strongly Agree',
   ];
 
+  const STRINGS = window.QB_STRINGS || {
+    scoreWeightLabel: 'Score weight (%)',
+    scoreWeightHint: 'Only weighted questions contribute to scoring and analytics.',
+  };
+
   const baseMeta = document.querySelector('meta[name="app-base-url"]');
   let appBase = window.APP_BASE_URL || (baseMeta ? baseMeta.content : '/');
   if (typeof appBase !== 'string' || appBase === '') {
@@ -1047,18 +1052,30 @@ const Builder = (() => {
     type.dataset.itemIndex = String(itemIndex);
     itemEl.appendChild(type);
 
+    const weightWrap = document.createElement('label');
+    weightWrap.className = 'qb-field qb-weight-field';
+    const weightLabel = document.createElement('span');
+    weightLabel.className = 'qb-field-label';
+    weightLabel.textContent = STRINGS.scoreWeightLabel;
     const weight = document.createElement('input');
     weight.type = 'number';
     weight.min = '0';
     weight.max = '100';
+    weight.step = '1';
     weight.className = 'qb-input qb-weight';
-    weight.placeholder = 'Weight %';
+    weight.placeholder = '0';
     weight.value = String(item.weight_percent ?? 0);
     weight.dataset.role = 'item-weight';
     weight.dataset.qIndex = String(qIndex);
     weight.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
     weight.dataset.itemIndex = String(itemIndex);
-    itemEl.appendChild(weight);
+    const weightHint = document.createElement('span');
+    weightHint.className = 'qb-field-hint';
+    weightHint.textContent = STRINGS.scoreWeightHint;
+    weightWrap.appendChild(weightLabel);
+    weightWrap.appendChild(weight);
+    weightWrap.appendChild(weightHint);
+    itemEl.appendChild(weightWrap);
 
     const requiredWrap = document.createElement('label');
     requiredWrap.className = 'qb-checkbox qb-required-toggle';

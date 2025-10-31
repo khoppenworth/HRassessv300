@@ -181,6 +181,26 @@
   color: var(--status-success-text);
 }
 
+.qb-scoring-note {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin: 0.75rem 0;
+  color: var(--app-muted);
+  font-size: 0.9rem;
+}
+
+.qb-scoring-note strong {
+  display: block;
+  color: var(--app-primary, #205493);
+  margin-bottom: 0.25rem;
+}
+
+.qb-scoring-note p {
+  margin: 0;
+}
+
 .qb-list {
   margin-top: 1rem;
   display: flex;
@@ -288,13 +308,39 @@
   flex-wrap: wrap;
 }
 
+.qb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.qb-field-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--app-muted);
+}
+
+.qb-field-hint {
+  font-size: 0.75rem;
+  color: var(--app-muted);
+}
+
 .qb-item .qb-input,
 .qb-item .qb-select {
   flex: 1 1 150px;
 }
 
-.qb-item .qb-weight {
-  max-width: 120px;
+.qb-weight-field {
+  flex: 1 1 180px;
+  max-width: 220px;
+}
+
+.qb-weight-field .qb-weight {
+  width: 100%;
+}
+
+.qb-weight-field .qb-field-hint {
+  font-style: italic;
 }
 
 .qb-choice-settings {
