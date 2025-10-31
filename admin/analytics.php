@@ -580,6 +580,7 @@ foreach ($selectedResponses as $row) {
 $selectedAverage = $selectedAggregate['scored_count'] > 0
     ? $selectedAggregate['score_sum'] / $selectedAggregate['scored_count']
     : null;
+$pageHelpKey = 'team.analytics';
 ?>
 <!doctype html>
 <html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
@@ -1113,6 +1114,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-EtBsuD6bYDI7ilMWVT09G/1nHQRE8PbtY7TIn4lZG3Fjm1fvcDUoJ7Sm9Ua+bJOy" crossorigin="anonymous"></script>
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
   (function () {
+    const rootStyles = getComputedStyle(document.documentElement);
     const questionnaireHeatmap = <?=json_encode([
       'labels' => array_column($questionnaireChartData, 'label'),
       'scores' => array_map(static fn($row) => $row['score'], $questionnaireChartData),
@@ -1129,6 +1131,19 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
     };
 
     const baseUrlAttr = document.documentElement.getAttribute('data-base-url') || '';
+    const cssVar = (name, fallback) => {
+      const value = rootStyles.getPropertyValue(name);
+      if (value && value.trim()) {
+        return value.trim();
+      }
+      if (fallback) {
+        const fallbackValue = rootStyles.getPropertyValue(fallback);
+        if (fallbackValue && fallbackValue.trim()) {
+          return fallbackValue.trim();
+        }
+      }
+      return '';
+    };
     const fallbackChartSrc = (function () {
       const trimmed = baseUrlAttr.replace(/\/+$/u, '');
       const assetPath = 'assets/adminlte/plugins/chart.js/Chart.min.js';
@@ -1269,6 +1284,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
         barPercentage: 0.75,
       };
 
+      const gridColor = cssVar('--app-border', '--brand-border') || 'rgba(17, 56, 94, 0.08)';
       let chartConfig;
       if (isModern) {
         datasetConfig.borderRadius = 6;
@@ -1283,7 +1299,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
               ticks: {
                 callback: (value) => `${value}%`,
               },
-              grid: { color: 'rgba(17, 56, 94, 0.08)' },
+              grid: { color: gridColor },
             },
             y: {
               ticks: { autoSkip: false },
@@ -1314,7 +1330,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
             ticks: {
               callback: (value) => `${value}%`,
             },
-            grid: { color: 'rgba(17, 56, 94, 0.08)' },
+            grid: { color: gridColor },
             title: { display: true, text: labels.averageScore },
           };
           chartOptions.scales.x = {
@@ -1345,7 +1361,7 @@ $selectedAverage = $selectedAggregate['scored_count'] > 0
             max: 100,
             callback: (value) => `${value}%`,
           },
-          gridLines: { color: 'rgba(17, 56, 94, 0.08)' },
+          gridLines: { color: gridColor },
           scaleLabel: { display: true, labelString: labels.averageScore },
         };
 

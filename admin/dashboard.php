@@ -495,6 +495,7 @@ foreach ($upgradeBackups as $backupMeta) {
         'release_url' => isset($backupMeta['release_url']) ? (string)$backupMeta['release_url'] : null,
     ];
 }
+$pageHelpKey = 'admin.dashboard';
 ?>
 <!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head>
 <meta charset="utf-8"><title><?=htmlspecialchars(t($t,'admin_dashboard','Admin Dashboard'), ENT_QUOTES, 'UTF-8')?></title>

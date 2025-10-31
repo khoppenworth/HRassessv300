@@ -6,8 +6,11 @@ require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$user = current_user();
+$role = $user['role'] ?? ($_SESSION['user']['role'] ?? null);
+$reviewEnabled = (int)($cfg['review_enabled'] ?? 1) === 1;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($reviewEnabled && $_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $id = (int)($_POST['id'] ?? 0);
     $status = $_POST['status'] ?? 'submitted';
@@ -16,7 +19,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$status, $_SESSION['user']['id'], $_POST['review_comment'] ?? null, $id]);
     }
 }
-$rows = $pdo->query("SELECT qr.*, u.username, q.title FROM questionnaire_response qr JOIN users u ON u.id=qr.user_id JOIN questionnaire q ON q.id=qr.questionnaire_id WHERE qr.status='submitted' ORDER BY qr.created_at ASC")->fetchAll();
+$rows = [];
+if ($reviewEnabled) {
+    $query = $pdo->query("SELECT qr.*, u.username, q.title FROM questionnaire_response qr JOIN users u ON u.id=qr.user_id JOIN questionnaire q ON q.id=qr.questionnaire_id WHERE qr.status='submitted' ORDER BY qr.created_at ASC");
+    $rows = $query ? $query->fetchAll() : [];
+}
 ?>
 <!doctype html>
 <html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
@@ -34,6 +41,16 @@ $rows = $pdo->query("SELECT qr.*, u.username, q.title FROM questionnaire_respons
 <section class="md-section">
 <div class="md-card md-elev-2">
   <h2 class="md-card-title"><?=t($t,'pending_submissions','Pending Submissions')?></h2>
+  <?php if (!$reviewEnabled): ?>
+    <div class="md-alert info">
+      <p><?=t($t,'review_disabled_notice','Supervisor reviews are currently disabled in Settings.')?></p>
+      <?php if ($role === 'admin'): ?>
+        <p><a class="md-link" href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>"><?=t($t,'review_disabled_settings_link','Update review settings')?></a></p>
+      <?php endif; ?>
+    </div>
+  <?php elseif (!$rows): ?>
+    <p class="md-muted"><?=t($t,'no_pending_reviews','There are no submissions awaiting review right now.')?></p>
+  <?php else: ?>
   <table class="md-table">
     <thead><tr><th><?=t($t,'id','ID')?></th><th><?=t($t,'user','User')?></th><th><?=t($t,'questionnaire','Questionnaire')?></th><th><?=t($t,'score','Score (%)')?></th><th><?=t($t,'view','View')?></th><th><?=t($t,'action','Action')?></th></tr></thead>
     <tbody>
@@ -60,6 +77,7 @@ $rows = $pdo->query("SELECT qr.*, u.username, q.title FROM questionnaire_respons
     <?php endforeach; ?>
     </tbody>
   </table>
+  <?php endif; ?>
 </div>
 </section>
 <?php include __DIR__.'/../templates/footer.php'; ?>

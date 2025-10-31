@@ -26,6 +26,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_check();
 
+        $review_enabled = isset($_POST['review_enabled']) ? 1 : 0;
         $google_oauth_enabled = isset($_POST['google_oauth_enabled']) ? 1 : 0;
         $google_oauth_client_id = trim($_POST['google_oauth_client_id'] ?? '');
         $google_oauth_client_secret = trim($_POST['google_oauth_client_secret'] ?? '');
@@ -96,6 +97,7 @@ try {
             'smtp_from_email' => $smtp_from_email !== '' ? $smtp_from_email : null,
             'smtp_from_name' => $smtp_from_name !== '' ? $smtp_from_name : null,
             'smtp_timeout' => $smtp_timeout,
+            'review_enabled' => $review_enabled,
         ];
 
         if ($errors === []) {
@@ -150,6 +152,7 @@ try {
         $fatalDebugDetails = $e->getTraceAsString();
     }
 }
+$pageHelpKey = 'admin.settings';
 ?>
 <!doctype html>
 <html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
@@ -216,6 +219,16 @@ try {
       <?php endforeach; ?>
       <div class="md-help-note">
         <?=render_help_icon(t($t,'language_required_notice','At least English or French must remain enabled.'), true)?>
+      </div>
+      <h3 class="md-subhead">
+        <?=t($t,'review_settings','Reviews')?>
+        <?=render_help_icon(t($t,'review_settings_hint','Toggle the supervisor review workflow on or off for the entire system.'))?>
+      </h3>
+      <div class="md-control">
+        <label>
+          <input type="checkbox" name="review_enabled" value="1" <?=((int)($cfg['review_enabled'] ?? 1) === 1) ? 'checked' : ''?>>
+          <span><?=t($t,'enable_review_feature','Enable supervisor review workflow')?></span>
+        </label>
       </div>
       <h3 class="md-subhead"><?=t($t,'sso_settings','Single Sign-On (SSO)')?></h3>
       <div class="md-control">
