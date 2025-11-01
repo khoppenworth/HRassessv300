@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/lib/scoring.php';
 auth_required(['staff','supervisor','admin']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
@@ -85,6 +86,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $itemsStmt->execute([$qid]);
             $items = $itemsStmt->fetchAll();
 
+            $nonScorableTypes = ['display', 'group', 'section'];
+            $likertWeightMap = questionnaire_even_likert_weights($items);
+            foreach ($items as &$itemRow) {
+                $type = (string)($itemRow['type'] ?? '');
+                $isScorable = !in_array($type, $nonScorableTypes, true);
+                $itemRow['computed_weight'] = questionnaire_resolve_effective_weight($itemRow, $likertWeightMap, $isScorable);
+            }
+            unset($itemRow);
+
             $optionMap = [];
             if ($items) {
                 $itemIds = array_column($items, 'id');
@@ -99,23 +109,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $score_sum = 0.0;
             $max_points = 0.0;
-            $nonScorableTypes = ['display', 'group', 'section'];
 
             $missingRequired = [];
             foreach ($items as $it) {
                 $name = 'item_' . $it['linkId'];
-                $rawWeight = array_key_exists('weight_percent', $it) ? $it['weight_percent'] : null;
-                $hasExplicitWeight = $rawWeight !== null && $rawWeight !== '';
-                $weight = $hasExplicitWeight ? max(0.0, (float)$rawWeight) : null;
                 $type = (string)($it['type'] ?? '');
                 $isScorable = !in_array($type, $nonScorableTypes, true);
-                if (!$isScorable) {
-                    $effectiveWeight = 0.0;
-                } elseif ($hasExplicitWeight) {
-                    $effectiveWeight = $weight;
-                } else {
-                    $effectiveWeight = 1.0;
-                }
+                $effectiveWeight = isset($it['computed_weight'])
+                    ? (float)$it['computed_weight']
+                    : questionnaire_resolve_effective_weight($it, $likertWeightMap, $isScorable);
                 $achievedPoints = 0.0;
                 $a = json_encode([]);
                 $isRequired = !empty($it['is_required']);
@@ -436,9 +438,18 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
         ?>
         <input name="item_<?=htmlspecialchars($it['linkId'] ?? '', ENT_QUOTES, 'UTF-8')?>" value="<?=htmlspecialchars($textValue, ENT_QUOTES, 'UTF-8')?>"<?=$requiredAttr?>>
       <?php endif; ?>
-      <?php if (isset($it['weight_percent']) && $it['weight_percent'] !== null): ?>
-        <small class="md-hint">Weight: <?= (int)$it['weight_percent']?>%</small>
-      <?php endif; ?>
+      <?php
+        $weightHint = null;
+        if (isset($it['computed_weight']) && is_numeric($it['computed_weight'])) {
+            $weightHint = (float)$it['computed_weight'];
+        } elseif (isset($it['weight_percent']) && $it['weight_percent'] !== null) {
+            $weightHint = (float)$it['weight_percent'];
+        }
+        if ($weightHint !== null && $weightHint > 0) {
+            $weightDisplay = rtrim(rtrim(number_format($weightHint, 2, '.', ''), '0'), '.');
+            echo '<small class="md-hint">Weight: ' . htmlspecialchars($weightDisplay, ENT_QUOTES, 'UTF-8') . '%</small>';
+        }
+      ?>
     </label>
     <?php
     return ob_get_clean();

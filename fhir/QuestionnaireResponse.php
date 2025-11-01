@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/utils.php';
+require_once __DIR__.'/../lib/scoring.php';
 if ($_SERVER['REQUEST_METHOD']==='GET') {
   $entries = [];
   $rs = $pdo->query("SELECT qr.*, pp.label AS period_label FROM questionnaire_response qr JOIN performance_period pp ON pp.id = qr.performance_period_id ORDER BY qr.id DESC");
@@ -47,12 +48,20 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $rid = (int)$pdo->lastInsertId();
 
     // Calculate weighted score
-    $items_meta = $pdo->prepare("SELECT linkId, type, weight_percent AS weight FROM questionnaire_item WHERE questionnaire_id=?");
+    $items_meta = $pdo->prepare("SELECT id, linkId, type, weight_percent FROM questionnaire_item WHERE questionnaire_id=?");
     $items_meta->execute([$qid]);
     $meta = [];
-    foreach ($items_meta as $m) { $meta[$m['linkId']] = $m; }
-    $score_sum = 0.0; $max_points = 0.0;
+    $metaRows = $items_meta->fetchAll(PDO::FETCH_ASSOC);
     $nonScorableTypes = ['display', 'group', 'section'];
+    $likertWeightMap = questionnaire_even_likert_weights($metaRows);
+    foreach ($metaRows as $row) {
+      $type = (string)($row['type'] ?? '');
+      $isScorable = !in_array($type, $nonScorableTypes, true);
+      $row['computed_weight'] = questionnaire_resolve_effective_weight($row, $likertWeightMap, $isScorable);
+      $key = isset($row['linkId']) ? (string)$row['linkId'] : '';
+      $meta[$key] = $row;
+    }
+    $score_sum = 0.0; $max_points = 0.0;
 
     foreach (($data['item'] ?? []) as $it) {
       $lid = $it['linkId'] ?? '';
@@ -62,19 +71,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 
       $metaRow = $meta[$lid] ?? null;
       $type = is_array($metaRow) ? (string)($metaRow['type'] ?? '') : '';
-      $rawWeight = null;
-      if (is_array($metaRow) && array_key_exists('weight', $metaRow)) {
-        $rawWeight = $metaRow['weight'];
-      }
-      $hasExplicitWeight = $rawWeight !== null && $rawWeight !== '';
-      $weight = $hasExplicitWeight ? max(0.0, (float)$rawWeight) : null;
       $isScorable = !in_array($type, $nonScorableTypes, true);
-      if (!$isScorable) {
-        $effectiveWeight = 0.0;
-      } elseif ($hasExplicitWeight) {
-        $effectiveWeight = $weight;
-      } else {
-        $effectiveWeight = 1.0;
+      $effectiveWeight = 0.0;
+      if ($metaRow) {
+        $effectiveWeight = isset($metaRow['computed_weight'])
+          ? (float)$metaRow['computed_weight']
+          : questionnaire_resolve_effective_weight($metaRow, $likertWeightMap, $isScorable);
+      } elseif ($isScorable) {
+        $effectiveWeight = questionnaire_resolve_effective_weight([], $likertWeightMap, $isScorable);
       }
       $achievedPoints = 0.0;
 
