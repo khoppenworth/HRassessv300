@@ -10,7 +10,7 @@ SET @qi_weight_exists = (
 SET @qi_weight_add_sql = IF(
   @qi_weight_exists = 0,
   'ALTER TABLE questionnaire_item ADD COLUMN weight_percent INT NOT NULL DEFAULT 0 AFTER order_index',
-  'SELECT 1'
+  'DO 1'
 );
 PREPARE stmt FROM @qi_weight_add_sql;
 EXECUTE stmt;
@@ -31,7 +31,7 @@ SET @qi_weight_needs_modification = (
 SET @qi_weight_modify_sql = IF(
   @qi_weight_exists > 0 AND @qi_weight_needs_modification > 0,
   'ALTER TABLE questionnaire_item MODIFY COLUMN weight_percent INT NOT NULL DEFAULT 0 AFTER order_index',
-  'SELECT 1'
+  'DO 1'
 );
 PREPARE stmt FROM @qi_weight_modify_sql;
 EXECUTE stmt;
@@ -51,7 +51,7 @@ SET @qi_multiple_exists = (
 SET @qi_multiple_sql = IF(
   @qi_multiple_exists = 0,
   'ALTER TABLE questionnaire_item ADD COLUMN allow_multiple TINYINT(1) NOT NULL DEFAULT 0',
-  'SELECT 1'
+  'DO 1'
 );
 PREPARE stmt FROM @qi_multiple_sql;
 EXECUTE stmt;
@@ -67,7 +67,7 @@ SET @qi_required_exists = (
 SET @qi_required_sql = IF(
   @qi_required_exists = 0,
   'ALTER TABLE questionnaire_item ADD COLUMN is_required TINYINT(1) NOT NULL DEFAULT 0',
-  'SELECT 1'
+  'DO 1'
 );
 PREPARE stmt FROM @qi_required_sql;
 EXECUTE stmt;
@@ -240,7 +240,7 @@ SET @response_idx_exists = (
 SET @response_idx_sql = IF(
   @response_idx_exists = 0,
   'ALTER TABLE questionnaire_response ADD INDEX idx_response_user_created (user_id, created_at)',
-  'SELECT 1'
+  'DO 1'
 );
 PREPARE stmt FROM @response_idx_sql;
 EXECUTE stmt;
@@ -306,7 +306,7 @@ SET @qr_period_exists = (
 SET @qr_period_sql = IF(
   @qr_period_exists = 0,
   'ALTER TABLE questionnaire_response ADD COLUMN performance_period_id INT NOT NULL DEFAULT 1 AFTER questionnaire_id',
-  'SELECT 1'
+  'DO 1'
 );
 PREPARE stmt FROM @qr_period_sql;
 EXECUTE stmt;
@@ -323,7 +323,7 @@ SET @qr_period_modify = (
 SET @qr_period_modify_sql = IF(
   @qr_period_modify = 0,
   'ALTER TABLE questionnaire_response MODIFY COLUMN performance_period_id INT NOT NULL DEFAULT 1',
-  'SELECT 1'
+  'DO 1'
 );
 PREPARE stmt FROM @qr_period_modify_sql;
 EXECUTE stmt;
@@ -339,7 +339,7 @@ SET @qr_period_fk_exists = (
 SET @qr_period_fk_sql = IF(
   @qr_period_fk_exists = 0,
   'ALTER TABLE questionnaire_response ADD CONSTRAINT fk_qr_period FOREIGN KEY (performance_period_id) REFERENCES performance_period(id) ON DELETE RESTRICT',
-  'SELECT 1'
+  'DO 1'
 );
 PREPARE stmt FROM @qr_period_fk_sql;
 EXECUTE stmt;
@@ -364,7 +364,7 @@ SET @qr_unique_exists = (
 SET @qr_unique_sql = IF(
   @qr_unique_exists = 0 AND @qr_unique_conflicts = 0,
   'ALTER TABLE questionnaire_response ADD UNIQUE KEY uniq_user_questionnaire_period (user_id, questionnaire_id, performance_period_id)',
-  'SELECT 1'
+  'DO 1'
 );
 PREPARE stmt FROM @qr_unique_sql;
 EXECUTE stmt;
