@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/lib/scoring.php';
 auth_required(['staff','supervisor','admin']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
@@ -57,8 +58,8 @@ function compute_section_breakdowns(PDO $pdo, array $responses, array $translati
         }
 
         $itemsStmt = $pdo->prepare(
-            "SELECT questionnaire_id, section_id, linkId, type, allow_multiple, " .
-            "COALESCE(weight_percent,0) AS weight FROM questionnaire_item " .
+            "SELECT id, questionnaire_id, section_id, linkId, type, allow_multiple, " .
+            "COALESCE(weight_percent,0) AS weight_percent FROM questionnaire_item " .
             "WHERE questionnaire_id IN ($placeholder) ORDER BY questionnaire_id, order_index, id"
         );
         $itemsStmt->execute($qidList);
@@ -72,13 +73,28 @@ function compute_section_breakdowns(PDO $pdo, array $responses, array $translati
         $qid = (int)$row['questionnaire_id'];
         $sectionId = $row['section_id'] !== null ? (int)$row['section_id'] : null;
         $itemsByQuestionnaire[$qid][] = [
+            'id' => (int)($row['id'] ?? 0),
             'section_id' => $sectionId,
             'linkId' => (string)$row['linkId'],
             'type' => (string)$row['type'],
             'allow_multiple' => (bool)$row['allow_multiple'],
-            'weight' => (float)$row['weight'],
+            'weight_percent' => (float)$row['weight_percent'],
         ];
     }
+
+    $nonScorableTypes = ['display', 'group', 'section'];
+    foreach ($itemsByQuestionnaire as $qid => &$itemsForQuestionnaire) {
+        $likertWeights = questionnaire_even_likert_weights($itemsForQuestionnaire);
+        foreach ($itemsForQuestionnaire as &$item) {
+            $item['weight'] = questionnaire_resolve_effective_weight(
+                $item,
+                $likertWeights,
+                !in_array($item['type'], $nonScorableTypes, true)
+            );
+        }
+        unset($item);
+    }
+    unset($itemsForQuestionnaire);
 
     $responseIds = array_keys($responseMeta);
     $answersByResponse = [];

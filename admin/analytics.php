@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../lib/analytics_report.php';
+require_once __DIR__ . '/../lib/scoring.php';
 
 /**
  * Decode a stored questionnaire response answer payload.
@@ -93,35 +94,47 @@ function analytics_fetch_scoring_items(PDO $pdo, array $questionnaireIds): array
         return [];
     }
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $sql = 'SELECT questionnaire_id, linkId, type, allow_multiple, COALESCE(weight_percent,0) AS weight '
+    $sql = 'SELECT id, questionnaire_id, linkId, type, allow_multiple, COALESCE(weight_percent,0) AS weight_percent '
         . 'FROM questionnaire_item '
         . 'WHERE questionnaire_id IN (' . $placeholders . ') '
         . 'ORDER BY questionnaire_id, order_index, id';
     $stmt = $pdo->prepare($sql);
     $stmt->execute($ids);
-    $itemsByQuestionnaire = [];
+    $rawItems = [];
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $qid = (int)($row['questionnaire_id'] ?? 0);
         if ($qid <= 0) {
             continue;
         }
-        $type = (string)($row['type'] ?? 'text');
-        $weight = (float)($row['weight'] ?? 0.0);
-        if ($weight <= 0.0) {
-            $scorableTypes = ['likert', 'text', 'textarea', 'boolean', 'choice'];
-            if (in_array($type, $scorableTypes, true)) {
-                $weight = 1.0;
-            }
-        }
-        if ($weight <= 0.0) {
-            continue;
-        }
-        $itemsByQuestionnaire[$qid][] = [
+        $rawItems[$qid][] = [
+            'id' => (int)($row['id'] ?? 0),
             'linkId' => (string)($row['linkId'] ?? ''),
-            'type' => $type,
+            'type' => (string)($row['type'] ?? ''),
             'allow_multiple' => !empty($row['allow_multiple']),
-            'weight' => $weight,
+            'weight_percent' => (float)($row['weight_percent'] ?? 0.0),
         ];
+    }
+
+    $nonScorableTypes = ['display', 'group', 'section'];
+    $itemsByQuestionnaire = [];
+    foreach ($rawItems as $qid => $items) {
+        $likertWeights = questionnaire_even_likert_weights($items);
+        foreach ($items as $item) {
+            $weight = questionnaire_resolve_effective_weight(
+                $item,
+                $likertWeights,
+                !in_array($item['type'], $nonScorableTypes, true)
+            );
+            if ($weight <= 0.0) {
+                continue;
+            }
+            $itemsByQuestionnaire[$qid][] = [
+                'linkId' => (string)($item['linkId'] ?? ''),
+                'type' => (string)($item['type'] ?? ''),
+                'allow_multiple' => !empty($item['allow_multiple']),
+                'weight' => $weight,
+            ];
+        }
     }
     return $itemsByQuestionnaire;
 }
