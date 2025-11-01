@@ -57,4 +57,5 @@ $currentYear = date('Y');
   window.APP_DEFAULT_LOCALE = window.APP_DEFAULT_LOCALE || <?=json_encode($defaultLocale, JSON_THROW_ON_ERROR)?>;
   window.APP_AVAILABLE_LOCALES = window.APP_AVAILABLE_LOCALES || <?=json_encode($availableLocales, JSON_THROW_ON_ERROR)?>;
 </script>
+<script src="<?=asset_url('assets/adminlte/plugins/chart.js/Chart.bundle.min.js')?>"></script>
 <script src="<?=asset_url('assets/js/app.js')?>"></script>

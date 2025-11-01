@@ -184,6 +184,53 @@ $pageHelpKey = 'team.assignments';
       color: var(--app-muted, #475467);
       font-size: 0.8rem;
     }
+    .md-assignment-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: flex-end;
+      margin: 1rem 0 0.5rem;
+    }
+    .md-assignment-tools .md-field {
+      flex: 1 1 240px;
+      min-width: 200px;
+      margin: 0;
+    }
+    .md-assignment-tool-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .md-assignment-count {
+      margin: 0;
+      color: var(--app-muted, #475467);
+      font-size: 0.85rem;
+    }
+    .md-assignment-selected {
+      margin: 0.5rem 0 0;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--app-border, #d0d5dd);
+      background: var(--app-surface-alt, rgba(229, 231, 235, 0.5));
+      font-size: 0.9rem;
+    }
+    .md-assignment-selected strong {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--app-text-primary, #1f2937);
+    }
+    .md-assignment-selected ul {
+      margin: 0;
+      padding-left: 1.1rem;
+      columns: 2;
+      column-gap: 1.25rem;
+      list-style: disc;
+    }
+    @media (max-width: 720px) {
+      .md-assignment-selected ul {
+        columns: 1;
+      }
+    }
   </style>
 </head>
 <body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
@@ -226,6 +273,31 @@ $pageHelpKey = 'team.assignments';
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="staff_id" value="<?=$selectedStaffId?>">
         <p><?=t($t,'assignment_instructions','Choose the questionnaires that should be available to this staff member.')?></p>
+        <div class="md-assignment-tools">
+          <label class="md-field md-assignment-filter">
+            <span><?=t($t,'filter_questionnaires','Filter questionnaires')?></span>
+            <input
+              type="search"
+              name="assignment_filter"
+              placeholder="<?=htmlspecialchars(t($t,'filter_questionnaires_placeholder','Type to narrow the list…'), ENT_QUOTES, 'UTF-8')?>"
+              data-assignment-filter
+            >
+          </label>
+          <div class="md-assignment-tool-buttons">
+            <button class="md-button md-outline" type="button" data-assignment-select-all>
+              <?=t($t,'select_all','Select All')?>
+            </button>
+            <button class="md-button md-outline" type="button" data-assignment-clear-all>
+              <?=t($t,'clear_all','Clear All')?>
+            </button>
+          </div>
+          <p
+            class="md-assignment-count"
+            data-assignment-count
+            data-singular="<?=htmlspecialchars(t($t,'single_questionnaire_selected','1 questionnaire selected'), ENT_QUOTES, 'UTF-8')?>"
+            data-plural-template="<?=htmlspecialchars(t($t,'multiple_questionnaires_selected','{count} questionnaires selected'), ENT_QUOTES, 'UTF-8')?>"
+          ></p>
+        </div>
         <label class="md-assignment-multiselect">
           <span class="md-field-label"><?=t($t,'available_questionnaires','Available questionnaires')?></span>
           <?php $selectSize = max(8, min(15, count($questionnaires))); ?>
@@ -237,6 +309,10 @@ $pageHelpKey = 'team.assignments';
           </select>
           <small><?=t($t,'assignment_multiselect_hint','Hold Ctrl (Windows) or Command (macOS) to select more than one item.')?></small>
         </label>
+        <div class="md-assignment-selected" data-assignment-selected hidden>
+          <strong><?=t($t,'currently_assigned','Currently assigned questionnaires:')?></strong>
+          <ul data-assignment-selected-list></ul>
+        </div>
         <div class="md-inline-actions" style="margin-top:1rem;">
           <button class="md-button md-primary" type="submit"><?=t($t,'save','Save')?></button>
         </div>
@@ -246,5 +322,95 @@ $pageHelpKey = 'team.assignments';
   </div>
 </section>
 <?php include __DIR__.'/../templates/footer.php'; ?>
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+  (function () {
+    const selectEl = document.querySelector('[data-assignment-select]');
+    if (!selectEl) {
+      return;
+    }
+
+    const filterInput = document.querySelector('[data-assignment-filter]');
+    const selectAllBtn = document.querySelector('[data-assignment-select-all]');
+    const clearAllBtn = document.querySelector('[data-assignment-clear-all]');
+    const countLabel = document.querySelector('[data-assignment-count]');
+    const selectedContainer = document.querySelector('[data-assignment-selected]');
+    const selectedList = document.querySelector('[data-assignment-selected-list]');
+
+    const normalizeText = (text) => text ? text.toLowerCase().trim() : '';
+
+    const updateSelectionSummary = () => {
+      const selectedOptions = Array.from(selectEl.selectedOptions || []);
+      const count = selectedOptions.length;
+      if (countLabel) {
+        const singular = countLabel.getAttribute('data-singular') || '';
+        const pluralTemplate = countLabel.getAttribute('data-plural-template') || '';
+        if (count === 1 && singular) {
+          countLabel.textContent = singular;
+        } else if (count > 1 && pluralTemplate) {
+          countLabel.textContent = pluralTemplate.replace('{count}', String(count));
+        } else if (count === 0) {
+          countLabel.textContent = '';
+        } else {
+          const label = count === 1 ? '<?=t($t,'questionnaire','Questionnaire')?>' : '<?=t($t,'questionnaires_selected','questionnaires selected')?>';
+          countLabel.textContent = count === 1 ? `1 ${label}` : `${count} ${label}`;
+        }
+      }
+      if (!selectedContainer || !selectedList) {
+        return;
+      }
+      selectedList.innerHTML = '';
+      if (!count) {
+        selectedContainer.hidden = true;
+        return;
+      }
+      selectedOptions.forEach((option) => {
+        const li = document.createElement('li');
+        li.textContent = option.textContent || option.label || option.value;
+        selectedList.appendChild(li);
+      });
+      selectedContainer.hidden = false;
+    };
+
+    const applyFilter = (term) => {
+      const normalized = normalizeText(term);
+      Array.from(selectEl.options).forEach((option) => {
+        const label = normalizeText(option.textContent || option.label || '');
+        const matches = !normalized || label.includes(normalized);
+        option.hidden = !matches && !option.selected;
+      });
+    };
+
+    selectEl.addEventListener('change', updateSelectionSummary);
+    selectEl.addEventListener('keyup', updateSelectionSummary);
+
+    if (filterInput) {
+      filterInput.addEventListener('input', (event) => {
+        applyFilter(event.target.value);
+      });
+    }
+
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', () => {
+        Array.from(selectEl.options).forEach((option) => {
+          if (!option.disabled) {
+            option.selected = true;
+          }
+        });
+        updateSelectionSummary();
+      });
+    }
+
+    if (clearAllBtn) {
+      clearAllBtn.addEventListener('click', () => {
+        Array.from(selectEl.options).forEach((option) => {
+          option.selected = false;
+        });
+        updateSelectionSummary();
+      });
+    }
+
+    updateSelectionSummary();
+  })();
+</script>
 </body>
 </html>
