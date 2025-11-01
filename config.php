@@ -28,7 +28,6 @@ if (!defined('APP_BOOTSTRAPPED')) {
     require_once __DIR__ . '/lib/path.php';
     require_once __DIR__ . '/lib/security.php';
     require_once __DIR__ . '/lib/mailer.php';
-    require_once __DIR__ . '/lib/email_templates.php';
     require_once __DIR__ . '/lib/notifications.php';
 
     $locale = ensure_locale();
@@ -89,6 +88,8 @@ if (!defined('APP_BOOTSTRAPPED')) {
         exit;
     }
 }
+
+require_once __DIR__ . '/lib/email_templates.php';
 
 if (!function_exists('str_starts_with')) {
     function str_starts_with(string $haystack, string $needle): bool
