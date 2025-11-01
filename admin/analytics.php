@@ -1446,7 +1446,6 @@ $pageHelpKey = 'team.analytics';
   </div>
 </section>
 <?php if ($hasAnalyticsCharts): ?>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-EtBsuD6bYDI7ilMWVT09G/1nHQRE8PbtY7TIn4lZG3Fjm1fvcDUoJ7Sm9Ua+bJOy" crossorigin="anonymous"></script>
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
   (function () {
     const rootStyles = getComputedStyle(document.documentElement);
@@ -1465,7 +1464,6 @@ $pageHelpKey = 'team.analytics';
       responses: <?=json_encode(t($t, 'count', 'Responses'), $chartJsonFlags)?>,
     };
 
-    const baseUrlAttr = document.documentElement.getAttribute('data-base-url') || '';
     const cssVar = (name, fallback) => {
       const value = rootStyles.getPropertyValue(name);
       if (value && value.trim()) {
@@ -1479,16 +1477,6 @@ $pageHelpKey = 'team.analytics';
       }
       return '';
     };
-    const fallbackChartSrc = (function () {
-      const trimmed = baseUrlAttr.replace(/\/+$/u, '');
-      const assetPath = 'assets/adminlte/plugins/chart.js/Chart.min.js';
-      if (!trimmed) {
-        return assetPath;
-      }
-      return `${trimmed}/${assetPath}`;
-    })();
-
-    let chartLoaderPromise = null;
 
     const parseMajorVersion = (chartLib) => {
       if (!chartLib || !chartLib.version) {
@@ -1528,25 +1516,6 @@ $pageHelpKey = 'team.analytics';
         }
       }
       return chartLib;
-    };
-
-    const ensureChartLibrary = () => {
-      const finalize = (lib) => prepareChartLibrary(lib || window.Chart || null);
-      if (window.Chart) {
-        return Promise.resolve(finalize(window.Chart));
-      }
-      if (chartLoaderPromise) {
-        return chartLoaderPromise.then(finalize);
-      }
-      chartLoaderPromise = new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = fallbackChartSrc;
-        script.async = true;
-        script.onload = () => resolve(window.Chart || null);
-        script.onerror = () => resolve(null);
-        document.head.appendChild(script);
-      });
-      return chartLoaderPromise.then(finalize);
     };
 
     const heatStops = [
@@ -1610,24 +1579,50 @@ $pageHelpKey = 'team.analytics';
       if (container) {
         container.setAttribute('data-has-data', 'true');
       }
-      const scores = dataset.scores.map((score) => (typeof score === 'number' ? score : 0));
-      const colors = scores.map((score) => heatColor(score, 0.8));
-      const borderColors = scores.map((score) => heatColor(score, 1));
-      const counts = Array.isArray(dataset.counts) ? dataset.counts : [];
+      const normalizeScore = (value) => {
+        if (typeof value === 'number') {
+          return Number.isFinite(value) ? value : null;
+        }
+        if (typeof value === 'string') {
+          const parsed = Number.parseFloat(value);
+          return Number.isFinite(parsed) ? parsed : null;
+        }
+        return null;
+      };
+      const normalizedScores = Array.isArray(dataset.scores)
+        ? dataset.scores.map((value) => normalizeScore(value))
+        : [];
+      const chartScores = normalizedScores.map((score) => (score === null ? null : score));
+      const counts = Array.isArray(dataset.counts)
+        ? dataset.counts.map((value) => {
+            if (typeof value === 'number') {
+              return Number.isFinite(value) ? value : null;
+            }
+            if (typeof value === 'string' && value.trim() !== '') {
+              const parsed = Number.parseInt(value, 10);
+              return Number.isFinite(parsed) ? parsed : null;
+            }
+            return null;
+          })
+        : [];
+      const neutralFill = 'rgba(148, 163, 184, 0.25)';
+      const neutralStroke = 'rgba(148, 163, 184, 0.55)';
+      const colors = normalizedScores.map((score) => (typeof score === 'number' ? heatColor(score, 0.8) : neutralFill));
+      const borderColors = normalizedScores.map((score) => (typeof score === 'number' ? heatColor(score, 1) : neutralStroke));
       const orientation = renderOptions.indexAxis === 'x' ? 'x' : 'y';
-      const valueAxisKey = orientation === 'y' ? 'x' : 'y';
       const major = parseMajorVersion(chartLib);
       const isModern = major >= 3;
 
-      const formatTooltip = (label, value, count) => {
-        const numericValue = typeof value === 'number' ? value : Number.parseFloat(value);
-        const valueText = Number.isFinite(numericValue) ? numericValue.toFixed(1) : value;
-        const countText = typeof count === 'number' ? ` · ${count} ${labels.responses}` : '';
-        return `${label}: ${valueText}%${countText}`;
+      const formatTooltip = (label, index) => {
+        const score = normalizedScores[index];
+        const valueText = Number.isFinite(score) ? `${score.toFixed(1)}%` : '—';
+        const count = counts[index];
+        const countText = Number.isFinite(count) ? ` · ${count} ${labels.responses}` : '';
+        return `${label}: ${valueText}${countText}`;
       };
 
       const datasetConfig = {
-        data: scores,
+        data: chartScores,
         backgroundColor: colors,
         borderColor: borderColors,
         borderWidth: 1.5,
@@ -1660,12 +1655,7 @@ $pageHelpKey = 'team.analytics';
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: (context) => {
-                  const parsed = context.parsed || {};
-                  const value = parsed[valueAxisKey];
-                  const count = counts[context.dataIndex];
-                  return formatTooltip(context.label || '', value, count);
-                },
+                label: (context) => formatTooltip(context.label || '', context.dataIndex),
               },
             },
           },
@@ -1700,9 +1690,7 @@ $pageHelpKey = 'team.analytics';
       } else {
         const tooltipLegacy = (tooltipItem, data) => {
           const itemLabel = tooltipItem.label || (data.labels && data.labels[tooltipItem.index]) || '';
-          const rawValue = orientation === 'y' ? tooltipItem.xLabel : tooltipItem.yLabel;
-          const count = counts[tooltipItem.index];
-          return formatTooltip(itemLabel, rawValue, count);
+          return formatTooltip(itemLabel, tooltipItem.index);
         };
 
         const valueScale = {
@@ -1753,17 +1741,16 @@ $pageHelpKey = 'team.analytics';
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      ensureChartLibrary().then((chartLib) => {
-        if (!chartLib) {
-          return;
-        }
-        if (questionnaireHeatmap.labels && questionnaireHeatmap.labels.length) {
-          renderHeatmap(chartLib, 'questionnaire-performance-heatmap', questionnaireHeatmap, { indexAxis: 'y' });
-        }
-        if (workFunctionHeatmap.labels && workFunctionHeatmap.labels.length) {
-          renderHeatmap(chartLib, 'work-function-heatmap', workFunctionHeatmap, { indexAxis: 'y' });
-        }
-      });
+      const chartLib = prepareChartLibrary(window.Chart || null);
+      if (!chartLib) {
+        return;
+      }
+      if (questionnaireHeatmap.labels && questionnaireHeatmap.labels.length) {
+        renderHeatmap(chartLib, 'questionnaire-performance-heatmap', questionnaireHeatmap, { indexAxis: 'y' });
+      }
+      if (workFunctionHeatmap.labels && workFunctionHeatmap.labels.length) {
+        renderHeatmap(chartLib, 'work-function-heatmap', workFunctionHeatmap, { indexAxis: 'y' });
+      }
     });
   })();
 </script>

@@ -249,7 +249,7 @@ $pageHelpKey = 'admin.settings';
       </div>
     <?php endif; ?>
     <form method="post" action="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>">
-      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+      <input type="hidden" name="csrf" value="<?=htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8')?>">
       <h3 class="md-subhead"><?=t($t,'appearance_settings','Appearance')?></h3>
       <label class="md-field">
         <span><?=t($t,'color_theme','Color Theme')?></span>

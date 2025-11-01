@@ -525,6 +525,32 @@ html.has-js .md-topnav-backdrop.is-visible {
   box-shadow: var(--app-shadow-soft);
   border: 1px solid var(--app-border);
   position: relative;
+  padding-top: calc(1.35rem + 4px);
+  padding-bottom: 1.35rem;
+}
+
+.md-card > *:not(.md-card-body) {
+  padding-left: 1.35rem;
+  padding-right: 1.35rem;
+}
+
+.md-card > .md-card-body:first-child {
+  padding-top: 0;
+}
+
+.md-card > :not(:first-child):not(.md-card-body) {
+  margin-top: 0.85rem;
+}
+
+.md-card > .md-card-title,
+.md-card > .md-card-title-row {
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.md-card .md-table,
+.md-card .md-table-responsive {
+  margin-bottom: 0.5rem;
 }
 
 .md-card-title-row {

@@ -291,6 +291,7 @@ $latestEntry = null;
 $belowThreshold = [];
 $chartLabels = [];
 $chartScores = [];
+$timelinePoints = [];
 
 while (($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== false) {
     $responses[] = $row;
@@ -307,6 +308,24 @@ while (($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== false) {
 
     $chartLabels[] = resolve_timeline_label($row);
     $chartScores[] = $row['score'] !== null ? (int)$row['score'] : null;
+
+    $createdAtRaw = (string)($row['created_at'] ?? '');
+    $createdIso = null;
+    if ($createdAtRaw !== '') {
+        $dtCreated = DateTime::createFromFormat('Y-m-d H:i:s', $createdAtRaw);
+        if ($dtCreated instanceof DateTime) {
+            $createdIso = $dtCreated->format(DateTime::ATOM);
+        }
+    }
+    $timelinePoints[] = [
+        'label' => resolve_timeline_label($row),
+        'score' => $row['score'] !== null ? (float)$row['score'] : null,
+        'timestamp' => $createdAtRaw,
+        'timestamp_iso' => $createdIso,
+        'questionnaire' => (string)($row['title'] ?? ''),
+        'period' => (string)($row['period_label'] ?? ''),
+        'order' => count($timelinePoints),
+    ];
 }
 $nextAssessmentRaw = $user['next_assessment_date'] ?? null;
 $nextAssessmentDisplay = null;
@@ -324,6 +343,26 @@ $chartDataFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
 if (defined('JSON_THROW_ON_ERROR')) {
     $chartDataFlags |= JSON_THROW_ON_ERROR;
 }
+
+$timelinePoints = array_values($timelinePoints);
+usort($timelinePoints, static function ($a, $b) {
+    $timeA = isset($a['timestamp_iso']) ? strtotime((string)$a['timestamp_iso']) : false;
+    $timeB = isset($b['timestamp_iso']) ? strtotime((string)$b['timestamp_iso']) : false;
+    if ($timeA && $timeB && $timeA !== $timeB) {
+        return $timeA <=> $timeB;
+    }
+    if ($timeA && !$timeB) {
+        return -1;
+    }
+    if (!$timeA && $timeB) {
+        return 1;
+    }
+    return ((int)($a['order'] ?? 0)) <=> ((int)($b['order'] ?? 0));
+});
+$timelinePoints = array_map(static function ($point) {
+    unset($point['order']);
+    return $point;
+}, $timelinePoints);
 
 $recommendedCourses = [];
 if (!empty($user['work_function'])) {
@@ -502,26 +541,15 @@ $pageHelpKey = 'workspace.my_performance';
 </section>
 <?php $hasChartJs = !empty($chartLabels) || !empty($sectionBreakdowns); ?>
 <?php if ($hasChartJs): ?>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-EtBsuD6bYDI7ilMWVT09G/1nHQRE8PbtY7TIn4lZG3Fjm1fvcDUoJ7Sm9Ua+bJOy" crossorigin="anonymous"></script>
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
   (function () {
     const timelineData = <?=json_encode([
       'labels' => $chartLabels,
       'scores' => array_map(static fn($score) => $score === null ? null : (float)$score, $chartScores),
+      'points' => $timelinePoints,
     ], $chartDataFlags)?>;
     const radarData = <?=json_encode($sectionBreakdowns, $chartDataFlags)?>;
     const rootStyles = getComputedStyle(document.documentElement);
-    const baseUrlAttr = document.documentElement.getAttribute('data-base-url') || '';
-    const fallbackChartSrc = (function () {
-      const trimmed = baseUrlAttr.replace(/\/+$/u, '');
-      const assetPath = 'assets/adminlte/plugins/chart.js/Chart.min.js';
-      if (!trimmed) {
-        return assetPath;
-      }
-      return `${trimmed}/${assetPath}`;
-    })();
-
-    let chartLoaderPromise = null;
 
     const cssVar = (name, fallback) => {
       const value = rootStyles.getPropertyValue(name);
@@ -570,25 +598,6 @@ $pageHelpKey = 'workspace.my_performance';
       return chartLib;
     };
 
-    const ensureChartLibrary = () => {
-      const finalize = (lib) => prepareChartLibrary(lib || window.Chart || null);
-      if (window.Chart) {
-        return Promise.resolve(finalize(window.Chart));
-      }
-      if (chartLoaderPromise) {
-        return chartLoaderPromise.then(finalize);
-      }
-      chartLoaderPromise = new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = fallbackChartSrc;
-        script.async = true;
-        script.onload = () => resolve(window.Chart || null);
-        script.onerror = () => resolve(null);
-        document.head.appendChild(script);
-      });
-      return chartLoaderPromise.then(finalize);
-    };
-
     const parseMajorVersion = (chartLib) => {
       if (!chartLib || !chartLib.version) {
         return 0;
@@ -635,11 +644,79 @@ $pageHelpKey = 'workspace.my_performance';
     }
 
     function renderTimeline(chartLib) {
-      const labels = Array.isArray(timelineData.labels) ? timelineData.labels : [];
-      const scores = Array.isArray(timelineData.scores) ? timelineData.scores : [];
+      const rawPoints = Array.isArray(timelineData.points) ? timelineData.points : [];
+      let chronological = rawPoints.map((point, index) => {
+        const isoCandidate = typeof point.timestamp_iso === 'string' && point.timestamp_iso
+          ? point.timestamp_iso
+          : (typeof point.timestamp === 'string' ? point.timestamp.replace(' ', 'T') : '');
+        const parsedTime = isoCandidate ? Date.parse(isoCandidate) : Number.NaN;
+        const rawScore = point.score;
+        const numericScore = typeof rawScore === 'number'
+          ? rawScore
+          : (typeof rawScore === 'string' ? Number.parseFloat(rawScore) : Number.NaN);
+        return {
+          label: point.label || '',
+          score: Number.isFinite(numericScore) ? numericScore : null,
+          dateValue: Number.isFinite(parsedTime) ? parsedTime : null,
+          period: point.period || '',
+          questionnaire: point.questionnaire || '',
+          timestamp: point.timestamp || '',
+          index,
+        };
+      });
+
+      if (!chronological.length) {
+        const fallbackLabels = Array.isArray(timelineData.labels) ? timelineData.labels : [];
+        const fallbackScores = Array.isArray(timelineData.scores) ? timelineData.scores : [];
+        chronological = fallbackLabels.map((label, index) => {
+          const rawScore = fallbackScores[index];
+          const numericScore = typeof rawScore === 'number'
+            ? rawScore
+            : (typeof rawScore === 'string' ? Number.parseFloat(rawScore) : Number.NaN);
+          return {
+            label: label || '',
+            score: Number.isFinite(numericScore) ? numericScore : null,
+            dateValue: index,
+            period: '',
+            questionnaire: '',
+            timestamp: '',
+            index,
+          };
+        });
+      }
+
+      if (!chronological.length) {
+        return;
+      }
+
+      chronological.sort((a, b) => {
+        if (a.dateValue !== null && b.dateValue !== null && a.dateValue !== b.dateValue) {
+          return a.dateValue - b.dateValue;
+        }
+        if (a.dateValue !== null && b.dateValue === null) {
+          return -1;
+        }
+        if (a.dateValue === null && b.dateValue !== null) {
+          return 1;
+        }
+        return a.index - b.index;
+      });
+
+      const labels = chronological.map((point) => {
+        if (point.label) {
+          return point.label;
+        }
+        if (point.timestamp) {
+          return point.timestamp;
+        }
+        return '';
+      });
+      const scores = chronological.map((point) => point.score);
+
       if (!labels.length) {
         return;
       }
+
       const canvas = document.getElementById('performance-timeline-chart');
       if (!canvas) {
         return;
@@ -648,106 +725,122 @@ $pageHelpKey = 'workspace.my_performance';
       if (!context) {
         return;
       }
-      const gradient = context.createLinearGradient(0, 0, 0, canvas.height || 320);
-      gradient.addColorStop(0, 'rgba(46, 125, 50, 0.25)');
-      gradient.addColorStop(1, 'rgba(211, 47, 47, 0.05)');
+
+      const neutralFill = 'rgba(148, 163, 184, 0.25)';
+      const neutralStroke = 'rgba(148, 163, 184, 0.55)';
+      const barBackground = scores.map((score) => (typeof score === 'number' ? heatColor(score, 0.75) : neutralFill));
+      const barBorders = scores.map((score) => (typeof score === 'number' ? heatColor(score, 0.95) : neutralStroke));
 
       const dataset = {
         data: scores,
-        fill: true,
-        backgroundColor: gradient,
-        borderColor: 'rgba(25, 89, 147, 0.85)',
-        borderWidth: 3,
-        pointBackgroundColor: scores.map((score) => heatColor(score, 1)),
-        pointBorderColor: cssVar('--app-surface', '--brand-bg') || '#ffffff',
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        pointHoverBorderWidth: 2,
+        backgroundColor: barBackground,
+        borderColor: barBorders,
+        borderWidth: 1.5,
       };
 
       const major = parseMajorVersion(chartLib);
       const isModern = major >= 3;
       if (isModern) {
-        dataset.segment = {
-          borderColor: (ctx) => heatColor(resolveSegmentScore(ctx, scores), 0.9),
-        };
+        dataset.borderRadius = 6;
       }
 
-      const tooltipFormatterModern = (context) => {
-        const value = typeof context.parsed.y === 'number' ? context.parsed.y.toFixed(1) : context.parsed.y;
-        return `${context.label}: ${value}%`;
-      };
-      const tooltipFormatterLegacy = (tooltipItem) => {
-        const value = typeof tooltipItem.yLabel === 'number' ? tooltipItem.yLabel.toFixed(1) : tooltipItem.yLabel;
-        const label = tooltipItem.label || '';
-        return `${label}: ${value}%`;
-      };
-
-      const options = {
-        responsive: true,
-        maintainAspectRatio: false,
-        elements: {
-          line: { tension: 0.35 },
-        },
+      const tooltipFormatter = (index, labelText) => {
+        const point = chronological[index] || {};
+        const valueText = typeof point.score === 'number' ? `${point.score.toFixed(1)}%` : '—';
+        const metaParts = [];
+        if (point.period) {
+          metaParts.push(point.period);
+        }
+        if (point.questionnaire) {
+          metaParts.push(point.questionnaire);
+        }
+        const meta = metaParts.length ? ` (${metaParts.join(' · ')})` : '';
+        return `${labelText}: ${valueText}${meta}`;
       };
 
+      const gridColor = cssVar('--app-border', '--brand-border') || 'rgba(17, 56, 94, 0.08)';
+      const yAxisLabel = <?=json_encode(t($t,'score','Score (%)'), $chartDataFlags)?>;
+      const xAxisLabel = <?=json_encode(t($t,'performance_period','Performance Period'), $chartDataFlags)?>;
+
+      let chartConfig;
       if (isModern) {
-        options.interaction = { intersect: false, mode: 'nearest' };
-        options.plugins = {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: tooltipFormatterModern,
-            },
+        chartConfig = {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [dataset],
           },
-        };
-        options.scales = {
-          y: {
-            beginAtZero: true,
-            max: 100,
-            ticks: {
-              callback: (value) => `${value}%`,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'x',
+            interaction: { intersect: false, mode: 'nearest' },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (context) => tooltipFormatter(context.dataIndex, context.label || labels[context.dataIndex] || ''),
+                },
+              },
             },
-            grid: { color: 'rgba(17, 56, 94, 0.08)' },
-          },
-          x: {
-            ticks: { maxRotation: 45, minRotation: 0, autoSkip: true },
-            grid: { display: false },
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100,
+                ticks: {
+                  callback: (value) => `${value}%`,
+                },
+                title: { display: true, text: yAxisLabel },
+                grid: { color: gridColor },
+              },
+              x: {
+                ticks: { maxRotation: 45, minRotation: 0, autoSkip: false },
+                title: { display: true, text: xAxisLabel },
+                grid: { display: false },
+                reverse: false,
+              },
+            },
           },
         };
       } else {
-        options.legend = { display: false };
-        options.tooltips = {
-          callbacks: {
-            label: tooltipFormatterLegacy,
+        chartConfig = {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [dataset],
           },
-          mode: 'nearest',
-          intersect: false,
-        };
-        options.scales = {
-          yAxes: [{
-            ticks: {
-              beginAtZero: true,
-              max: 100,
-              callback: (value) => `${value}%`,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            legend: { display: false },
+            tooltips: {
+              callbacks: {
+                label: (tooltipItem) => tooltipFormatter(tooltipItem.index, tooltipItem.label || labels[tooltipItem.index] || ''),
+              },
+              mode: 'nearest',
+              intersect: false,
             },
-            gridLines: { color: 'rgba(17, 56, 94, 0.08)' },
-          }],
-          xAxes: [{
-            ticks: { maxRotation: 45, minRotation: 0, autoSkip: true },
-            gridLines: { display: false },
-          }],
+            scales: {
+              yAxes: [{
+                ticks: {
+                  beginAtZero: true,
+                  max: 100,
+                  callback: (value) => `${value}%`,
+                },
+                gridLines: { color: gridColor },
+                scaleLabel: { display: true, labelString: yAxisLabel },
+              }],
+              xAxes: [{
+                ticks: { autoSkip: false, maxRotation: 45, minRotation: 0, reverse: false },
+                gridLines: { display: false },
+                scaleLabel: { display: true, labelString: xAxisLabel },
+              }],
+            },
+          },
         };
       }
 
-      new chartLib(canvas, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [dataset],
-        },
-        options,
-      });
+      new chartLib(canvas, chartConfig);
     }
 
     function renderRadars(chartLib) {
@@ -851,13 +944,12 @@ $pageHelpKey = 'workspace.my_performance';
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      ensureChartLibrary().then((chartLib) => {
-        if (!chartLib) {
-          return;
-        }
-        renderTimeline(chartLib);
-        renderRadars(chartLib);
-      });
+      const chartLib = prepareChartLibrary(window.Chart || null);
+      if (!chartLib) {
+        return;
+      }
+      renderTimeline(chartLib);
+      renderRadars(chartLib);
     });
   })();
 </script>
