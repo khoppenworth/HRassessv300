@@ -52,6 +52,26 @@ function questionnaire_even_likert_weights(array $items, float $totalWeight = 10
         if ($type !== 'likert') {
             continue;
         }
+
+        $hasExplicitWeight = false;
+        foreach (['weight_percent', 'weight'] as $field) {
+            if (!array_key_exists($field, $item)) {
+                continue;
+            }
+            $raw = $item[$field];
+            if ($raw === null || $raw === '') {
+                continue;
+            }
+            $candidate = (float)$raw;
+            if ($candidate > 0.0) {
+                $hasExplicitWeight = true;
+                break;
+            }
+        }
+        if ($hasExplicitWeight) {
+            continue;
+        }
+
         $key = questionnaire_item_weight_key($item);
         if ($key === '') {
             continue;
@@ -85,14 +105,6 @@ function questionnaire_resolve_effective_weight(array $item, array $likertWeight
     if (!$isScorable) {
         return 0.0;
     }
-    $type = strtolower((string)($item['type'] ?? ''));
-    $key = questionnaire_item_weight_key($item);
-    if ($type === 'likert' && $key !== '' && isset($likertWeights[$key])) {
-        return (float)$likertWeights[$key];
-    }
-    if ($likertWeights !== [] && $type !== 'likert') {
-        return 0.0;
-    }
     foreach (['weight_percent', 'weight'] as $field) {
         if (!array_key_exists($field, $item)) {
             continue;
@@ -104,6 +116,13 @@ function questionnaire_resolve_effective_weight(array $item, array $likertWeight
         $candidate = (float)$raw;
         if ($candidate > 0.0) {
             return $candidate;
+        }
+    }
+    $type = strtolower((string)($item['type'] ?? ''));
+    if ($type === 'likert') {
+        $key = questionnaire_item_weight_key($item);
+        if ($key !== '' && isset($likertWeights[$key])) {
+            return (float)$likertWeights[$key];
         }
     }
     return 1.0;
