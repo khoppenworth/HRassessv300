@@ -1355,7 +1355,8 @@ function upgrade_should_ignore_sql_error(PDOException $exception, string $statem
         || strpos($normalizedStatement, 'add key') !== false
         || strpos($normalizedStatement, 'add unique') !== false
         || strpos($normalizedStatement, 'add constraint') !== false;
-    if ($isAddIndex && ($driverCode === 1061 || $sqlState === '42000')) {
+    $addIndexErrorCodes = [1022, 1061, 1826, 1831];
+    if ($isAddIndex && in_array($driverCode, $addIndexErrorCodes, true)) {
         return true;
     }
 
@@ -1363,7 +1364,7 @@ function upgrade_should_ignore_sql_error(PDOException $exception, string $statem
         || strpos($normalizedStatement, 'drop index') !== false
         || strpos($normalizedStatement, 'drop key') !== false
         || strpos($normalizedStatement, 'drop foreign key') !== false;
-    if ($isDropClause && ($driverCode === 1091 || $sqlState === '42000')) {
+    if ($isDropClause && $driverCode === 1091) {
         return true;
     }
 
