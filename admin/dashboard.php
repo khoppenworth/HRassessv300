@@ -472,9 +472,6 @@ if ($currentVersionInstalledAt) {
 $backupReady = !empty($upgradeState['backup_ready']);
 $lastCheckDisplay = !empty($upgradeState['last_check']) ? date('M j, Y g:i a', (int)$upgradeState['last_check']) : null;
 $lastBackupDisplay = !empty($upgradeState['last_backup_at']) ? date('M j, Y g:i a', (int)$upgradeState['last_backup_at']) : null;
-$backupDownloadUrl = !empty($upgradeState['last_backup_path'])
-    ? url_for('admin/download_backup.php?file=' . rawurlencode((string)$upgradeState['last_backup_path']))
-    : null;
 $upgradeRepoDisplay = $upgradeState['upgrade_repo'] ?? $upgradeRepo;
 $upgradeRepoLink = '';
 if (is_string($upgradeRepoDisplay) && preg_match('#^https?://#i', (string)$upgradeRepoDisplay)) {
@@ -485,10 +482,14 @@ if (is_string($upgradeRepoDisplay) && preg_match('#^https?://#i', (string)$upgra
         $upgradeRepoLink = 'https://github.com/' . $repoSlugForLink;
     }
 }
-$selectedBackupId = $upgradeBackups[0]['id'] ?? ($upgradeBackups[0]['timestamp'] ?? '');
+$selectedBackupId = '';
 $formattedBackups = [];
-foreach ($upgradeBackups as $backupMeta) {
+foreach ($upgradeBackups as $index => $backupMeta) {
     $backupId = (string)($backupMeta['id'] ?? ($backupMeta['timestamp'] ?? ''));
+    if ($selectedBackupId === '' && $index === 0) {
+        $selectedBackupId = $backupId;
+    }
+
     $timestamp = (string)($backupMeta['timestamp'] ?? '');
     $displayTime = $timestamp;
     if ($timestamp !== '') {
@@ -497,20 +498,45 @@ foreach ($upgradeBackups as $backupMeta) {
             $displayTime = date('M j, Y g:i a', $parsed);
         }
     }
-    $formattedBackups[] = [
+
+    $status = (string)($backupMeta['status'] ?? '');
+    $statusLabel = $status !== '' ? ucfirst(strtolower($status)) : '';
+    $statusClass = $status !== '' && strtolower($status) === 'success' ? 'success' : ($status !== '' ? 'warning' : '');
+    $versionLabel = (string)($backupMeta['version_label'] ?? '');
+    $ref = (string)($backupMeta['ref'] ?? '');
+    $releaseLabel = $versionLabel !== '' ? $versionLabel : $ref;
+
+    $optionParts = array_filter([
+        $displayTime,
+        $releaseLabel,
+        $statusLabel,
+    ], static function ($value) {
+        return $value !== '';
+    });
+
+    $formatted = [
         'id' => $backupId,
         'timestamp' => $timestamp,
         'display_time' => $displayTime,
-        'status' => (string)($backupMeta['status'] ?? ''),
-        'ref' => (string)($backupMeta['ref'] ?? ''),
-        'version_label' => (string)($backupMeta['version_label'] ?? ''),
+        'status' => $status,
+        'status_label' => $statusLabel,
+        'status_class' => $statusClass,
+        'ref' => $ref,
+        'version_label' => $versionLabel,
+        'release_label' => $releaseLabel,
         'release_url' => isset($backupMeta['release_url']) ? (string)$backupMeta['release_url'] : null,
+        'option_label' => $optionParts !== [] ? implode(' · ', $optionParts) : $displayTime,
     ];
+
+    $formattedBackups[] = $formatted;
+}
+if ($selectedBackupId === '' && $formattedBackups !== []) {
+    $selectedBackupId = $formattedBackups[0]['id'];
 }
 $pageHelpKey = 'admin.dashboard';
 ?>
 <!doctype html><html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>"><head>
-<meta charset="utf-8"><title><?=htmlspecialchars(t($t,'admin_dashboard','Admin Dashboard'), ENT_QUOTES, 'UTF-8')?></title>
+<meta charset="utf-8"><title><?=htmlspecialchars(t($t,'admin_dashboard','System Information'), ENT_QUOTES, 'UTF-8')?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="app-base-url" content="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
 <link rel="manifest" href="<?=asset_url('manifest.php')?>">
@@ -519,6 +545,12 @@ $pageHelpKey = 'admin.dashboard';
 </head><body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
+  <header class="md-page-header">
+    <div class="md-page-header__content">
+      <h1 class="md-page-title"><?=t($t,'admin_dashboard','System Information')?></h1>
+      <p class="md-page-subtitle"><?=t($t,'system_information_intro','Monitor release status, backups, and key usage metrics from a single view.')?></p>
+    </div>
+  </header>
   <?php if ($flashMessage): ?>
     <?php
       $alertClass = '';
@@ -609,9 +641,6 @@ $pageHelpKey = 'admin.dashboard';
         <?php if ($lastBackupDisplay): ?>
           <p class="md-upgrade-meta">
             <?=t($t,'last_backup','Last backup:')?> <?=htmlspecialchars($lastBackupDisplay, ENT_QUOTES, 'UTF-8')?>
-            <?php if ($backupDownloadUrl): ?>
-              · <a href="<?=htmlspecialchars($backupDownloadUrl, ENT_QUOTES, 'UTF-8')?>" class="md-upgrade-link"><?=t($t,'download_backup','Download backup')?></a>
-            <?php endif; ?>
           </p>
         <?php endif; ?>
         <p class="md-upgrade-meta"><?=t($t,'backup_hint','Keep regular snapshots before installing updates.')?></p>
@@ -641,11 +670,6 @@ $pageHelpKey = 'admin.dashboard';
               <input type="hidden" name="csrf" value="<?=csrf_token()?>">
               <input type="hidden" name="action" value="check_upgrade">
               <button type="submit" class="md-button md-elev-1 md-upgrade-action-button"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
-            </form>
-            <form method="post">
-              <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-              <input type="hidden" name="action" value="download_backups">
-              <button type="submit" class="md-button md-elev-1 md-upgrade-action-button"><?=t($t,'download_backups','Download backups')?></button>
             </form>
             <form method="post">
               <input type="hidden" name="csrf" value="<?=csrf_token()?>">
@@ -688,33 +712,36 @@ $pageHelpKey = 'admin.dashboard';
         <article class="md-card md-upgrade-card">
           <h3 class="md-upgrade-heading"><?=t($t,'upgrade_recent_backups','Upgrade backups')?></h3>
           <?php if ($formattedBackups): ?>
-            <form method="post" class="md-upgrade-restore-form">
+            <?php $downloadBackupFormId = 'download-backup-form'; ?>
+            <form method="post" class="md-upgrade-restore-form" id="restore-backup-form">
               <input type="hidden" name="csrf" value="<?=csrf_token()?>">
               <input type="hidden" name="action" value="restore_backup">
-              <fieldset class="md-upgrade-backup-list">
-                <?php foreach ($formattedBackups as $backupMeta): ?>
-                  <label class="md-upgrade-backup-option">
-                    <input type="radio" name="backup_id" value="<?=htmlspecialchars($backupMeta['id'], ENT_QUOTES, 'UTF-8')?>" <?=$backupMeta['id'] === $selectedBackupId ? 'checked' : ''?>>
-                    <span>
-                      <strong><?=htmlspecialchars($backupMeta['display_time'], ENT_QUOTES, 'UTF-8')?></strong>
-                      <?php if ($backupMeta['version_label'] !== ''): ?>
-                        <span>· <?=htmlspecialchars($backupMeta['version_label'], ENT_QUOTES, 'UTF-8')?></span>
-                      <?php elseif ($backupMeta['ref'] !== ''): ?>
-                        <span>· <?=htmlspecialchars($backupMeta['ref'], ENT_QUOTES, 'UTF-8')?></span>
-                      <?php endif; ?>
-                      <?php if ($backupMeta['status'] !== ''): ?>
-                        <span class="md-upgrade-chip small <?=strtolower($backupMeta['status']) === 'success' ? 'success' : 'warning'?>"><?=htmlspecialchars(ucfirst($backupMeta['status']), ENT_QUOTES, 'UTF-8')?></span>
-                      <?php endif; ?>
-                    </span>
-                  </label>
-                <?php endforeach; ?>
-              </fieldset>
+              <label class="md-upgrade-field">
+                <span class="md-upgrade-field-label"><?=t($t,'select_backup_label','Backup to restore')?></span>
+                <select name="backup_id" class="md-upgrade-select" data-upgrade-backup-select>
+                  <?php foreach ($formattedBackups as $backupMeta): ?>
+                    <option value="<?=htmlspecialchars($backupMeta['id'], ENT_QUOTES, 'UTF-8')?>" <?=$backupMeta['id'] === $selectedBackupId ? 'selected' : ''?>>
+                      <?=htmlspecialchars($backupMeta['option_label'], ENT_QUOTES, 'UTF-8')?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </label>
+              <p class="md-upgrade-meta"><?=t($t,'select_backup_hint','Choose a snapshot to restore or download.')?></p>
               <label class="md-upgrade-checkbox">
                 <input type="checkbox" name="restore_db" value="1">
                 <span><?=t($t,'restore_database','Restore database')?></span>
               </label>
               <p class="md-upgrade-meta"><?=t($t,'restore_database_hint','Also restore the database from the selected backup.')?></p>
-              <button type="submit" class="md-button md-outline md-elev-1 md-upgrade-action-button"><?=t($t,'restore_backup','Restore backup')?></button>
+              <div class="md-upgrade-backup-toolbar">
+                <button type="submit" class="md-button md-outline md-elev-1 md-upgrade-action-button"><?=t($t,'restore_backup','Restore backup')?></button>
+                <button type="submit" form="<?=htmlspecialchars($downloadBackupFormId, ENT_QUOTES, 'UTF-8')?>" class="md-button md-elev-1 md-upgrade-action-button">
+                  <?=t($t,'download_backup','Download backup')?>
+                </button>
+              </div>
+            </form>
+            <form method="post" id="<?=htmlspecialchars($downloadBackupFormId, ENT_QUOTES, 'UTF-8')?>" class="md-upgrade-hidden-form">
+              <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+              <input type="hidden" name="action" value="download_backups">
             </form>
           <?php else: ?>
             <p class="md-upgrade-meta"><?=t($t,'no_backups_available','No upgrade backups are available yet.')?></p>
