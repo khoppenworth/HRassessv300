@@ -28,6 +28,7 @@ if (!defined('APP_BOOTSTRAPPED')) {
     require_once __DIR__ . '/lib/path.php';
     require_once __DIR__ . '/lib/security.php';
     require_once __DIR__ . '/lib/mailer.php';
+    require_once __DIR__ . '/lib/email_templates.php';
     require_once __DIR__ . '/lib/notifications.php';
 
     $locale = ensure_locale();
@@ -404,7 +405,8 @@ function ensure_site_config_schema(PDO $pdo): void {
         'smtp_timeout' => 'ALTER TABLE site_config ADD COLUMN smtp_timeout INT NULL',
         'enabled_locales' => 'ALTER TABLE site_config ADD COLUMN enabled_locales TEXT NULL',
         'upgrade_repo' => 'ALTER TABLE site_config ADD COLUMN upgrade_repo VARCHAR(255) NULL',
-        'review_enabled' => 'ALTER TABLE site_config ADD COLUMN review_enabled TINYINT(1) NOT NULL DEFAULT 1'
+        'review_enabled' => 'ALTER TABLE site_config ADD COLUMN review_enabled TINYINT(1) NOT NULL DEFAULT 1',
+        'email_templates' => 'ALTER TABLE site_config ADD COLUMN email_templates LONGTEXT NULL'
     ];
 
     foreach ($schema as $field => $sql) {
@@ -485,6 +487,7 @@ function site_config_defaults(): array
         'enabled_locales' => ['en', 'fr', 'am'],
         'upgrade_repo' => 'khoppenworth/HRassessv300',
         'review_enabled' => 1,
+        'email_templates' => default_email_templates(),
     ];
 }
 
@@ -495,7 +498,9 @@ function get_site_config(PDO $pdo): array
 
     try {
         ensure_site_config_schema($pdo);
-        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, enabled_locales, upgrade_repo, review_enabled) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20, '[\"en\",\"fr\",\"am\"]', 'khoppenworth/HRassessv300', 1)");
+        $defaultTemplatesJson = encode_email_templates(default_email_templates());
+        $quotedTemplates = $pdo->quote($defaultTemplatesJson);
+        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, enabled_locales, upgrade_repo, review_enabled, email_templates) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20, '[\"en\",\"fr\",\"am\"]', 'khoppenworth/HRassessv300', 1, $quotedTemplates)");
         $cfg = $pdo->query('SELECT * FROM site_config WHERE id=1')->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         error_log('get_site_config failed: ' . $e->getMessage());
@@ -506,6 +511,7 @@ function get_site_config(PDO $pdo): array
     $merged = array_merge($defaults, $cfg ?: []);
     $merged['logo_path'] = normalize_logo_path($merged['logo_path'] ?? null);
     $merged['enabled_locales'] = site_enabled_locales($merged);
+    $merged['email_templates'] = normalize_email_templates($merged['email_templates'] ?? []);
     remember_available_locales($merged['enabled_locales']);
 
     return $merged;

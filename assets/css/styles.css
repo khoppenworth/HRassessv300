@@ -1533,6 +1533,52 @@ body.theme-dark .md-help-bubble::before {
   }
 }
 
+.email-template-block {
+  border: 1px solid var(--md-border-color, rgba(0, 0, 0, 0.12));
+  border-radius: 6px;
+  padding: 1rem;
+  margin: 1rem 0 1.5rem;
+  background: var(--md-surface-alt, rgba(0, 0, 0, 0.02));
+}
+
+.email-template-block h4.md-subhead {
+  margin-top: 0;
+}
+
+.email-template-block .md-field {
+  margin-top: 0.75rem;
+}
+
+.email-template-block textarea {
+  min-height: 160px;
+  font-family: inherit;
+}
+
+.email-template-placeholders {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.email-template-placeholders ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.email-template-placeholders code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+body.theme-dark .email-template-block {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.theme-dark .email-template-placeholders code {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .md-login-actions {
   margin-top: 1.25rem;
 }
