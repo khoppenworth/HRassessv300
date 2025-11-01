@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/mailer.php';
 require_once __DIR__ . '/path.php';
+require_once __DIR__ . '/email_templates.php';
 
 function notification_resolve_template(array $cfg, string $key, array $variables): array
 {
