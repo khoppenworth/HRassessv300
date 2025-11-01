@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/lib/email_templates.php';
+
 if (!defined('APP_BOOTSTRAPPED')) {
     define('APP_BOOTSTRAPPED', true);
 
@@ -28,7 +30,6 @@ if (!defined('APP_BOOTSTRAPPED')) {
     require_once __DIR__ . '/lib/path.php';
     require_once __DIR__ . '/lib/security.php';
     require_once __DIR__ . '/lib/mailer.php';
-    require_once __DIR__ . '/lib/email_templates.php';
     require_once __DIR__ . '/lib/notifications.php';
 
     $locale = ensure_locale();
