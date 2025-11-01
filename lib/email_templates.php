@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+/**
+ * Return the built-in set of email templates used by the application.
+ *
+ * @return array<string, array{subject: string, html: string}>
+ */
 function default_email_templates(): array
 {
     return [
@@ -51,6 +56,12 @@ HTML,
     ];
 }
 
+/**
+ * Normalize stored email template configuration values.
+ *
+ * @param array<string, array{subject?: string, html?: string}>|string $value
+ * @return array<string, array{subject: string, html: string}>
+ */
 function normalize_email_templates($value): array
 {
     $defaults = default_email_templates();
