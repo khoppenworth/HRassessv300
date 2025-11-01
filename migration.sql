@@ -110,7 +110,8 @@ CREATE TABLE IF NOT EXISTS site_config (
   microsoft_oauth_tenant VARCHAR(255) NULL,
   color_theme VARCHAR(50) NOT NULL DEFAULT 'light',
   enabled_locales TEXT NULL,
-  upgrade_repo VARCHAR(255) NULL
+  upgrade_repo VARCHAR(255) NULL,
+  email_templates LONGTEXT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS landing_metric_submissions INT NULL AFTER contact,
@@ -144,7 +145,8 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS smtp_from_name VARCHAR(255) NULL AFTER smtp_from_email,
   ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL AFTER smtp_from_name,
   ADD COLUMN IF NOT EXISTS enabled_locales TEXT NULL AFTER smtp_timeout,
-  ADD COLUMN IF NOT EXISTS upgrade_repo VARCHAR(255) NULL AFTER enabled_locales;
+  ADD COLUMN IF NOT EXISTS upgrade_repo VARCHAR(255) NULL AFTER enabled_locales,
+  ADD COLUMN IF NOT EXISTS email_templates LONGTEXT NULL AFTER upgrade_repo;
 INSERT IGNORE INTO site_config (
   id,
   site_name,
@@ -183,7 +185,8 @@ INSERT IGNORE INTO site_config (
   smtp_from_name,
   smtp_timeout,
   enabled_locales,
-  upgrade_repo
+  upgrade_repo,
+  email_templates
 ) VALUES (
   1,
   'My Performance',
@@ -222,7 +225,8 @@ INSERT IGNORE INTO site_config (
   NULL,
   20,
   '["en","fr","am"]',
-  'khoppenworth/HRassessv300'
+  'khoppenworth/HRassessv300',
+  '{}'
 );
 
 -- Add supporting index for faster timeline queries without full table scans.

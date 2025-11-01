@@ -5,6 +5,41 @@ declare(strict_types=1);
 require_once __DIR__ . '/mailer.php';
 require_once __DIR__ . '/path.php';
 
+function notification_resolve_template(array $cfg, string $key, array $variables): array
+{
+    $templates = normalize_email_templates($cfg['email_templates'] ?? []);
+    $defaults = default_email_templates();
+    $template = $templates[$key] ?? ($defaults[$key] ?? ['subject' => '', 'html' => '']);
+    $subjectTemplate = (string)($template['subject'] ?? '');
+    $htmlTemplate = (string)($template['html'] ?? '');
+
+    $plainReplacements = [];
+    $htmlReplacements = [];
+    foreach ($variables as $name => $value) {
+        $token = '{{' . $name . '}}';
+        if (is_array($value)) {
+            $textValue = isset($value['text']) ? (string)$value['text'] : '';
+            $htmlValue = isset($value['html']) ? (string)$value['html'] : $textValue;
+            $plainReplacements[$token] = $textValue;
+            $htmlReplacements[$token] = $htmlValue;
+        } else {
+            $textValue = (string)$value;
+            $plainReplacements[$token] = $textValue;
+            $htmlReplacements[$token] = htmlspecialchars($textValue, ENT_QUOTES, 'UTF-8');
+        }
+    }
+
+    $subject = strtr($subjectTemplate, $plainReplacements);
+    $html = strtr($htmlTemplate, $htmlReplacements);
+    $text = mail_html_to_text($html);
+
+    return [
+        'subject' => $subject,
+        'html' => $html,
+        'text' => $text,
+    ];
+}
+
 function notify_supervisors_of_pending_user(PDO $pdo, array $cfg, array $user): void
 {
     $recipients = [];
@@ -27,14 +62,17 @@ function notify_supervisors_of_pending_user(PDO $pdo, array $cfg, array $user): 
     }
 
     $profileUrl = url_for('admin/pending_accounts.php');
-    $subject = sprintf('Approval needed: %s', $display);
-    $body = "A new single sign-on user requires approval before accessing the HR Assessment portal.\n\n" .
-        'Name: ' . $display . "\n" .
-        'Email: ' . ($user['email'] ?? 'not provided') . "\n" .
-        'Submitted on: ' . date('Y-m-d H:i') . "\n\n" .
-        'Review pending accounts: ' . $profileUrl . "\n";
+    $template = notification_resolve_template($cfg, 'pending_user', [
+        'user_display' => $display,
+        'user_email' => (string)($user['email'] ?? 'not provided'),
+        'submitted_at' => date('Y-m-d H:i'),
+        'pending_accounts_url' => $profileUrl,
+    ]);
 
-    send_notification_email($cfg, $recipients, $subject, $body);
+    send_notification_email($cfg, $recipients, $template['subject'], [
+        'text' => $template['text'],
+        'html' => $template['html'],
+    ]);
 }
 
 function notify_user_account_approved(array $cfg, array $user, ?string $nextAssessmentDate): void
@@ -44,15 +82,27 @@ function notify_user_account_approved(array $cfg, array $user, ?string $nextAsse
         return;
     }
     $loginUrl = url_for('login.php');
-    $subject = 'Your HR Assessment access has been approved';
-    $body = "Hello " . ($user['full_name'] ?? $user['username'] ?? 'team member') . ",\n\n" .
-        "Your supervisor has approved your access to the HR Assessment portal. You can now sign in and complete your assessments." . "\n\n" .
-        "Sign in: $loginUrl\n";
+    $name = trim((string)($user['full_name'] ?? $user['username'] ?? 'team member'));
+    $nextAssessmentBlock = '';
+    $nextAssessmentText = '';
     if ($nextAssessmentDate) {
-        $body .= "\nYour next assessment has been scheduled for: $nextAssessmentDate\n";
+        $nextAssessmentBlock = '<p>Your next assessment has been scheduled for ' . htmlspecialchars($nextAssessmentDate, ENT_QUOTES, 'UTF-8') . '.</p>';
+        $nextAssessmentText = 'Your next assessment has been scheduled for: ' . $nextAssessmentDate;
     }
-    $body .= "\nThank you.";
-    send_notification_email($cfg, [$email], $subject, $body);
+
+    $template = notification_resolve_template($cfg, 'account_approved', [
+        'user_name' => $name,
+        'login_url' => $loginUrl,
+        'next_assessment_block' => [
+            'html' => $nextAssessmentBlock,
+            'text' => $nextAssessmentText,
+        ],
+    ]);
+
+    send_notification_email($cfg, [$email], $template['subject'], [
+        'text' => $template['text'],
+        'html' => $template['html'],
+    ]);
 }
 
 function notify_user_next_assessment(array $cfg, array $user, string $nextAssessmentDate): void
@@ -61,13 +111,16 @@ function notify_user_next_assessment(array $cfg, array $user, string $nextAssess
     if ($email === '') {
         return;
     }
-    $subject = 'Upcoming assessment scheduled';
-    $body = "Hello " . ($user['full_name'] ?? $user['username'] ?? 'team member') . ",\n\n" .
-        'A supervisor has scheduled your next assessment for ' . $nextAssessmentDate . ".\n" .
-        'Please log in to the HR Assessment portal to prepare and complete any required steps.' . "\n\n" .
-        'Portal: ' . url_for('login.php') . "\n\n" .
-        'Thank you.';
-    send_notification_email($cfg, [$email], $subject, $body);
+    $template = notification_resolve_template($cfg, 'next_assessment', [
+        'user_name' => trim((string)($user['full_name'] ?? $user['username'] ?? 'team member')),
+        'next_assessment_date' => $nextAssessmentDate,
+        'portal_url' => url_for('login.php'),
+    ]);
+
+    send_notification_email($cfg, [$email], $template['subject'], [
+        'text' => $template['text'],
+        'html' => $template['html'],
+    ]);
 }
 
 function notify_questionnaire_assignment_update(array $cfg, array $staff, array $assignedTitles, ?array $assigner = null): void
@@ -91,34 +144,54 @@ function notify_questionnaire_assignment_update(array $cfg, array $staff, array 
     $staffName = trim((string)($staff['full_name'] ?? $staff['username'] ?? 'team member'));
     $assignerName = $assigner ? trim((string)($assigner['full_name'] ?? $assigner['username'] ?? '')) : '';
 
-    $subject = 'Questionnaire assignments updated';
-    $lines = [];
-    $lines[] = 'Hello ' . ($staffName !== '' ? $staffName : 'team member') . ',';
-    $lines[] = '';
     if ($assignedTitles) {
-        $lines[] = 'The following questionnaires are now assigned to you:';
+        $summaryHtml = '<p>The following questionnaires are now assigned to you:</p><ul>';
+        $summaryTextLines = ['The following questionnaires are now assigned to you:'];
         foreach ($assignedTitles as $title) {
-            $lines[] = ' - ' . $title;
+            $summaryHtml .= '<li>' . htmlspecialchars((string)$title, ENT_QUOTES, 'UTF-8') . '</li>';
+            $summaryTextLines[] = ' - ' . (string)$title;
         }
+        $summaryHtml .= '</ul>';
+        $summaryText = implode("\n", $summaryTextLines);
     } else {
-        $lines[] = 'All previously assigned questionnaires have been removed from your profile.';
+        $summaryHtml = '<p>All previously assigned questionnaires have been removed from your profile.</p>';
+        $summaryText = 'All previously assigned questionnaires have been removed from your profile.';
     }
 
     $nextAssessment = trim((string)($staff['next_assessment_date'] ?? ''));
+    $nextAssessmentBlock = '';
+    $nextAssessmentText = '';
     if ($nextAssessment !== '') {
-        $lines[] = '';
-        $lines[] = 'Your next assessment date: ' . $nextAssessment;
+        $nextAssessmentBlock = '<p>Your next assessment date: ' . htmlspecialchars($nextAssessment, ENT_QUOTES, 'UTF-8') . '.</p>';
+        $nextAssessmentText = 'Your next assessment date: ' . $nextAssessment;
     }
 
+    $assignerBlock = '';
+    $assignerText = '';
     if ($assignerName !== '') {
-        $lines[] = '';
-        $lines[] = 'Assignments updated by: ' . $assignerName;
+        $assignerBlock = '<p>Assignments updated by: ' . htmlspecialchars($assignerName, ENT_QUOTES, 'UTF-8') . '.</p>';
+        $assignerText = 'Assignments updated by: ' . $assignerName;
     }
 
-    $lines[] = '';
-    $lines[] = 'You can review your questionnaires here: ' . url_for('dashboard.php');
-    $lines[] = '';
-    $lines[] = 'Thank you.';
+    $template = notification_resolve_template($cfg, 'assignment_update', [
+        'user_name' => $staffName !== '' ? $staffName : 'team member',
+        'assignment_summary' => [
+            'html' => $summaryHtml,
+            'text' => $summaryText,
+        ],
+        'next_assessment_block' => [
+            'html' => $nextAssessmentBlock,
+            'text' => $nextAssessmentText,
+        ],
+        'assigner_block' => [
+            'html' => $assignerBlock,
+            'text' => $assignerText,
+        ],
+        'dashboard_url' => url_for('dashboard.php'),
+    ]);
 
-    send_notification_email($cfg, $recipients, $subject, implode("\n", $lines));
+    send_notification_email($cfg, $recipients, $template['subject'], [
+        'text' => $template['text'],
+        'html' => $template['html'],
+    ]);
 }

@@ -36,7 +36,32 @@ function app_smtp_config(array $cfg): array
     ];
 }
 
-function send_notification_email(array $cfg, $recipients, string $subject, string $body, array $attachments = []): bool
+function mail_html_to_text(string $html): string
+{
+    $normalized = preg_replace([
+        '/<\s*br\s*\/?\s*>/i',
+        '/<\s*\/(p|div)\s*>/i',
+        '/<\s*li\s*>/i',
+        '/<\s*\/li\s*>/i',
+        '/<\s*\/h[1-6]\s*>/i',
+    ], [
+        "\n",
+        "\n\n",
+        ' - ',
+        "\n",
+        "\n\n",
+    ], $html);
+    if ($normalized === null) {
+        $normalized = $html;
+    }
+    $stripped = strip_tags($normalized);
+    $decoded = html_entity_decode($stripped, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $lines = preg_split('/\r\n|\r|\n/', $decoded) ?: [];
+    $lines = array_map(static fn($line) => rtrim((string)$line), $lines);
+    return trim(implode("\n", $lines));
+}
+
+function send_notification_email(array $cfg, $recipients, string $subject, $body, array $attachments = []): bool
 {
     $smtp = app_smtp_config($cfg);
     if (!$smtp['enabled']) {
@@ -67,15 +92,27 @@ function send_notification_email(array $cfg, $recipients, string $subject, strin
         return false;
     }
 
+    $bodyText = '';
+    $bodyHtml = null;
+    if (is_array($body)) {
+        $bodyText = isset($body['text']) ? (string)$body['text'] : '';
+        $bodyHtml = isset($body['html']) && $body['html'] !== '' ? (string)$body['html'] : null;
+    } else {
+        $bodyText = (string)$body;
+    }
+    if (($bodyHtml !== null && trim($bodyHtml) !== '') && trim($bodyText) === '') {
+        $bodyText = mail_html_to_text($bodyHtml);
+    }
+
     try {
-        return smtp_send($smtp, $list, $subject, $body, $attachments);
+        return smtp_send($smtp, $list, $subject, ['text' => $bodyText, 'html' => $bodyHtml], $attachments);
     } catch (Throwable $e) {
         error_log('SMTP send failed: ' . $e->getMessage());
         return false;
     }
 }
 
-function smtp_send(array $smtp, array $recipients, string $subject, string $body, array $attachments = []): bool
+function smtp_send(array $smtp, array $recipients, string $subject, array $body, array $attachments = []): bool
 {
     $host = $smtp['host'];
     $port = (int)$smtp['port'];
@@ -140,22 +177,61 @@ function smtp_send(array $smtp, array $recipients, string $subject, string $body
     $headers[] = 'Subject: ' . $encodedSubject;
     $headers[] = 'Message-ID: <' . uniqid('', true) . '@' . ($ehloHost ?: 'localhost') . '>';
 
-    $normalizedBody = str_replace(["\r\n", "\r"], "\n", $body);
+    $textBody = isset($body['text']) ? (string)$body['text'] : '';
+    $htmlBody = isset($body['html']) ? (string)$body['html'] : '';
+    $hasHtmlBody = trim($htmlBody) !== '';
+    $hasTextBody = trim($textBody) !== '';
+    if (!$hasTextBody && $hasHtmlBody) {
+        $textBody = mail_html_to_text($htmlBody);
+        $hasTextBody = trim($textBody) !== '';
+    }
+    if (!$hasTextBody && !$hasHtmlBody) {
+        $hasTextBody = true;
+    }
+    $splitLines = static function (string $content): array {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $content);
+        return explode("\n", $normalized);
+    };
     $hasAttachments = !empty($attachments);
     $lines = $headers;
     if ($hasAttachments) {
         $boundary = '=_mixed_' . bin2hex(random_bytes(12));
+        $altBoundary = '=_alt_' . bin2hex(random_bytes(12));
         $lines[] = 'MIME-Version: 1.0';
         $lines[] = 'Content-Type: multipart/mixed; boundary="' . $boundary . '"';
         $lines[] = '';
         $lines[] = 'This is a multi-part message in MIME format.';
         $lines[] = '';
-        $lines[] = '--' . $boundary;
-        $lines[] = 'Content-Type: text/plain; charset=UTF-8';
-        $lines[] = 'Content-Transfer-Encoding: 8bit';
-        $lines[] = '';
-        foreach (explode("\n", $normalizedBody) as $bodyLine) {
-            $lines[] = $bodyLine;
+        if ($hasHtmlBody) {
+            $lines[] = '--' . $boundary;
+            $lines[] = 'Content-Type: multipart/alternative; boundary="' . $altBoundary . '"';
+            $lines[] = '';
+            if ($hasTextBody) {
+                $lines[] = '--' . $altBoundary;
+                $lines[] = 'Content-Type: text/plain; charset=UTF-8';
+                $lines[] = 'Content-Transfer-Encoding: 8bit';
+                $lines[] = '';
+                foreach ($splitLines($textBody) as $bodyLine) {
+                    $lines[] = $bodyLine;
+                }
+            }
+            $lines[] = '--' . $altBoundary;
+            $lines[] = 'Content-Type: text/html; charset=UTF-8';
+            $lines[] = 'Content-Transfer-Encoding: 8bit';
+            $lines[] = '';
+            foreach ($splitLines($htmlBody) as $bodyLine) {
+                $lines[] = $bodyLine;
+            }
+            $lines[] = '';
+            $lines[] = '--' . $altBoundary . '--';
+        } else {
+            $lines[] = '--' . $boundary;
+            $lines[] = 'Content-Type: text/plain; charset=UTF-8';
+            $lines[] = 'Content-Transfer-Encoding: 8bit';
+            $lines[] = '';
+            foreach ($splitLines($textBody) as $bodyLine) {
+                $lines[] = $bodyLine;
+            }
         }
         foreach ($attachments as $attachment) {
             if (!is_array($attachment)) {
@@ -182,12 +258,37 @@ function smtp_send(array $smtp, array $recipients, string $subject, string $body
         $lines[] = '';
         $lines[] = '--' . $boundary . '--';
     } else {
-        $lines[] = 'MIME-Version: 1.0';
-        $lines[] = 'Content-Type: text/plain; charset=UTF-8';
-        $lines[] = 'Content-Transfer-Encoding: 8bit';
-        $lines[] = '';
-        foreach (explode("\n", $normalizedBody) as $bodyLine) {
-            $lines[] = $bodyLine;
+        if ($hasHtmlBody) {
+            $boundary = '=_alt_' . bin2hex(random_bytes(12));
+            $lines[] = 'MIME-Version: 1.0';
+            $lines[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
+            $lines[] = '';
+            if ($hasTextBody) {
+                $lines[] = '--' . $boundary;
+                $lines[] = 'Content-Type: text/plain; charset=UTF-8';
+                $lines[] = 'Content-Transfer-Encoding: 8bit';
+                $lines[] = '';
+                foreach ($splitLines($textBody) as $bodyLine) {
+                    $lines[] = $bodyLine;
+                }
+            }
+            $lines[] = '--' . $boundary;
+            $lines[] = 'Content-Type: text/html; charset=UTF-8';
+            $lines[] = 'Content-Transfer-Encoding: 8bit';
+            $lines[] = '';
+            foreach ($splitLines($htmlBody) as $bodyLine) {
+                $lines[] = $bodyLine;
+            }
+            $lines[] = '';
+            $lines[] = '--' . $boundary . '--';
+        } else {
+            $lines[] = 'MIME-Version: 1.0';
+            $lines[] = 'Content-Type: text/plain; charset=UTF-8';
+            $lines[] = 'Content-Transfer-Encoding: 8bit';
+            $lines[] = '';
+            foreach ($splitLines($textBody) as $bodyLine) {
+                $lines[] = $bodyLine;
+            }
         }
     }
 

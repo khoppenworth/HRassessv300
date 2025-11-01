@@ -22,6 +22,49 @@ try {
     $msg = '';
     $errors = [];
     $enabledLocales = site_enabled_locales($cfg);
+    $emailTemplates = normalize_email_templates($cfg['email_templates'] ?? []);
+
+    $emailTemplateDefinitions = [
+        'pending_user' => [
+            'title' => t($t, 'email_template_pending_user_title', 'Pending account notification (to supervisors)'),
+            'description' => t($t, 'email_template_pending_user_desc', 'Sent to supervisors and admins when a new single sign-on account requires approval.'),
+            'placeholders' => [
+                '{{user_display}}' => t($t, 'email_template_pending_user_placeholder_display', 'Display name of the pending user'),
+                '{{user_email}}' => t($t, 'email_template_pending_user_placeholder_email', 'Email address of the pending user'),
+                '{{submitted_at}}' => t($t, 'email_template_pending_user_placeholder_submitted', 'Timestamp when the request was submitted'),
+                '{{pending_accounts_url}}' => t($t, 'email_template_pending_user_placeholder_url', 'Link to the pending approvals page'),
+            ],
+        ],
+        'account_approved' => [
+            'title' => t($t, 'email_template_account_approved_title', 'Account approval notice (to staff)'),
+            'description' => t($t, 'email_template_account_approved_desc', 'Sent to a staff member after their access request is approved.'),
+            'placeholders' => [
+                '{{user_name}}' => t($t, 'email_template_account_approved_placeholder_name', 'Name of the recipient'),
+                '{{login_url}}' => t($t, 'email_template_account_approved_placeholder_login', 'Sign-in URL for the portal'),
+                '{{next_assessment_block}}' => t($t, 'email_template_account_approved_placeholder_next', 'HTML paragraph shown when a next assessment date is available'),
+            ],
+        ],
+        'next_assessment' => [
+            'title' => t($t, 'email_template_next_assessment_title', 'Upcoming assessment reminder (to staff)'),
+            'description' => t($t, 'email_template_next_assessment_desc', 'Sent to staff when a supervisor schedules their next assessment.'),
+            'placeholders' => [
+                '{{user_name}}' => t($t, 'email_template_next_assessment_placeholder_name', 'Name of the recipient'),
+                '{{next_assessment_date}}' => t($t, 'email_template_next_assessment_placeholder_date', 'Scheduled assessment date'),
+                '{{portal_url}}' => t($t, 'email_template_next_assessment_placeholder_portal', 'Link to the HR Assessment portal'),
+            ],
+        ],
+        'assignment_update' => [
+            'title' => t($t, 'email_template_assignment_update_title', 'Questionnaire assignment update'),
+            'description' => t($t, 'email_template_assignment_update_desc', 'Sent to staff (and optionally the assigning supervisor) when questionnaire assignments change.'),
+            'placeholders' => [
+                '{{user_name}}' => t($t, 'email_template_assignment_update_placeholder_name', 'Name of the recipient'),
+                '{{assignment_summary}}' => t($t, 'email_template_assignment_update_placeholder_summary', 'HTML list describing assigned questionnaires'),
+                '{{next_assessment_block}}' => t($t, 'email_template_assignment_update_placeholder_next', 'HTML paragraph shown when a next assessment date is set'),
+                '{{assigner_block}}' => t($t, 'email_template_assignment_update_placeholder_assigner', 'HTML paragraph that names the supervisor who made the change'),
+                '{{dashboard_url}}' => t($t, 'email_template_assignment_update_placeholder_dashboard', 'Link to the dashboard for reviewing questionnaires'),
+            ],
+        ],
+    ];
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_check();
@@ -78,6 +121,25 @@ try {
             $errors[] = t($t, 'language_required_notice', 'At least English or French must remain enabled.');
         }
 
+        $emailTemplatesInput = $_POST['email_templates'] ?? [];
+        if (!is_array($emailTemplatesInput)) {
+            $emailTemplatesInput = [];
+        }
+        $submittedTemplates = [];
+        foreach (default_email_templates() as $key => $defaultTemplate) {
+            $existingTemplate = $emailTemplates[$key] ?? $defaultTemplate;
+            $inputRow = isset($emailTemplatesInput[$key]) && is_array($emailTemplatesInput[$key]) ? $emailTemplatesInput[$key] : [];
+            $subjectRaw = isset($inputRow['subject']) ? (string)$inputRow['subject'] : (string)($existingTemplate['subject'] ?? '');
+            $htmlRaw = isset($inputRow['html']) ? (string)$inputRow['html'] : (string)($existingTemplate['html'] ?? '');
+            $subjectTrimmed = trim($subjectRaw);
+            $htmlTrimmed = trim($htmlRaw);
+            $submittedTemplates[$key] = [
+                'subject' => $subjectTrimmed !== '' ? $subjectTrimmed : $defaultTemplate['subject'],
+                'html' => $htmlTrimmed !== '' ? $htmlRaw : $defaultTemplate['html'],
+            ];
+        }
+        $emailTemplates = normalize_email_templates($submittedTemplates);
+
         $fields = [
             'google_oauth_enabled' => $google_oauth_enabled,
             'google_oauth_client_id' => $google_oauth_client_id,
@@ -98,6 +160,7 @@ try {
             'smtp_from_name' => $smtp_from_name !== '' ? $smtp_from_name : null,
             'smtp_timeout' => $smtp_timeout,
             'review_enabled' => $review_enabled,
+            'email_templates' => encode_email_templates($emailTemplates),
         ];
 
         if ($errors === []) {
@@ -116,6 +179,7 @@ try {
             $msg = t($t, 'settings_updated', 'Settings updated successfully.');
             $cfg = get_site_config($pdo);
             $enabledLocales = site_enabled_locales($cfg);
+            $emailTemplates = normalize_email_templates($cfg['email_templates'] ?? []);
         } else {
             $enabledLocales = $selectedLocales;
         }
@@ -145,6 +209,9 @@ try {
         $errors = [];
     }
     $msg = $msg ?? '';
+    if (!isset($emailTemplates) || !is_array($emailTemplates)) {
+        $emailTemplates = default_email_templates();
+    }
 
     $fatalError = APP_DEBUG ? $e->getMessage() : t($t, 'unexpected_error_notice', 'An unexpected error occurred while loading the settings.');
     $errors[] = $fatalError;
@@ -270,6 +337,24 @@ $pageHelpKey = 'admin.settings';
       <label class="md-field"><span><?=t($t,'smtp_from_email','From Email')?></span><input name="smtp_from_email" value="<?=htmlspecialchars($cfg['smtp_from_email'] ?? '')?>"></label>
       <label class="md-field"><span><?=t($t,'smtp_from_name','From Name')?></span><input name="smtp_from_name" value="<?=htmlspecialchars($cfg['smtp_from_name'] ?? '')?>"></label>
       <label class="md-field"><span><?=t($t,'smtp_timeout','Connection Timeout (seconds)')?></span><input type="number" name="smtp_timeout" min="5" value="<?=htmlspecialchars((string)($cfg['smtp_timeout'] ?? 20))?>"></label>
+      <h3 class="md-subhead"><?=t($t,'email_template_settings','Email Templates')?></h3>
+      <p class="md-help-note"><?=t($t,'email_template_settings_hint','Customize the subject and HTML content for outgoing notification emails. You can use hyperlinks and the placeholders listed for each template.')?></p>
+      <?php foreach ($emailTemplateDefinitions as $key => $meta): ?>
+        <div class="email-template-block">
+          <h4 class="md-subhead"><?=htmlspecialchars($meta['title'], ENT_QUOTES, 'UTF-8')?></h4>
+          <p class="md-help-note"><?=htmlspecialchars($meta['description'], ENT_QUOTES, 'UTF-8')?></p>
+          <div class="md-help-note email-template-placeholders">
+            <strong><?=t($t,'email_template_placeholders','Available placeholders:')?></strong>
+            <ul>
+              <?php foreach ($meta['placeholders'] as $placeholder => $label): ?>
+                <li><code><?=htmlspecialchars($placeholder, ENT_QUOTES, 'UTF-8')?></code> – <?=htmlspecialchars($label, ENT_QUOTES, 'UTF-8')?></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+          <label class="md-field"><span><?=t($t,'email_subject','Subject')?></span><input name="email_templates[<?=$key?>][subject]" value="<?=htmlspecialchars($emailTemplates[$key]['subject'] ?? '')?>"></label>
+          <label class="md-field md-field-textarea"><span><?=t($t,'email_html_body','HTML Body')?></span><textarea name="email_templates[<?=$key?>][html]" rows="8"><?=htmlspecialchars($emailTemplates[$key]['html'] ?? '')?></textarea></label>
+        </div>
+      <?php endforeach; ?>
       <div class="md-form-actions">
         <button class="md-button md-primary md-elev-2"><?=t($t,'save','Save Changes')?></button>
       </div>
