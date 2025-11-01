@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/path.php';
 
 function notify_supervisors_of_pending_user(PDO $pdo, array $cfg, array $user): void
 {
