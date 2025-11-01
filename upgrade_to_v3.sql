@@ -275,9 +275,37 @@ ALTER TABLE analytics_report_schedule
   ADD COLUMN IF NOT EXISTS created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER active,
   ADD COLUMN IF NOT EXISTS updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at;
 
-ALTER TABLE analytics_report_schedule
-  ADD INDEX IF NOT EXISTS idx_report_schedule_next_run (next_run_at),
-  ADD INDEX IF NOT EXISTS idx_report_schedule_active (active);
+SET @has_schedule_next_run_idx := (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'analytics_report_schedule'
+    AND INDEX_NAME = 'idx_report_schedule_next_run'
+);
+SET @sql_schedule_next_run_idx := IF(
+  @has_schedule_next_run_idx = 0,
+  'ALTER TABLE analytics_report_schedule ADD INDEX idx_report_schedule_next_run (next_run_at);',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_schedule_next_run_idx;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_schedule_active_idx := (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'analytics_report_schedule'
+    AND INDEX_NAME = 'idx_report_schedule_active'
+);
+SET @sql_schedule_active_idx := IF(
+  @has_schedule_active_idx = 0,
+  'ALTER TABLE analytics_report_schedule ADD INDEX idx_report_schedule_active (active);',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_schedule_active_idx;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 SET @has_schedule_creator_fk := (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS

@@ -113,40 +113,535 @@ CREATE TABLE IF NOT EXISTS site_config (
   upgrade_repo VARCHAR(255) NULL,
   email_templates LONGTEXT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-ALTER TABLE site_config
-  ADD COLUMN IF NOT EXISTS landing_metric_submissions INT NULL AFTER contact,
-  ADD COLUMN IF NOT EXISTS landing_metric_completion VARCHAR(50) NULL AFTER landing_metric_submissions,
-  ADD COLUMN IF NOT EXISTS landing_metric_adoption VARCHAR(50) NULL AFTER landing_metric_completion,
-  ADD COLUMN IF NOT EXISTS footer_org_name VARCHAR(255) NULL AFTER logo_path,
-  ADD COLUMN IF NOT EXISTS footer_org_short VARCHAR(100) NULL AFTER footer_org_name,
-  ADD COLUMN IF NOT EXISTS footer_website_label VARCHAR(255) NULL AFTER footer_org_short,
-  ADD COLUMN IF NOT EXISTS footer_website_url VARCHAR(255) NULL AFTER footer_website_label,
-  ADD COLUMN IF NOT EXISTS footer_email VARCHAR(255) NULL AFTER footer_website_url,
-  ADD COLUMN IF NOT EXISTS footer_phone VARCHAR(255) NULL AFTER footer_email,
-  ADD COLUMN IF NOT EXISTS footer_hotline_label VARCHAR(255) NULL AFTER footer_phone,
-  ADD COLUMN IF NOT EXISTS footer_hotline_number VARCHAR(50) NULL AFTER footer_hotline_label,
-  ADD COLUMN IF NOT EXISTS footer_rights VARCHAR(255) NULL AFTER footer_hotline_number,
-  ADD COLUMN IF NOT EXISTS google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER footer_rights,
-  ADD COLUMN IF NOT EXISTS google_oauth_client_id VARCHAR(255) NULL AFTER google_oauth_enabled,
-  ADD COLUMN IF NOT EXISTS google_oauth_client_secret VARCHAR(255) NULL AFTER google_oauth_client_id,
-  ADD COLUMN IF NOT EXISTS microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER google_oauth_client_secret,
-  ADD COLUMN IF NOT EXISTS microsoft_oauth_client_id VARCHAR(255) NULL AFTER microsoft_oauth_enabled,
-  ADD COLUMN IF NOT EXISTS microsoft_oauth_client_secret VARCHAR(255) NULL AFTER microsoft_oauth_client_id,
-  ADD COLUMN IF NOT EXISTS microsoft_oauth_tenant VARCHAR(255) NULL AFTER microsoft_oauth_client_secret,
-  ADD COLUMN IF NOT EXISTS color_theme VARCHAR(50) NOT NULL DEFAULT 'light' AFTER microsoft_oauth_tenant,
-  ADD COLUMN IF NOT EXISTS brand_color VARCHAR(7) NULL AFTER color_theme,
-  ADD COLUMN IF NOT EXISTS smtp_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER brand_color,
-  ADD COLUMN IF NOT EXISTS smtp_host VARCHAR(255) NULL AFTER smtp_enabled,
-  ADD COLUMN IF NOT EXISTS smtp_port INT NULL AFTER smtp_host,
-  ADD COLUMN IF NOT EXISTS smtp_username VARCHAR(255) NULL AFTER smtp_port,
-  ADD COLUMN IF NOT EXISTS smtp_password VARCHAR(255) NULL AFTER smtp_username,
-  ADD COLUMN IF NOT EXISTS smtp_encryption VARCHAR(10) NOT NULL DEFAULT 'none' AFTER smtp_password,
-  ADD COLUMN IF NOT EXISTS smtp_from_email VARCHAR(255) NULL AFTER smtp_encryption,
-  ADD COLUMN IF NOT EXISTS smtp_from_name VARCHAR(255) NULL AFTER smtp_from_email,
-  ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL AFTER smtp_from_name,
-  ADD COLUMN IF NOT EXISTS enabled_locales TEXT NULL AFTER smtp_timeout,
-  ADD COLUMN IF NOT EXISTS upgrade_repo VARCHAR(255) NULL AFTER enabled_locales,
-  ADD COLUMN IF NOT EXISTS email_templates LONGTEXT NULL AFTER upgrade_repo;
+-- Ensure optional site_config columns exist without relying on ADD COLUMN IF NOT EXISTS.
+SET @sc_landing_metric_submissions_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'landing_metric_submissions'
+);
+SET @sc_landing_metric_submissions_sql = IF(
+  @sc_landing_metric_submissions_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN landing_metric_submissions INT NULL AFTER contact',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_landing_metric_submissions_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_landing_metric_completion_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'landing_metric_completion'
+);
+SET @sc_landing_metric_completion_sql = IF(
+  @sc_landing_metric_completion_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN landing_metric_completion VARCHAR(50) NULL AFTER landing_metric_submissions',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_landing_metric_completion_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_landing_metric_adoption_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'landing_metric_adoption'
+);
+SET @sc_landing_metric_adoption_sql = IF(
+  @sc_landing_metric_adoption_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN landing_metric_adoption VARCHAR(50) NULL AFTER landing_metric_completion',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_landing_metric_adoption_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_footer_org_name_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'footer_org_name'
+);
+SET @sc_footer_org_name_sql = IF(
+  @sc_footer_org_name_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN footer_org_name VARCHAR(255) NULL AFTER logo_path',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_footer_org_name_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_footer_org_short_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'footer_org_short'
+);
+SET @sc_footer_org_short_sql = IF(
+  @sc_footer_org_short_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN footer_org_short VARCHAR(100) NULL AFTER footer_org_name',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_footer_org_short_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_footer_website_label_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'footer_website_label'
+);
+SET @sc_footer_website_label_sql = IF(
+  @sc_footer_website_label_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN footer_website_label VARCHAR(255) NULL AFTER footer_org_short',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_footer_website_label_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_footer_website_url_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'footer_website_url'
+);
+SET @sc_footer_website_url_sql = IF(
+  @sc_footer_website_url_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN footer_website_url VARCHAR(255) NULL AFTER footer_website_label',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_footer_website_url_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_footer_email_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'footer_email'
+);
+SET @sc_footer_email_sql = IF(
+  @sc_footer_email_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN footer_email VARCHAR(255) NULL AFTER footer_website_url',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_footer_email_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_footer_phone_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'footer_phone'
+);
+SET @sc_footer_phone_sql = IF(
+  @sc_footer_phone_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN footer_phone VARCHAR(255) NULL AFTER footer_email',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_footer_phone_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_footer_hotline_label_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'footer_hotline_label'
+);
+SET @sc_footer_hotline_label_sql = IF(
+  @sc_footer_hotline_label_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN footer_hotline_label VARCHAR(255) NULL AFTER footer_phone',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_footer_hotline_label_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_footer_hotline_number_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'footer_hotline_number'
+);
+SET @sc_footer_hotline_number_sql = IF(
+  @sc_footer_hotline_number_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN footer_hotline_number VARCHAR(50) NULL AFTER footer_hotline_label',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_footer_hotline_number_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_footer_rights_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'footer_rights'
+);
+SET @sc_footer_rights_sql = IF(
+  @sc_footer_rights_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN footer_rights VARCHAR(255) NULL AFTER footer_hotline_number',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_footer_rights_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_google_oauth_enabled_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'google_oauth_enabled'
+);
+SET @sc_google_oauth_enabled_sql = IF(
+  @sc_google_oauth_enabled_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER footer_rights',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_google_oauth_enabled_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_google_oauth_client_id_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'google_oauth_client_id'
+);
+SET @sc_google_oauth_client_id_sql = IF(
+  @sc_google_oauth_client_id_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN google_oauth_client_id VARCHAR(255) NULL AFTER google_oauth_enabled',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_google_oauth_client_id_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_google_oauth_client_secret_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'google_oauth_client_secret'
+);
+SET @sc_google_oauth_client_secret_sql = IF(
+  @sc_google_oauth_client_secret_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN google_oauth_client_secret VARCHAR(255) NULL AFTER google_oauth_client_id',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_google_oauth_client_secret_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_microsoft_oauth_enabled_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'microsoft_oauth_enabled'
+);
+SET @sc_microsoft_oauth_enabled_sql = IF(
+  @sc_microsoft_oauth_enabled_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN microsoft_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER google_oauth_client_secret',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_microsoft_oauth_enabled_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_microsoft_oauth_client_id_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'microsoft_oauth_client_id'
+);
+SET @sc_microsoft_oauth_client_id_sql = IF(
+  @sc_microsoft_oauth_client_id_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_id VARCHAR(255) NULL AFTER microsoft_oauth_enabled',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_microsoft_oauth_client_id_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_microsoft_oauth_client_secret_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'microsoft_oauth_client_secret'
+);
+SET @sc_microsoft_oauth_client_secret_sql = IF(
+  @sc_microsoft_oauth_client_secret_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN microsoft_oauth_client_secret VARCHAR(255) NULL AFTER microsoft_oauth_client_id',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_microsoft_oauth_client_secret_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_microsoft_oauth_tenant_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'microsoft_oauth_tenant'
+);
+SET @sc_microsoft_oauth_tenant_sql = IF(
+  @sc_microsoft_oauth_tenant_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN microsoft_oauth_tenant VARCHAR(255) NULL AFTER microsoft_oauth_client_secret',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_microsoft_oauth_tenant_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_color_theme_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'color_theme'
+);
+SET @sc_color_theme_sql = IF(
+  @sc_color_theme_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN color_theme VARCHAR(50) NOT NULL DEFAULT ''light'' AFTER microsoft_oauth_tenant',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_color_theme_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_brand_color_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'brand_color'
+);
+SET @sc_brand_color_sql = IF(
+  @sc_brand_color_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN brand_color VARCHAR(7) NULL AFTER color_theme',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_brand_color_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_smtp_enabled_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'smtp_enabled'
+);
+SET @sc_smtp_enabled_sql = IF(
+  @sc_smtp_enabled_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN smtp_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER brand_color',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_smtp_enabled_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_smtp_host_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'smtp_host'
+);
+SET @sc_smtp_host_sql = IF(
+  @sc_smtp_host_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN smtp_host VARCHAR(255) NULL AFTER smtp_enabled',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_smtp_host_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_smtp_port_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'smtp_port'
+);
+SET @sc_smtp_port_sql = IF(
+  @sc_smtp_port_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN smtp_port INT NULL AFTER smtp_host',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_smtp_port_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_smtp_username_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'smtp_username'
+);
+SET @sc_smtp_username_sql = IF(
+  @sc_smtp_username_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN smtp_username VARCHAR(255) NULL AFTER smtp_port',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_smtp_username_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_smtp_password_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'smtp_password'
+);
+SET @sc_smtp_password_sql = IF(
+  @sc_smtp_password_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN smtp_password VARCHAR(255) NULL AFTER smtp_username',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_smtp_password_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_smtp_encryption_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'smtp_encryption'
+);
+SET @sc_smtp_encryption_sql = IF(
+  @sc_smtp_encryption_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN smtp_encryption VARCHAR(10) NOT NULL DEFAULT ''none'' AFTER smtp_password',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_smtp_encryption_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_smtp_from_email_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'smtp_from_email'
+);
+SET @sc_smtp_from_email_sql = IF(
+  @sc_smtp_from_email_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN smtp_from_email VARCHAR(255) NULL AFTER smtp_encryption',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_smtp_from_email_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_smtp_from_name_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'smtp_from_name'
+);
+SET @sc_smtp_from_name_sql = IF(
+  @sc_smtp_from_name_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN smtp_from_name VARCHAR(255) NULL AFTER smtp_from_email',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_smtp_from_name_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_smtp_timeout_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'smtp_timeout'
+);
+SET @sc_smtp_timeout_sql = IF(
+  @sc_smtp_timeout_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN smtp_timeout INT NULL AFTER smtp_from_name',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_smtp_timeout_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_enabled_locales_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'enabled_locales'
+);
+SET @sc_enabled_locales_sql = IF(
+  @sc_enabled_locales_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN enabled_locales TEXT NULL AFTER smtp_timeout',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_enabled_locales_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_upgrade_repo_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'upgrade_repo'
+);
+SET @sc_upgrade_repo_sql = IF(
+  @sc_upgrade_repo_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN upgrade_repo VARCHAR(255) NULL AFTER enabled_locales',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_upgrade_repo_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sc_email_templates_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'site_config'
+    AND COLUMN_NAME = 'email_templates'
+);
+SET @sc_email_templates_sql = IF(
+  @sc_email_templates_exists = 0,
+  'ALTER TABLE site_config ADD COLUMN email_templates LONGTEXT NULL AFTER upgrade_repo',
+  'DO 1'
+);
+PREPARE stmt FROM @sc_email_templates_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 INSERT IGNORE INTO site_config (
   id,
   site_name,
@@ -264,22 +759,247 @@ WHERE id = 1
   AND logo_path NOT LIKE 'http://%'
   AND logo_path NOT LIKE 'https://%';
 
-ALTER TABLE users
-  ADD COLUMN gender ENUM('female','male','other','prefer_not_say') NULL AFTER email,
-  ADD COLUMN date_of_birth DATE NULL AFTER gender,
-  ADD COLUMN phone VARCHAR(50) NULL AFTER date_of_birth,
-  ADD COLUMN department VARCHAR(150) NULL AFTER phone,
-  ADD COLUMN cadre VARCHAR(150) NULL AFTER department,
-  ADD COLUMN work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL DEFAULT 'general_service' AFTER cadre,
-  ADD COLUMN profile_completed TINYINT(1) NOT NULL DEFAULT 0 AFTER work_function,
-  ADD COLUMN language VARCHAR(5) NOT NULL DEFAULT 'en' AFTER profile_completed,
-  ADD COLUMN account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active' AFTER language,
-  ADD COLUMN must_reset_password TINYINT(1) NOT NULL DEFAULT 0 AFTER account_status,
-  ADD COLUMN next_assessment_date DATE NULL AFTER account_status,
-  ADD COLUMN first_login_at DATETIME NULL AFTER next_assessment_date,
-  ADD COLUMN approved_by INT NULL AFTER first_login_at,
-  ADD COLUMN approved_at DATETIME NULL AFTER approved_by,
-  ADD COLUMN sso_provider VARCHAR(50) NULL AFTER approved_at;
+-- Ensure optional users columns exist without relying on unconditional ALTER TABLE statements.
+SET @users_gender_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'gender'
+);
+SET @users_gender_sql = IF(
+  @users_gender_exists = 0,
+  'ALTER TABLE users ADD COLUMN gender ENUM(''female'',''male'',''other'',''prefer_not_say'') NULL AFTER email',
+  'DO 1'
+);
+PREPARE stmt FROM @users_gender_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_date_of_birth_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'date_of_birth'
+);
+SET @users_date_of_birth_sql = IF(
+  @users_date_of_birth_exists = 0,
+  'ALTER TABLE users ADD COLUMN date_of_birth DATE NULL AFTER gender',
+  'DO 1'
+);
+PREPARE stmt FROM @users_date_of_birth_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_phone_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'phone'
+);
+SET @users_phone_sql = IF(
+  @users_phone_exists = 0,
+  'ALTER TABLE users ADD COLUMN phone VARCHAR(50) NULL AFTER date_of_birth',
+  'DO 1'
+);
+PREPARE stmt FROM @users_phone_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_department_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'department'
+);
+SET @users_department_sql = IF(
+  @users_department_exists = 0,
+  'ALTER TABLE users ADD COLUMN department VARCHAR(150) NULL AFTER phone',
+  'DO 1'
+);
+PREPARE stmt FROM @users_department_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_cadre_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'cadre'
+);
+SET @users_cadre_sql = IF(
+  @users_cadre_exists = 0,
+  'ALTER TABLE users ADD COLUMN cadre VARCHAR(150) NULL AFTER department',
+  'DO 1'
+);
+PREPARE stmt FROM @users_cadre_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_work_function_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'work_function'
+);
+SET @users_work_function_sql = IF(
+  @users_work_function_exists = 0,
+  'ALTER TABLE users ADD COLUMN work_function ENUM(''finance'',''general_service'',''hrm'',''ict'',''leadership_tn'',''legal_service'',''pme'',''quantification'',''records_documentation'',''security_driver'',''security'',''tmd'',''wim'',''cmd'',''communication'',''dfm'',''driver'',''ethics'') NOT NULL DEFAULT ''general_service'' AFTER cadre',
+  'DO 1'
+);
+PREPARE stmt FROM @users_work_function_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_profile_completed_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'profile_completed'
+);
+SET @users_profile_completed_sql = IF(
+  @users_profile_completed_exists = 0,
+  'ALTER TABLE users ADD COLUMN profile_completed TINYINT(1) NOT NULL DEFAULT 0 AFTER work_function',
+  'DO 1'
+);
+PREPARE stmt FROM @users_profile_completed_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_language_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'language'
+);
+SET @users_language_sql = IF(
+  @users_language_exists = 0,
+  'ALTER TABLE users ADD COLUMN language VARCHAR(5) NOT NULL DEFAULT ''en'' AFTER profile_completed',
+  'DO 1'
+);
+PREPARE stmt FROM @users_language_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_account_status_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'account_status'
+);
+SET @users_account_status_sql = IF(
+  @users_account_status_exists = 0,
+  'ALTER TABLE users ADD COLUMN account_status ENUM(''pending'',''active'',''disabled'') NOT NULL DEFAULT ''active'' AFTER language',
+  'DO 1'
+);
+PREPARE stmt FROM @users_account_status_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_must_reset_password_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'must_reset_password'
+);
+SET @users_must_reset_password_sql = IF(
+  @users_must_reset_password_exists = 0,
+  'ALTER TABLE users ADD COLUMN must_reset_password TINYINT(1) NOT NULL DEFAULT 0 AFTER account_status',
+  'DO 1'
+);
+PREPARE stmt FROM @users_must_reset_password_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_next_assessment_date_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'next_assessment_date'
+);
+SET @users_next_assessment_date_sql = IF(
+  @users_next_assessment_date_exists = 0,
+  'ALTER TABLE users ADD COLUMN next_assessment_date DATE NULL AFTER must_reset_password',
+  'DO 1'
+);
+PREPARE stmt FROM @users_next_assessment_date_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_first_login_at_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'first_login_at'
+);
+SET @users_first_login_at_sql = IF(
+  @users_first_login_at_exists = 0,
+  'ALTER TABLE users ADD COLUMN first_login_at DATETIME NULL AFTER next_assessment_date',
+  'DO 1'
+);
+PREPARE stmt FROM @users_first_login_at_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_approved_by_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'approved_by'
+);
+SET @users_approved_by_sql = IF(
+  @users_approved_by_exists = 0,
+  'ALTER TABLE users ADD COLUMN approved_by INT NULL AFTER first_login_at',
+  'DO 1'
+);
+PREPARE stmt FROM @users_approved_by_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_approved_at_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'approved_at'
+);
+SET @users_approved_at_sql = IF(
+  @users_approved_at_exists = 0,
+  'ALTER TABLE users ADD COLUMN approved_at DATETIME NULL AFTER approved_by',
+  'DO 1'
+);
+PREPARE stmt FROM @users_approved_at_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @users_sso_provider_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'sso_provider'
+);
+SET @users_sso_provider_sql = IF(
+  @users_sso_provider_exists = 0,
+  'ALTER TABLE users ADD COLUMN sso_provider VARCHAR(50) NULL AFTER approved_at',
+  'DO 1'
+);
+PREPARE stmt FROM @users_sso_provider_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 
 CREATE TABLE IF NOT EXISTS performance_period (
   id INT AUTO_INCREMENT PRIMARY KEY,
