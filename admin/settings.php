@@ -24,47 +24,19 @@ try {
     $enabledLocales = site_enabled_locales($cfg);
     $emailTemplates = normalize_email_templates($cfg['email_templates'] ?? []);
 
-    $emailTemplateDefinitions = [
-        'pending_user' => [
-            'title' => t($t, 'email_template_pending_user_title', 'Pending account notification (to supervisors)'),
-            'description' => t($t, 'email_template_pending_user_desc', 'Sent to supervisors and admins when a new single sign-on account requires approval.'),
-            'placeholders' => [
-                '{{user_display}}' => t($t, 'email_template_pending_user_placeholder_display', 'Display name of the pending user'),
-                '{{user_email}}' => t($t, 'email_template_pending_user_placeholder_email', 'Email address of the pending user'),
-                '{{submitted_at}}' => t($t, 'email_template_pending_user_placeholder_submitted', 'Timestamp when the request was submitted'),
-                '{{pending_accounts_url}}' => t($t, 'email_template_pending_user_placeholder_url', 'Link to the pending approvals page'),
-            ],
-        ],
-        'account_approved' => [
-            'title' => t($t, 'email_template_account_approved_title', 'Account approval notice (to staff)'),
-            'description' => t($t, 'email_template_account_approved_desc', 'Sent to a staff member after their access request is approved.'),
-            'placeholders' => [
-                '{{user_name}}' => t($t, 'email_template_account_approved_placeholder_name', 'Name of the recipient'),
-                '{{login_url}}' => t($t, 'email_template_account_approved_placeholder_login', 'Sign-in URL for the portal'),
-                '{{next_assessment_block}}' => t($t, 'email_template_account_approved_placeholder_next', 'HTML paragraph shown when a next assessment date is available'),
-            ],
-        ],
-        'next_assessment' => [
-            'title' => t($t, 'email_template_next_assessment_title', 'Upcoming assessment reminder (to staff)'),
-            'description' => t($t, 'email_template_next_assessment_desc', 'Sent to staff when a supervisor schedules their next assessment.'),
-            'placeholders' => [
-                '{{user_name}}' => t($t, 'email_template_next_assessment_placeholder_name', 'Name of the recipient'),
-                '{{next_assessment_date}}' => t($t, 'email_template_next_assessment_placeholder_date', 'Scheduled assessment date'),
-                '{{portal_url}}' => t($t, 'email_template_next_assessment_placeholder_portal', 'Link to the HR Assessment portal'),
-            ],
-        ],
-        'assignment_update' => [
-            'title' => t($t, 'email_template_assignment_update_title', 'Questionnaire assignment update'),
-            'description' => t($t, 'email_template_assignment_update_desc', 'Sent to staff (and optionally the assigning supervisor) when questionnaire assignments change.'),
-            'placeholders' => [
-                '{{user_name}}' => t($t, 'email_template_assignment_update_placeholder_name', 'Name of the recipient'),
-                '{{assignment_summary}}' => t($t, 'email_template_assignment_update_placeholder_summary', 'HTML list describing assigned questionnaires'),
-                '{{next_assessment_block}}' => t($t, 'email_template_assignment_update_placeholder_next', 'HTML paragraph shown when a next assessment date is set'),
-                '{{assigner_block}}' => t($t, 'email_template_assignment_update_placeholder_assigner', 'HTML paragraph that names the supervisor who made the change'),
-                '{{dashboard_url}}' => t($t, 'email_template_assignment_update_placeholder_dashboard', 'Link to the dashboard for reviewing questionnaires'),
-            ],
-        ],
-    ];
+    $emailTemplateDefinitions = [];
+    foreach (email_template_registry() as $key => $definition) {
+        $placeholders = [];
+        foreach ($definition['placeholders'] as $token => $placeholder) {
+            $placeholders['{{' . $token . '}}'] = t($t, $placeholder['key'], $placeholder['fallback']);
+        }
+
+        $emailTemplateDefinitions[$key] = [
+            'title' => t($t, $definition['title']['key'], $definition['title']['fallback']),
+            'description' => t($t, $definition['description']['key'], $definition['description']['fallback']),
+            'placeholders' => $placeholders,
+        ];
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_check();

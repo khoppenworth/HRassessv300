@@ -67,11 +67,32 @@ function test_encode_email_templates_returns_json(): void
     assert_same('<p>Hello</p>', $decoded['next_assessment']['html'], 'Encoded JSON should include normalized HTML.');
 }
 
+function test_email_template_registry_is_consistent(): void
+{
+    $registry = email_template_registry();
+    $defaults = default_email_templates();
+
+    assert_same(array_keys($defaults), array_keys($registry), 'Registry should define the same templates as the defaults.');
+
+    foreach ($defaults as $key => $template) {
+        assert_same($template, $registry[$key]['defaults'], 'Registry defaults should match default_email_templates.');
+        foreach ($registry[$key]['placeholders'] as $placeholderToken => $metadata) {
+            if (!isset($metadata['key'], $metadata['fallback'])) {
+                throw new RuntimeException('Registry placeholders require translation metadata.');
+            }
+            if (!is_string($metadata['key']) || !is_string($metadata['fallback'])) {
+                throw new RuntimeException('Registry placeholder metadata must be strings.');
+            }
+        }
+    }
+}
+
 function run_email_template_tests(): void
 {
     test_normalize_email_templates_from_json();
     test_normalize_email_templates_from_array();
     test_encode_email_templates_returns_json();
+    test_email_template_registry_is_consistent();
 }
 
 run_email_template_tests();
