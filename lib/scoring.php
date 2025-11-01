@@ -47,6 +47,7 @@ function questionnaire_item_weight_key(array $item): string
 function questionnaire_even_likert_weights(array $items, float $totalWeight = 100.0): array
 {
     $keys = [];
+    $reservedWeight = 0.0;
     foreach ($items as $item) {
         $type = strtolower((string)($item['type'] ?? ''));
         if ($type !== 'likert') {
@@ -54,6 +55,7 @@ function questionnaire_even_likert_weights(array $items, float $totalWeight = 10
         }
 
         $hasExplicitWeight = false;
+        $explicitWeight = 0.0;
         foreach (['weight_percent', 'weight'] as $field) {
             if (!array_key_exists($field, $item)) {
                 continue;
@@ -65,10 +67,12 @@ function questionnaire_even_likert_weights(array $items, float $totalWeight = 10
             $candidate = (float)$raw;
             if ($candidate > 0.0) {
                 $hasExplicitWeight = true;
+                $explicitWeight = $candidate;
                 break;
             }
         }
         if ($hasExplicitWeight) {
+            $reservedWeight += $explicitWeight;
             continue;
         }
 
@@ -85,7 +89,11 @@ function questionnaire_even_likert_weights(array $items, float $totalWeight = 10
     if ($count <= 0) {
         return [];
     }
-    $evenWeight = $totalWeight / $count;
+    $availableWeight = $totalWeight - $reservedWeight;
+    if ($availableWeight < 0.0) {
+        $availableWeight = 0.0;
+    }
+    $evenWeight = $availableWeight / $count;
     $weights = [];
     foreach (array_keys($keys) as $key) {
         $weights[$key] = $evenWeight;
