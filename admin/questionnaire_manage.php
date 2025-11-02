@@ -15,6 +15,47 @@ $qbStrings = [
         'qb_weight_hint',
         'Only weighted questions contribute to scoring and analytics. Items left at 0 are excluded from scores and charts.'
     ),
+    'scoringSummaryTitle' => t($t, 'qb_scoring_summary_heading', 'Scoring summary'),
+    'scoringSummaryManualLabel' => t($t, 'qb_scoring_manual_total', 'Manual weight total'),
+    'scoringSummaryEffectiveLabel' => t($t, 'qb_scoring_effective_total', 'Effective score total'),
+    'scoringSummaryCountLabel' => t($t, 'qb_scoring_count_label', 'Scorable items'),
+    'scoringSummaryWeightedLabel' => t($t, 'qb_scoring_weighted_label', 'Items counted'),
+    'scoringSummaryActionsLabel' => t($t, 'qb_scoring_actions_label', 'Scoring tools'),
+    'normalizeWeights' => t($t, 'qb_scoring_normalize', 'Normalize to 100%'),
+    'evenWeights' => t($t, 'qb_scoring_even', 'Split evenly'),
+    'clearWeights' => t($t, 'qb_scoring_clear', 'Clear weights'),
+    'likertAutoNote' => t(
+        $t,
+        'qb_scoring_likert_note',
+        'Likert questions automatically share 100% of the score in analytics.'
+    ),
+    'nonLikertIgnoredNote' => t(
+        $t,
+        'qb_scoring_nonlikert_note',
+        'While a questionnaire contains Likert questions, other question types are excluded from scoring.'
+    ),
+    'missingWeightsWarning' => t(
+        $t,
+        'qb_scoring_missing_warning',
+        'Dashboards will show “Not scored” unless at least one question has weight.'
+    ),
+    'manualTotalOffWarning' => t(
+        $t,
+        'qb_scoring_manual_total_warning',
+        'Manual weights currently add up to %s%%.'
+    ),
+    'manualTotalOk' => t($t, 'qb_scoring_manual_total_ok', 'Manual weights currently add up to %s%%.'),
+    'noScorableNote' => t(
+        $t,
+        'qb_scoring_no_scorable',
+        'Add Likert or weighted questions to enable scoring.'
+    ),
+    'normalizeSuccess' => t($t, 'qb_scoring_normalize_success', 'Weights normalized to total 100%.'),
+    'normalizeNoop' => t($t, 'qb_scoring_normalize_noop', 'Add weights to questions before normalizing.'),
+    'evenSuccess' => t($t, 'qb_scoring_even_success', 'Split weights evenly across scorable questions.'),
+    'evenNoop' => t($t, 'qb_scoring_even_noop', 'Add scorable questions before splitting weights.'),
+    'clearSuccess' => t($t, 'qb_scoring_clear_success', 'Cleared all question weights.'),
+    'clearNoop' => t($t, 'qb_scoring_clear_noop', 'No weights to clear.'),
 ];
 
 const LIKERT_DEFAULT_OPTIONS = [
