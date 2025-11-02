@@ -87,6 +87,7 @@
   "assignment_defaults_heading": "Work-function defaults",
   "assignment_defaults_hint": "These questionnaires are automatically available because of the staff member's work function. They cannot be removed here.",
   "assignment_defaults_none": "This work function does not have default questionnaires yet.",
+  "assignment_staff_only": "Questionnaires are only assigned to staff accounts. These selections will take effect once the user role is set to staff.",
   "assignment_defaults_label": "Work function: %s",
   "assignment_default_badge": "Default",
   "available_version": "Available version",
