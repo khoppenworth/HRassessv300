@@ -36,7 +36,30 @@ const Builder = (() => {
   const STRINGS = window.QB_STRINGS || {
     scoreWeightLabel: 'Score weight (%)',
     scoreWeightHint: 'Only weighted questions contribute to scoring and analytics.',
+    scoringSummaryTitle: 'Scoring summary',
+    scoringSummaryManualLabel: 'Manual weight total',
+    scoringSummaryEffectiveLabel: 'Effective score total',
+    scoringSummaryCountLabel: 'Scorable items',
+    scoringSummaryWeightedLabel: 'Items counted',
+    scoringSummaryActionsLabel: 'Scoring tools',
+    normalizeWeights: 'Normalize to 100%',
+    evenWeights: 'Split evenly',
+    clearWeights: 'Clear weights',
+    likertAutoNote: 'Likert questions automatically share 100% of the score in analytics.',
+    nonLikertIgnoredNote: 'While a questionnaire contains Likert questions, other question types are excluded from scoring.',
+    missingWeightsWarning: 'Dashboards will show “Not scored” unless at least one question has weight.',
+    manualTotalOffWarning: 'Manual weights currently add up to %s%.',
+    manualTotalOk: 'Manual weights currently add up to %s%.',
+    noScorableNote: 'Add Likert or weighted questions to enable scoring.',
+    normalizeSuccess: 'Weights normalized to total 100%.',
+    normalizeNoop: 'Add weights to questions before normalizing.',
+    evenSuccess: 'Split weights evenly across scorable questions.',
+    evenNoop: 'Add scorable questions before splitting weights.',
+    clearSuccess: 'Cleared all question weights.',
+    clearNoop: 'No weights to clear.',
   };
+
+  const NON_SCORABLE_TYPES = ['display', 'group', 'section'];
 
   const baseMeta = document.querySelector('meta[name="app-base-url"]');
   let appBase = window.APP_BASE_URL || (baseMeta ? baseMeta.content : '/');
@@ -149,6 +172,510 @@ const Builder = (() => {
     });
   }
 
+  function isScorableType(type) {
+    if (!type) return true;
+    return !NON_SCORABLE_TYPES.includes(String(type).toLowerCase());
+  }
+
+  function isScorableItem(item) {
+    if (!item) return false;
+    return isScorableType(item.type);
+  }
+
+  function weightKeyForItem(item) {
+    if (!item) return '';
+    const linkId = typeof item.linkId === 'string' ? item.linkId.trim() : '';
+    if (linkId) {
+      return linkId;
+    }
+    if (item.id) {
+      return `__id:${item.id}`;
+    }
+    if (item.questionnaire_item_id) {
+      return `__qid:${item.questionnaire_item_id}`;
+    }
+    if (item.clientId) {
+      return `__client:${item.clientId}`;
+    }
+    return '';
+  }
+
+  function evenLikertWeights(items, totalWeight = 100) {
+    const keys = new Set();
+    items.forEach((item) => {
+      if (!item) return;
+      const type = String(item.type || '').toLowerCase();
+      if (type !== 'likert') return;
+      const key = weightKeyForItem(item);
+      if (key) {
+        keys.add(key);
+      }
+    });
+    if (!keys.size) {
+      return {};
+    }
+    const count = keys.size;
+    if (!count) {
+      return {};
+    }
+    const evenWeight = totalWeight / count;
+    const weights = {};
+    keys.forEach((key) => {
+      weights[key] = evenWeight;
+    });
+    return weights;
+  }
+
+  function resolveEffectiveWeight(item, likertWeights, isScorable = true) {
+    if (!isScorable || !item) {
+      return 0;
+    }
+    const type = String(item.type || '').toLowerCase();
+    const key = weightKeyForItem(item);
+    if (type === 'likert' && key && Object.prototype.hasOwnProperty.call(likertWeights, key)) {
+      const mapped = Number(likertWeights[key]);
+      return Number.isFinite(mapped) ? mapped : 0;
+    }
+    if (likertWeights && Object.keys(likertWeights).length && type !== 'likert') {
+      return 0;
+    }
+    const fields = ['weight_percent', 'weight'];
+    for (let i = 0; i < fields.length; i += 1) {
+      const field = fields[i];
+      if (Object.prototype.hasOwnProperty.call(item, field)) {
+        const raw = Number(item[field]);
+        if (Number.isFinite(raw) && raw > 0) {
+          return raw;
+        }
+      }
+    }
+    return 1;
+  }
+
+  function collectQuestionnaireItems(questionnaire) {
+    const entries = [];
+    if (!questionnaire) {
+      return entries;
+    }
+    const rootItems = Array.isArray(questionnaire.items) ? questionnaire.items : [];
+    rootItems.forEach((item, index) => {
+      entries.push({ item, sectionIndex: 'root', itemIndex: index });
+    });
+    const sections = Array.isArray(questionnaire.sections) ? questionnaire.sections : [];
+    sections.forEach((section, sectionIndex) => {
+      const list = Array.isArray(section.items) ? section.items : [];
+      list.forEach((item, itemIndex) => {
+        entries.push({ item, sectionIndex, itemIndex, section });
+      });
+    });
+    return entries;
+  }
+
+  function formatPercent(value, includeSymbol = true) {
+    const numeric = Number(value) || 0;
+    const delta = Math.abs(Math.round(numeric) - numeric);
+    const decimals = delta < 0.01 ? 0 : 1;
+    const formatted = numeric.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    return includeSymbol ? `${formatted}%` : formatted;
+  }
+
+  function computeQuestionnaireScoring(questionnaire, qIndex = null) {
+    const entries = collectQuestionnaireItems(questionnaire);
+    const scorable = entries.map((entry) => entry.item).filter((item) => isScorableItem(item));
+    const likertWeights = evenLikertWeights(scorable);
+    let totalManual = 0;
+    let totalEffective = 0;
+    let scorableCount = 0;
+    let weightedCount = 0;
+    let manualWeightedCount = 0;
+    let likertCount = 0;
+    let nonLikertCount = 0;
+    let manualNonLikertTotal = 0;
+    let hasAnyWeight = false;
+    const effectiveByKey = {};
+
+    scorable.forEach((item) => {
+      scorableCount += 1;
+      const key = weightKeyForItem(item);
+      const type = String(item.type || '').toLowerCase();
+      if (type === 'likert') {
+        likertCount += 1;
+      } else {
+        nonLikertCount += 1;
+      }
+      const manualWeight = Number(item.weight_percent) || 0;
+      if (manualWeight) {
+        hasAnyWeight = true;
+      }
+      if (type !== 'likert') {
+        manualNonLikertTotal += manualWeight > 0 ? manualWeight : 0;
+      }
+      if (manualWeight > 0) {
+        manualWeightedCount += 1;
+      }
+      const effective = resolveEffectiveWeight(item, likertWeights, true);
+      if (effective > 0) {
+        weightedCount += 1;
+      }
+      totalManual += manualWeight > 0 ? manualWeight : 0;
+      totalEffective += effective > 0 ? effective : 0;
+      if (key) {
+        effectiveByKey[key] = {
+          effective,
+          manual: manualWeight,
+          type,
+        };
+      }
+    });
+
+    const messages = [];
+    if (!scorableCount) {
+      messages.push({ type: 'warning', text: STRINGS.noScorableNote });
+    }
+    if (likertCount) {
+      messages.push({ type: 'info', text: STRINGS.likertAutoNote });
+    }
+    if (likertCount && nonLikertCount) {
+      messages.push({ type: 'warning', text: STRINGS.nonLikertIgnoredNote });
+    }
+    if (scorableCount && weightedCount === 0) {
+      messages.push({ type: 'warning', text: STRINGS.missingWeightsWarning });
+    }
+    if (!likertCount && nonLikertCount && manualNonLikertTotal > 0) {
+      const manualValue = formatPercent(totalManual, false);
+      const delta = Math.abs(totalManual - 100);
+      const template = delta <= 1 ? STRINGS.manualTotalOk : STRINGS.manualTotalOffWarning;
+      if (template && template.includes('%s')) {
+        const rendered = template.replace('%s', manualValue).replace(/%%/g, '%');
+        messages.push({
+          type: delta <= 1 ? 'info' : 'warning',
+          text: rendered,
+        });
+      }
+    }
+
+    return {
+      qIndex,
+      scorableCount,
+      weightedCount,
+      manualWeightedCount,
+      totalManual,
+      totalEffective,
+      likertCount,
+      nonLikertCount,
+      manualNonLikertTotal,
+      hasLikert: likertCount > 0,
+      hasAnyWeight,
+      canNormalize: nonLikertCount > 0 && !likertCount && manualNonLikertTotal > 0,
+      canDistribute: nonLikertCount > 0 && !likertCount,
+      canClear: hasAnyWeight,
+      messages,
+      effectiveByKey,
+    };
+  }
+
+  function updateScoringSummaryElement(container, summary) {
+    if (!container || !summary) {
+      return;
+    }
+    if (summary.qIndex !== null && typeof summary.qIndex !== 'undefined') {
+      container.dataset.qIndex = String(summary.qIndex);
+    }
+    const manualEl = container.querySelector('[data-metric="manual-total"]');
+    if (manualEl) {
+      manualEl.textContent = formatPercent(summary.totalManual);
+    }
+    const effectiveEl = container.querySelector('[data-metric="effective-total"]');
+    if (effectiveEl) {
+      effectiveEl.textContent = formatPercent(summary.totalEffective);
+    }
+    const scorableEl = container.querySelector('[data-metric="scorable-count"]');
+    if (scorableEl) {
+      scorableEl.textContent = String(summary.scorableCount);
+    }
+    const weightedEl = container.querySelector('[data-metric="weighted-count"]');
+    if (weightedEl) {
+      if (summary.scorableCount) {
+        weightedEl.textContent = `${summary.weightedCount} / ${summary.scorableCount}`;
+      } else {
+        weightedEl.textContent = String(summary.weightedCount);
+      }
+    }
+
+    const messagesEl = container.querySelector('[data-role="scoring-messages"]');
+    if (messagesEl) {
+      messagesEl.innerHTML = '';
+      (summary.messages || []).forEach((message) => {
+        if (!message || !message.text) {
+          return;
+        }
+        const item = document.createElement('li');
+        item.className = 'qb-scoring-message';
+        item.dataset.type = message.type || 'info';
+        item.textContent = message.text;
+        messagesEl.appendChild(item);
+      });
+      messagesEl.hidden = !(summary.messages && summary.messages.length);
+    }
+
+    const actionsButtons = container.querySelector('[data-role="scoring-actions-buttons"]');
+    const actionsWrapper = container.querySelector('.qb-scoring-actions');
+    if (actionsButtons) {
+      actionsButtons.innerHTML = '';
+      actionsButtons.dataset.qIndex = summary.qIndex !== null && summary.qIndex !== undefined
+        ? String(summary.qIndex)
+        : '';
+      const createButton = (label, action) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'md-button md-outline qb-action';
+        btn.textContent = label;
+        btn.dataset.action = action;
+        if (summary.qIndex !== null && summary.qIndex !== undefined) {
+          btn.dataset.qIndex = String(summary.qIndex);
+        }
+        return btn;
+      };
+      if (summary.canNormalize) {
+        actionsButtons.appendChild(createButton(STRINGS.normalizeWeights, 'normalize-weights'));
+      }
+      if (summary.canDistribute) {
+        actionsButtons.appendChild(createButton(STRINGS.evenWeights, 'even-weights'));
+      }
+      if (summary.canClear) {
+        actionsButtons.appendChild(createButton(STRINGS.clearWeights, 'clear-weights'));
+      }
+    }
+    if (actionsWrapper) {
+      const hasButtons = actionsButtons && actionsButtons.childElementCount > 0;
+      actionsWrapper.hidden = !hasButtons;
+    }
+  }
+
+  function buildScoringSummary(summary) {
+    const container = document.createElement('div');
+    container.className = 'qb-scoring-summary';
+    container.dataset.role = 'scoring-summary';
+    if (summary.qIndex !== null && summary.qIndex !== undefined) {
+      container.dataset.qIndex = String(summary.qIndex);
+    }
+
+    const heading = document.createElement('div');
+    heading.className = 'qb-scoring-summary-heading qb-inline-heading';
+    heading.textContent = STRINGS.scoringSummaryTitle;
+    container.appendChild(heading);
+
+    const metrics = document.createElement('dl');
+    metrics.className = 'qb-scoring-metrics';
+    const metricSpecs = [
+      { label: STRINGS.scoringSummaryManualLabel, key: 'manual-total' },
+      { label: STRINGS.scoringSummaryEffectiveLabel, key: 'effective-total' },
+      { label: STRINGS.scoringSummaryCountLabel, key: 'scorable-count' },
+      { label: STRINGS.scoringSummaryWeightedLabel, key: 'weighted-count' },
+    ];
+    metricSpecs.forEach((spec) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'qb-scoring-metric';
+      const label = document.createElement('dt');
+      label.textContent = spec.label;
+      const value = document.createElement('dd');
+      value.dataset.metric = spec.key;
+      value.textContent = '0';
+      wrapper.appendChild(label);
+      wrapper.appendChild(value);
+      metrics.appendChild(wrapper);
+    });
+    container.appendChild(metrics);
+
+    const messageList = document.createElement('ul');
+    messageList.className = 'qb-scoring-messages';
+    messageList.dataset.role = 'scoring-messages';
+    container.appendChild(messageList);
+
+    const actionsWrapper = document.createElement('div');
+    actionsWrapper.className = 'qb-scoring-actions';
+    const actionsLabel = document.createElement('span');
+    actionsLabel.className = 'qb-scoring-actions-label';
+    actionsLabel.textContent = STRINGS.scoringSummaryActionsLabel;
+    actionsWrapper.appendChild(actionsLabel);
+    const actionsButtons = document.createElement('div');
+    actionsButtons.className = 'qb-scoring-actions-buttons';
+    actionsButtons.dataset.role = 'scoring-actions-buttons';
+    actionsWrapper.appendChild(actionsButtons);
+    container.appendChild(actionsWrapper);
+
+    updateScoringSummaryElement(container, summary);
+    return container;
+  }
+
+  function refreshScoringSummary(qIndex) {
+    if (Number.isNaN(qIndex) || qIndex === null || qIndex < 0) {
+      return;
+    }
+    const questionnaire = state.questionnaires[qIndex];
+    if (!questionnaire) {
+      return;
+    }
+    const summary = computeQuestionnaireScoring(questionnaire, qIndex);
+    const card = document.querySelector(`.qb-questionnaire[data-q-index="${qIndex}"]`);
+    if (!card) {
+      return;
+    }
+    const summaryEl = card.querySelector('.qb-scoring-summary');
+    if (!summaryEl) {
+      return;
+    }
+    updateScoringSummaryElement(summaryEl, summary);
+  }
+
+  function forEachQuestionnaireItem(questionnaire, callback) {
+    if (!questionnaire || typeof callback !== 'function') {
+      return;
+    }
+    const rootItems = Array.isArray(questionnaire.items) ? questionnaire.items : [];
+    rootItems.forEach((item, itemIndex) => {
+      callback(item, { sectionIndex: 'root', itemIndex });
+    });
+    const sections = Array.isArray(questionnaire.sections) ? questionnaire.sections : [];
+    sections.forEach((section, sectionIndex) => {
+      const list = Array.isArray(section.items) ? section.items : [];
+      list.forEach((item, itemIndex) => {
+        callback(item, { section, sectionIndex, itemIndex });
+      });
+    });
+  }
+
+  function normalizeManualWeights(questionnaire) {
+    const targets = [];
+    forEachQuestionnaireItem(questionnaire, (item) => {
+      if (!isScorableItem(item)) return;
+      if (String(item.type || '').toLowerCase() === 'likert') return;
+      const weight = Number(item.weight_percent) || 0;
+      if (weight > 0) {
+        targets.push({ item, weight });
+      }
+    });
+    if (!targets.length) {
+      return { changed: false };
+    }
+    const total = targets.reduce((sum, entry) => sum + entry.weight, 0);
+    if (total <= 0) {
+      return { changed: false };
+    }
+    const normalized = targets.map((entry) => {
+      const raw = (entry.weight / total) * 100;
+      const base = Math.floor(raw);
+      const fraction = raw - base;
+      return { ...entry, raw, base, fraction, value: base };
+    });
+    let assigned = normalized.reduce((sum, entry) => sum + entry.base, 0);
+    let remainder = Math.round(100 - assigned);
+    if (remainder !== 0 && normalized.length) {
+      const adjustList = normalized.slice().sort((a, b) => (remainder > 0 ? b.fraction - a.fraction : a.fraction - b.fraction));
+      const step = remainder > 0 ? 1 : -1;
+      const limit = Math.abs(remainder);
+      for (let i = 0; i < limit; i += 1) {
+        const target = adjustList[i % adjustList.length];
+        target.value += step;
+      }
+    }
+    let changed = false;
+    normalized.forEach((entry) => {
+      const newWeight = Math.max(0, Math.round(entry.value));
+      if ((Number(entry.item.weight_percent) || 0) !== newWeight) {
+        entry.item.weight_percent = newWeight;
+        changed = true;
+      }
+    });
+    return { changed };
+  }
+
+  function evenManualWeights(questionnaire) {
+    const targets = [];
+    forEachQuestionnaireItem(questionnaire, (item) => {
+      if (!isScorableItem(item)) return;
+      if (String(item.type || '').toLowerCase() === 'likert') return;
+      targets.push(item);
+    });
+    const count = targets.length;
+    if (!count) {
+      return { changed: false };
+    }
+    const base = Math.floor(100 / count);
+    let remainder = 100 - base * count;
+    let changed = false;
+    targets.forEach((item) => {
+      let nextValue = base;
+      if (remainder > 0) {
+        nextValue += 1;
+        remainder -= 1;
+      }
+      if ((Number(item.weight_percent) || 0) !== nextValue) {
+        item.weight_percent = nextValue;
+        changed = true;
+      }
+    });
+    return { changed };
+  }
+
+  function clearAllWeights(questionnaire) {
+    let changed = false;
+    forEachQuestionnaireItem(questionnaire, (item) => {
+      if (!item) return;
+      const current = Number(item.weight_percent) || 0;
+      if (current !== 0) {
+        item.weight_percent = 0;
+        changed = true;
+      }
+    });
+    return { changed };
+  }
+
+  function normalizeQuestionnaireWeights(qIndex) {
+    const questionnaire = state.questionnaires[qIndex];
+    if (!questionnaire) return;
+    const result = normalizeManualWeights(questionnaire);
+    if (!result.changed) {
+      setMessage(STRINGS.normalizeNoop, 'info');
+      refreshScoringSummary(qIndex);
+      return;
+    }
+    markDirty();
+    render();
+    setMessage(STRINGS.normalizeSuccess, 'success');
+  }
+
+  function evenQuestionnaireWeights(qIndex) {
+    const questionnaire = state.questionnaires[qIndex];
+    if (!questionnaire) return;
+    const result = evenManualWeights(questionnaire);
+    if (!result.changed) {
+      setMessage(STRINGS.evenNoop, 'info');
+      refreshScoringSummary(qIndex);
+      return;
+    }
+    markDirty();
+    render();
+    setMessage(STRINGS.evenSuccess, 'success');
+  }
+
+  function clearQuestionnaireWeights(qIndex) {
+    const questionnaire = state.questionnaires[qIndex];
+    if (!questionnaire) return;
+    const result = clearAllWeights(questionnaire);
+    if (!result.changed) {
+      setMessage(STRINGS.clearNoop, 'info');
+      refreshScoringSummary(qIndex);
+      return;
+    }
+    markDirty();
+    render();
+    setMessage(STRINGS.clearSuccess, 'success');
+  }
+
   function handleInputChange(event) {
     const target = event.target;
     const role = target.dataset.role;
@@ -204,6 +731,7 @@ const Builder = (() => {
         requiresRender = true;
       } else if (role === 'item-weight') {
         item.weight_percent = parseInt(target.value || '0', 10) || 0;
+        refreshScoringSummary(qIndex);
       } else if (role === 'item-allow-multiple') {
         item.allow_multiple = target.checked;
       } else if (role === 'item-required') {
@@ -254,6 +782,12 @@ const Builder = (() => {
       const itemIndex = parseInt(button.dataset.itemIndex ?? '-1', 10);
       const optionIndex = parseInt(button.dataset.optionIndex ?? '-1', 10);
       removeOption(qIndex, sectionIndex, itemIndex, optionIndex);
+    } else if (action === 'normalize-weights') {
+      normalizeQuestionnaireWeights(qIndex);
+    } else if (action === 'even-weights') {
+      evenQuestionnaireWeights(qIndex);
+    } else if (action === 'clear-weights') {
+      clearQuestionnaireWeights(qIndex);
     }
   }
 
@@ -890,6 +1424,9 @@ const Builder = (() => {
 
     header.appendChild(actions);
     card.appendChild(header);
+
+    const scoringSummary = buildScoringSummary(computeQuestionnaireScoring(questionnaire, qIndex));
+    card.appendChild(scoringSummary);
 
     const sectionsContainer = document.createElement('div');
     sectionsContainer.className = 'qb-section-list';
