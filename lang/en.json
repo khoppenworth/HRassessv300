@@ -380,6 +380,8 @@
   "review_queue": "Review Queue",
   "review_disabled_notice": "Supervisor reviews are currently disabled in Settings.",
   "review_disabled_settings_link": "Update review settings",
+  "auto_approve_notice": "Pending submissions were automatically approved.",
+  "auto_approve_failed": "Settings saved, but pending submissions could not be finalized automatically.",
   "no_pending_reviews": "There are no submissions awaiting review right now.",
   "role": "Role",
   "role_admin": "admin",

@@ -9,6 +9,7 @@ $t = load_lang($locale);
 $err = '';
 $flashNotice = '';
 $cfg = get_site_config($pdo);
+$reviewEnabled = (int)($cfg['review_enabled'] ?? 1) === 1;
 
 $user = current_user();
 try {
@@ -55,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $periodId = (int)($_POST['performance_period_id'] ?? 0);
     $action = $_POST['action'] ?? 'submit_final';
     $isDraftSave = ($action === 'save_draft');
+    $autoApprove = (!$reviewEnabled) && !$isDraftSave;
     if ($user['role'] === 'staff' && !in_array($qid, $availableQuestionnaireIds, true)) {
         $err = t($t, 'invalid_questionnaire_selection', 'The selected questionnaire is not available.');
     } elseif (!$periodId) {
@@ -69,15 +71,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
         try {
             $responseId = $existingResponse ? (int)$existingResponse['id'] : 0;
-            $statusValue = $isDraftSave ? 'draft' : 'submitted';
+            $statusValue = $isDraftSave ? 'draft' : ($autoApprove ? 'approved' : 'submitted');
             $scoreValue = $isDraftSave ? null : 0;
+            $autoApprovedAt = $autoApprove ? date('Y-m-d H:i:s') : null;
             if ($existingResponse) {
-                $updateStmt = $pdo->prepare('UPDATE questionnaire_response SET status=?, score=?, created_at=NOW(), reviewed_by=NULL, reviewed_at=NULL, review_comment=NULL WHERE id=?');
-                $updateStmt->execute([$statusValue, $scoreValue, $responseId]);
+                $updateStmt = $pdo->prepare('UPDATE questionnaire_response SET status=?, score=?, created_at=NOW(), reviewed_by=NULL, reviewed_at=?, review_comment=NULL WHERE id=?');
+                $updateStmt->execute([$statusValue, $scoreValue, $autoApprovedAt, $responseId]);
                 $pdo->prepare('DELETE FROM questionnaire_response_item WHERE response_id=?')->execute([$responseId]);
             } else {
-                $insertStmt = $pdo->prepare('INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, created_at) VALUES (?,?,?,?, NOW())');
-                $insertStmt->execute([$user['id'], $qid, $periodId, $statusValue]);
+                $insertStmt = $pdo->prepare('INSERT INTO questionnaire_response (user_id, questionnaire_id, performance_period_id, status, created_at, reviewed_at) VALUES (?,?,?,?, NOW(), ?)');
+                $insertStmt->execute([$user['id'], $qid, $periodId, $statusValue, $autoApprovedAt]);
                 $responseId = (int)$pdo->lastInsertId();
             }
 

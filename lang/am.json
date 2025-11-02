@@ -386,6 +386,8 @@
   "review_queue": "የግምገማ ሰሌዳ",
   "review_disabled_notice": "የተቆጣጣሪ ግምገማዎች በአሁኑ ጊዜ በቅንብሮች ውስጥ ተዘግተዋል።",
   "review_disabled_settings_link": "የግምገማ ቅንብሮችን ያዘምኑ",
+  "auto_approve_notice": "Pending submissions were automatically approved.",
+  "auto_approve_failed": "Settings saved, but pending submissions could not be finalized automatically.",
   "no_pending_reviews": "በአሁኑ ጊዜ ለግምገማ የሚጠብቁ ማቅረቦች የሉም።",
   "role": "ሚና",
   "role_admin": "አስተዳዳሪ",
