@@ -13,6 +13,7 @@ try {
     if (!is_array($cfg)) {
         $cfg = [];
     }
+    $previousReviewEnabled = (int)($cfg['review_enabled'] ?? 1) === 1;
 
     $themes = [
         'light' => t($t, 'theme_light', 'Light'),
@@ -148,11 +149,26 @@ try {
 
             $stm = $pdo->prepare('UPDATE site_config SET ' . implode(', ', $assignments) . ' WHERE id=1');
             $stm->execute($values);
-            $msg = t($t, 'settings_updated', 'Settings updated successfully.');
+            $autoApproveNotice = '';
+            if ($previousReviewEnabled && $review_enabled === 0) {
+                try {
+                    $autoApproved = $pdo->exec("UPDATE questionnaire_response SET status='approved', reviewed_by=NULL, reviewed_at=NOW(), review_comment=NULL WHERE status='submitted'");
+                    if (is_int($autoApproved) && $autoApproved > 0) {
+                        $autoApproveNotice = ' ' . t($t, 'auto_approve_notice', 'Pending submissions were automatically approved.');
+                    }
+                } catch (PDOException $e) {
+                    error_log('auto-approve pending submissions failed: ' . $e->getMessage());
+                    $errors[] = t($t, 'auto_approve_failed', 'Settings saved, but pending submissions could not be finalized automatically.');
+                }
+            }
+            if ($errors === []) {
+                $msg = t($t, 'settings_updated', 'Settings updated successfully.') . $autoApproveNotice;
+            }
             $cfg = get_site_config($pdo);
             $enabledLocales = site_enabled_locales($cfg);
             $emailTemplates = normalize_email_templates($cfg['email_templates'] ?? []);
-        } else {
+        }
+        if ($errors !== []) {
             $enabledLocales = $selectedLocales;
         }
     }

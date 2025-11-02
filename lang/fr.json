@@ -386,6 +386,8 @@
   "review_queue": "File d'examen",
   "review_disabled_notice": "Les revues des superviseurs sont actuellement désactivées dans les paramètres.",
   "review_disabled_settings_link": "Mettre à jour les paramètres de revue",
+  "auto_approve_notice": "Les soumissions en attente ont été approuvées automatiquement.",
+  "auto_approve_failed": "Paramètres enregistrés, mais les soumissions en attente n'ont pas pu être finalisées automatiquement.",
   "no_pending_reviews": "Aucune soumission n'attend actuellement de revue.",
   "role": "Rôle",
   "role_admin": "administrateur",
