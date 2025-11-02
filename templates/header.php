@@ -352,7 +352,11 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
           <li><a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.review_queue')?>><?=t($t, 'review_queue', 'Review Queue')?></a></li>
           <?php endif; ?>
           <li><a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.pending_accounts')?>><?=t($t, 'pending_accounts', 'Pending Approvals')?></a></li>
+          <?php if ($role === 'admin'): ?>
+          <li><a href="<?=htmlspecialchars(url_for('admin/users.php') . '#questionnaire-assignments', ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments','admin.users')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a></li>
+          <?php else: ?>
           <li><a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a></li>
+          <?php endif; ?>
           <li><a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.analytics')?>><?=t($t, 'analytics', 'Analytics')?></a></li>
         </ul>
       </li>

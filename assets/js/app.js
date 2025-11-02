@@ -261,7 +261,7 @@
           };
           const warmRoutes = ['my_performance.php', 'submit_assessment.php', 'profile.php'];
           if (role === 'admin' || role === 'supervisor') {
-            warmRoutes.push('admin/analytics.php', 'admin/questionnaire_assignments.php');
+            warmRoutes.push('admin/analytics.php', 'admin/users.php');
           }
           const warmUrls = Array.from(new Set(warmRoutes.map(baseBuilder)));
           if (warmUrls.length === 0) {
