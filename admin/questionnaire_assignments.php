@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $assignedTitles = [];
             if ($staffDetails) {
                 try {
-                    $titlesStmt = $pdo->prepare('SELECT q.title FROM questionnaire_assignment qa JOIN questionnaire q ON q.id = qa.questionnaire_id WHERE qa.staff_id = ? ORDER BY q.title ASC');
+                    $titlesStmt = $pdo->prepare("SELECT q.title FROM questionnaire_assignment qa JOIN questionnaire q ON q.id = qa.questionnaire_id WHERE qa.staff_id = ? AND q.status='published' ORDER BY q.title ASC");
                     $titlesStmt->execute([$selectedStaffId]);
                     $titles = $titlesStmt->fetchAll(PDO::FETCH_COLUMN);
                     $fallbackTitle = t($t, 'questionnaire', 'Questionnaire');
@@ -112,7 +112,7 @@ if ($selectedStaffId <= 0) {
 
 $selectedStaffRecord = $staffById[$selectedStaffId] ?? null;
 try {
-    $questionnaireStmt = $pdo->query('SELECT id, title, description FROM questionnaire ORDER BY title ASC');
+    $questionnaireStmt = $pdo->query("SELECT id, title, description FROM questionnaire WHERE status='published' ORDER BY title ASC");
     $questionnaires = $questionnaireStmt ? $questionnaireStmt->fetchAll(PDO::FETCH_ASSOC) : [];
 } catch (PDOException $e) {
     error_log('questionnaire_assignments questionnaire fetch failed: ' . $e->getMessage());

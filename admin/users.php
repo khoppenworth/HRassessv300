@@ -12,7 +12,7 @@ $defaultWorkFunction = array_key_first($workFunctionOptions) ?? 'general_service
 $questionnaires = [];
 $questionnaireMap = [];
 try {
-    $questionnaireStmt = $pdo->query('SELECT id, title, description FROM questionnaire ORDER BY title ASC');
+    $questionnaireStmt = $pdo->query("SELECT id, title, description FROM questionnaire WHERE status='published' ORDER BY title ASC");
     if ($questionnaireStmt) {
         $questionnaires = $questionnaireStmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($questionnaires as $row) {

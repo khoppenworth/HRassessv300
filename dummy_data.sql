@@ -139,28 +139,28 @@ VALUES
 ('EPSA-DRV-220', 'Fleet Safety Leadership', 'https://moodle.example.com/course/drv220', 'driver', 0, 85);
 
 -- Demo questionnaire -------------------------------------------------------------
-INSERT INTO questionnaire (title, description)
-VALUES ('EPSA Annual Performance Review 360', 'Five-year storyline covering supply chain modernization and people enablement.');
+INSERT INTO questionnaire (title, description, status)
+VALUES ('EPSA Annual Performance Review 360', 'Five-year storyline covering supply chain modernization and people enablement.', 'published');
 SET @demo_qid := LAST_INSERT_ID();
 
-INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index)
+INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index, is_active)
 VALUES
-(@demo_qid, 'Strategic Delivery', 'Measures how teams deliver essential health commodities.', 1),
-(@demo_qid, 'Operational Excellence', 'Assesses compliance and continuous improvement practices.', 2),
-(@demo_qid, 'Growth & Support', 'Captures development focus and mobility planning.', 3);
+(@demo_qid, 'Strategic Delivery', 'Measures how teams deliver essential health commodities.', 1, 1),
+(@demo_qid, 'Operational Excellence', 'Assesses compliance and continuous improvement practices.', 2, 1),
+(@demo_qid, 'Growth & Support', 'Captures development focus and mobility planning.', 3, 1);
 
 SET @section_strategic := (SELECT id FROM questionnaire_section WHERE questionnaire_id = @demo_qid AND order_index = 1);
 SET @section_operational := (SELECT id FROM questionnaire_section WHERE questionnaire_id = @demo_qid AND order_index = 2);
 SET @section_growth := (SELECT id FROM questionnaire_section WHERE questionnaire_id = @demo_qid AND order_index = 3);
 
-INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required)
+INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required, is_active)
 VALUES
-(@demo_qid, @section_strategic, 'strategic_results', 'Delivery reliability to health facilities', 'likert', 1, 30, 0, 1),
-(@demo_qid, @section_operational, 'quality_controls', 'All mandatory compliance and safety trainings completed', 'boolean', 2, 15, 0, 1),
-(@demo_qid, @section_operational, 'achievement_story', 'Summarize the most significant contribution this cycle', 'textarea', 3, 20, 0, 1),
-(@demo_qid, @section_operational, 'stretch_contributions', 'Select notable stretch contributions achieved', 'choice', 4, 10, 1, 0),
-(@demo_qid, @section_growth, 'development_focus', 'Describe a development focus for the next cycle', 'textarea', 5, 15, 0, 1),
-(@demo_qid, @section_growth, 'mobility_readiness', 'Readiness for broader national responsibilities', 'likert', 6, 10, 0, 0);
+(@demo_qid, @section_strategic, 'strategic_results', 'Delivery reliability to health facilities', 'likert', 1, 30, 0, 1, 1),
+(@demo_qid, @section_operational, 'quality_controls', 'All mandatory compliance and safety trainings completed', 'boolean', 2, 15, 0, 1, 1),
+(@demo_qid, @section_operational, 'achievement_story', 'Summarize the most significant contribution this cycle', 'textarea', 3, 20, 0, 1, 1),
+(@demo_qid, @section_operational, 'stretch_contributions', 'Select notable stretch contributions achieved', 'choice', 4, 10, 1, 0, 1),
+(@demo_qid, @section_growth, 'development_focus', 'Describe a development focus for the next cycle', 'textarea', 5, 15, 0, 1, 1),
+(@demo_qid, @section_growth, 'mobility_readiness', 'Readiness for broader national responsibilities', 'likert', 6, 10, 0, 0, 1);
 
 INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index)
 SELECT qi.id, opt.value, opt.order_index
@@ -415,25 +415,25 @@ JOIN users u ON u.id = qr.user_id
 WHERE qr.questionnaire_id = @demo_qid;
 
 -- Leadership confidence pulse questionnaire --------------------------------------
-INSERT INTO questionnaire (title, description)
-VALUES ('EPSA Leadership Confidence Pulse', 'Quarterly signal on leadership alignment and support needs.');
+INSERT INTO questionnaire (title, description, status)
+VALUES ('EPSA Leadership Confidence Pulse', 'Quarterly signal on leadership alignment and support needs.', 'published');
 SET @pulse_qid := LAST_INSERT_ID();
 
-INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index)
+INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index, is_active)
 VALUES
-(@pulse_qid, 'Leadership Behaviors', 'Signals from senior leaders on vision and coaching.', 1),
-(@pulse_qid, 'Support Systems', 'Escalation readiness and organisational clarity needs.', 2);
+(@pulse_qid, 'Leadership Behaviors', 'Signals from senior leaders on vision and coaching.', 1, 1),
+(@pulse_qid, 'Support Systems', 'Escalation readiness and organisational clarity needs.', 2, 1);
 
 SET @pulse_section_leadership := (SELECT id FROM questionnaire_section WHERE questionnaire_id = @pulse_qid AND order_index = 1);
 SET @pulse_section_support := (SELECT id FROM questionnaire_section WHERE questionnaire_id = @pulse_qid AND order_index = 2);
 
-INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required)
+INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required, is_active)
 VALUES
-(@pulse_qid, @pulse_section_leadership, 'vision_alignment', 'Alignment with EPSA transformation vision', 'likert', 1, 35, 0, 1),
-(@pulse_qid, @pulse_section_leadership, 'coaching_frequency', 'How frequently do you coach your team?', 'likert', 2, 25, 0, 1),
-(@pulse_qid, @pulse_section_support, 'escalation_clear', 'Escalation paths are clear and used effectively', 'boolean', 3, 10, 0, 0),
-(@pulse_qid, @pulse_section_support, 'priority_support', 'Where do you need senior support next?', 'textarea', 4, 15, 0, 0),
-(@pulse_qid, @pulse_section_support, 'org_clarity', 'Organisational direction is clear', 'likert', 5, 15, 0, 1);
+(@pulse_qid, @pulse_section_leadership, 'vision_alignment', 'Alignment with EPSA transformation vision', 'likert', 1, 35, 0, 1, 1),
+(@pulse_qid, @pulse_section_leadership, 'coaching_frequency', 'How frequently do you coach your team?', 'likert', 2, 25, 0, 1, 1),
+(@pulse_qid, @pulse_section_support, 'escalation_clear', 'Escalation paths are clear and used effectively', 'boolean', 3, 10, 0, 0, 1),
+(@pulse_qid, @pulse_section_support, 'priority_support', 'Where do you need senior support next?', 'textarea', 4, 15, 0, 0, 1),
+(@pulse_qid, @pulse_section_support, 'org_clarity', 'Organisational direction is clear', 'likert', 5, 15, 0, 1, 1);
 
 INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index)
 SELECT qi.id, opt.value, opt.order_index
