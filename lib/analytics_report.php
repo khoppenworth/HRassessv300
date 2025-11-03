@@ -941,8 +941,18 @@ function analytics_report_generate_radar_chart(array $sections, array $palette, 
             $coords[] = (int)round($x);
             $coords[] = (int)round($y);
         }
-        if ($coords) {
+        if ($coords && $count >= 3) {
             imagepolygon($image, $coords, $count, $gridColor);
+        } elseif ($coords && $count === 2) {
+            // Fallback to a simple line when only two sections are available.
+            imageline(
+                $image,
+                $coords[0],
+                $coords[1],
+                $coords[2],
+                $coords[3],
+                $gridColor
+            );
         }
     }
 
