@@ -2,6 +2,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lib/simple_pdf.php';
 require_once __DIR__ . '/lib/analytics_report.php';
+require_once __DIR__ . '/lib/performance_sections.php';
 
 auth_required(['staff', 'supervisor', 'admin']);
 refresh_current_user($pdo);
@@ -92,6 +93,8 @@ if (!empty($user['work_function'])) {
 }
 $recommendedCourses = array_slice(array_values($recommendedCourses), 0, 6);
 
+$sectionBreakdowns = compute_section_breakdowns($pdo, array_values($latestScores), $t);
+
 $generatedAt = new DateTimeImmutable('now');
 $siteName = (string) ($cfg['site_name'] ?? 'My Performance');
 
@@ -160,6 +163,42 @@ $pdf->addTable([
     t($t, 'metric', 'Metric'),
     t($t, 'value', 'Value'),
 ], $summaryRows, [70, 40]);
+
+if ($sectionBreakdowns) {
+    $pdf->addSubheading(t($t, 'section_breakdown', 'Section score radar'));
+    $pdf->addParagraph(t($t, 'section_breakdown_hint', 'Each radar shows how your latest submission performed across questionnaire sections.'));
+    $palette = analytics_report_palette_colors($cfg);
+    foreach ($sectionBreakdowns as $radar) {
+        $titleLine = (string)($radar['title'] ?? '');
+        $period = trim((string)($radar['period'] ?? ''));
+        if ($period !== '') {
+            $titleLine = $titleLine !== '' ? $titleLine . ' · ' . $period : $period;
+        }
+        if ($titleLine !== '') {
+            $pdf->addParagraph($titleLine, 12.0);
+        }
+        $chartImage = analytics_report_generate_radar_chart($radar['sections'] ?? [], $palette, [
+            'max_value' => 100,
+            'value_suffix' => '%',
+        ]);
+        if ($chartImage) {
+            $pdf->addImageBlock($chartImage['data'], $chartImage['width'], $chartImage['height'], 420.0);
+        } else {
+            $rows = [];
+            foreach ($radar['sections'] ?? [] as $section) {
+                $label = (string)($section['label'] ?? '');
+                $score = isset($section['score']) ? number_format((float)$section['score'], 1) . '%' : '—';
+                $rows[] = [$label, $score];
+            }
+            if ($rows) {
+                $pdf->addTable([
+                    t($t, 'section_placeholder', 'Section'),
+                    t($t, 'score', 'Score (%)'),
+                ], $rows, [70, 30]);
+            }
+        }
+    }
+}
 
 $pdf->addSubheading(t($t, 'recent_responses', 'Recent responses'));
 if ($rows) {
