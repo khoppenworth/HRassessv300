@@ -347,6 +347,9 @@ if ($action === 'save' || $action === 'publish') {
     $itemsMap = [];
     foreach ($itemsRows as $row) {
         $qid = (int)$row['questionnaire_id'];
+        $linkId = isset($row['linkId']) ? (string)$row['linkId'] : '';
+        $row['linkId_original'] = $linkId;
+        $row['linkId_aliases'] = $linkId !== '' ? [$linkId => true] : [];
         $itemsMap[$qid][(int)$row['id']] = $row;
     }
 
@@ -409,6 +412,7 @@ if ($action === 'save' || $action === 'publish') {
         $updateOptionStmt = $pdo->prepare('UPDATE questionnaire_item_option SET value=?, order_index=? WHERE id=?');
         $insertWorkFunctionStmt = $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
         $deleteWorkFunctionStmt = $pdo->prepare('DELETE FROM questionnaire_work_function WHERE questionnaire_id=?');
+        $reassignResponseLinkStmt = $pdo->prepare('UPDATE questionnaire_response_item SET linkId=? WHERE linkId=? AND response_id IN (SELECT id FROM questionnaire_response WHERE questionnaire_id=?)');
 
         $saveOptions = function (int $itemId, $optionsInput) use (&$optionsMap, $insertOptionStmt, $updateOptionStmt, &$idMap, $pdo) {
             $existing = $optionsMap[$itemId] ?? [];
@@ -549,10 +553,33 @@ if ($action === 'save' || $action === 'publish') {
                     $itemActive = array_key_exists('is_active', $itemData) ? !empty($itemData['is_active']) : true;
 
                     if ($itemId && isset($existingItems[$itemId])) {
+                        $previousLinkId = isset($existingItems[$itemId]['linkId']) ? (string)$existingItems[$itemId]['linkId'] : '';
+                        if (!isset($existingItems[$itemId]['linkId_aliases']) || !is_array($existingItems[$itemId]['linkId_aliases'])) {
+                            $existingItems[$itemId]['linkId_aliases'] = [];
+                        }
+                        if ($previousLinkId !== '') {
+                            $existingItems[$itemId]['linkId_aliases'][$previousLinkId] = true;
+                        }
+                        if ($linkId !== '' && $linkId !== $previousLinkId && !empty($itemResponsePresence[$qid][$previousLinkId] ?? null)) {
+                            $reassignResponseLinkStmt->execute([$linkId, $previousLinkId, $qid]);
+                            unset($itemResponsePresence[$qid][$previousLinkId]);
+                            $itemResponsePresence[$qid][$linkId] = true;
+                        }
                         $updateItemStmt->execute([$sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemActive ? 1 : 0, $itemId]);
+                        if (!isset($itemsMap[$qid][$itemId]['linkId_aliases']) || !is_array($itemsMap[$qid][$itemId]['linkId_aliases'])) {
+                            $itemsMap[$qid][$itemId]['linkId_aliases'] = [];
+                        }
+                        if ($previousLinkId !== '') {
+                            $itemsMap[$qid][$itemId]['linkId_aliases'][$previousLinkId] = true;
+                        }
+                        if ($linkId !== '') {
+                            $existingItems[$itemId]['linkId_aliases'][$linkId] = true;
+                            $itemsMap[$qid][$itemId]['linkId_aliases'][$linkId] = true;
+                        }
                         $existingItems[$itemId]['section_id'] = $sectionId;
                         $existingItems[$itemId]['linkId'] = $linkId;
                         $existingItems[$itemId]['is_active'] = $itemActive ? 1 : 0;
+                        $itemsMap[$qid][$itemId]['linkId'] = $linkId;
                     } else {
                         $insertItemStmt->execute([$qid, $sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemActive ? 1 : 0]);
                         $itemId = (int)$pdo->lastInsertId();
@@ -561,10 +588,14 @@ if ($action === 'save' || $action === 'publish') {
                         }
                         $existingItems[$itemId] = [
                             'id' => $itemId,
+                            'questionnaire_id' => $qid,
                             'section_id' => $sectionId,
                             'linkId' => $linkId,
+                            'linkId_original' => $linkId,
+                            'linkId_aliases' => $linkId !== '' ? [$linkId => true] : [],
                             'is_active' => $itemActive ? 1 : 0,
                         ];
+                        $itemsMap[$qid][$itemId] = $existingItems[$itemId];
                     }
                     $optionsInput = $itemData['options'] ?? [];
                     if (!in_array($type, ['choice', 'likert'], true)) {
@@ -603,10 +634,33 @@ if ($action === 'save' || $action === 'publish') {
                 $itemActive = array_key_exists('is_active', $itemData) ? !empty($itemData['is_active']) : true;
 
                 if ($itemId && isset($existingItems[$itemId])) {
+                    $previousLinkId = isset($existingItems[$itemId]['linkId']) ? (string)$existingItems[$itemId]['linkId'] : '';
+                    if (!isset($existingItems[$itemId]['linkId_aliases']) || !is_array($existingItems[$itemId]['linkId_aliases'])) {
+                        $existingItems[$itemId]['linkId_aliases'] = [];
+                    }
+                    if ($previousLinkId !== '') {
+                        $existingItems[$itemId]['linkId_aliases'][$previousLinkId] = true;
+                    }
+                    if ($linkId !== '' && $linkId !== $previousLinkId && !empty($itemResponsePresence[$qid][$previousLinkId] ?? null)) {
+                        $reassignResponseLinkStmt->execute([$linkId, $previousLinkId, $qid]);
+                        unset($itemResponsePresence[$qid][$previousLinkId]);
+                        $itemResponsePresence[$qid][$linkId] = true;
+                    }
                     $updateItemStmt->execute([null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemActive ? 1 : 0, $itemId]);
+                    if (!isset($itemsMap[$qid][$itemId]['linkId_aliases']) || !is_array($itemsMap[$qid][$itemId]['linkId_aliases'])) {
+                        $itemsMap[$qid][$itemId]['linkId_aliases'] = [];
+                    }
+                    if ($previousLinkId !== '') {
+                        $itemsMap[$qid][$itemId]['linkId_aliases'][$previousLinkId] = true;
+                    }
+                    if ($linkId !== '') {
+                        $existingItems[$itemId]['linkId_aliases'][$linkId] = true;
+                        $itemsMap[$qid][$itemId]['linkId_aliases'][$linkId] = true;
+                    }
                     $existingItems[$itemId]['section_id'] = null;
                     $existingItems[$itemId]['linkId'] = $linkId;
                     $existingItems[$itemId]['is_active'] = $itemActive ? 1 : 0;
+                    $itemsMap[$qid][$itemId]['linkId'] = $linkId;
                 } else {
                     $insertItemStmt->execute([$qid, null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemActive ? 1 : 0]);
                     $itemId = (int)$pdo->lastInsertId();
@@ -615,10 +669,14 @@ if ($action === 'save' || $action === 'publish') {
                     }
                     $existingItems[$itemId] = [
                         'id' => $itemId,
+                        'questionnaire_id' => $qid,
                         'section_id' => null,
                         'linkId' => $linkId,
+                        'linkId_original' => $linkId,
+                        'linkId_aliases' => $linkId !== '' ? [$linkId => true] : [],
                         'is_active' => $itemActive ? 1 : 0,
                     ];
+                    $itemsMap[$qid][$itemId] = $existingItems[$itemId];
                 }
                 $optionsInput = $itemData['options'] ?? [];
                 if (!in_array($type, ['choice', 'likert'], true)) {
@@ -635,8 +693,30 @@ if ($action === 'save' || $action === 'publish') {
                 $itemsToRemove = [];
                 foreach ($itemsToDelete as $itemId) {
                     $row = $existingItems[$itemId] ?? [];
+                    $linkCandidates = [];
+                    if (!empty($row['linkId_aliases']) && is_array($row['linkId_aliases'])) {
+                        foreach (array_keys($row['linkId_aliases']) as $candidate) {
+                            $candidate = (string)$candidate;
+                            if ($candidate !== '') {
+                                $linkCandidates[$candidate] = true;
+                            }
+                        }
+                    }
                     $linkId = isset($row['linkId']) ? (string)$row['linkId'] : '';
-                    $hasResponses = $linkId !== '' && !empty($itemResponsePresence[$qid][$linkId] ?? null);
+                    if ($linkId !== '') {
+                        $linkCandidates[$linkId] = true;
+                    }
+                    $originalLinkId = isset($row['linkId_original']) ? (string)$row['linkId_original'] : '';
+                    if ($originalLinkId !== '') {
+                        $linkCandidates[$originalLinkId] = true;
+                    }
+                    $hasResponses = false;
+                    foreach (array_keys($linkCandidates) as $candidate) {
+                        if (!empty($itemResponsePresence[$qid][$candidate] ?? null)) {
+                            $hasResponses = true;
+                            break;
+                        }
+                    }
                     if ($hasResponses) {
                         $itemsToDeactivate[] = $itemId;
                     } else {
@@ -681,10 +761,28 @@ if ($action === 'save' || $action === 'publish') {
                 $hasResponses = false;
                 foreach ($itemsMap[$qid] ?? [] as $existingItemRow) {
                     if ((int)($existingItemRow['section_id'] ?? 0) === $sectionId) {
+                        $linkCandidates = [];
+                        if (!empty($existingItemRow['linkId_aliases']) && is_array($existingItemRow['linkId_aliases'])) {
+                            foreach (array_keys($existingItemRow['linkId_aliases']) as $candidate) {
+                                $candidate = (string)$candidate;
+                                if ($candidate !== '') {
+                                    $linkCandidates[$candidate] = true;
+                                }
+                            }
+                        }
                         $linkCandidate = isset($existingItemRow['linkId']) ? (string)$existingItemRow['linkId'] : '';
-                        if ($linkCandidate !== '' && !empty($itemResponsePresence[$qid][$linkCandidate] ?? null)) {
-                            $hasResponses = true;
-                            break;
+                        if ($linkCandidate !== '') {
+                            $linkCandidates[$linkCandidate] = true;
+                        }
+                        $originalLinkCandidate = isset($existingItemRow['linkId_original']) ? (string)$existingItemRow['linkId_original'] : '';
+                        if ($originalLinkCandidate !== '') {
+                            $linkCandidates[$originalLinkCandidate] = true;
+                        }
+                        foreach (array_keys($linkCandidates) as $candidate) {
+                            if (!empty($itemResponsePresence[$qid][$candidate] ?? null)) {
+                                $hasResponses = true;
+                                break 2;
+                            }
                         }
                     }
                 }
