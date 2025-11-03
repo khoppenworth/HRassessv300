@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS site_config (
   smtp_from_name VARCHAR(255) NULL,
   smtp_timeout INT NULL,
   upgrade_repo VARCHAR(255) NULL,
+  review_enabled TINYINT(1) NOT NULL DEFAULT 1,
   email_templates LONGTEXT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -76,6 +77,7 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS smtp_from_name VARCHAR(255) NULL,
   ADD COLUMN IF NOT EXISTS smtp_timeout INT NULL,
   ADD COLUMN IF NOT EXISTS upgrade_repo VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS review_enabled TINYINT(1) NOT NULL DEFAULT 1,
   ADD COLUMN IF NOT EXISTS email_templates LONGTEXT NULL;
 
 INSERT INTO site_config (
@@ -85,7 +87,7 @@ INSERT INTO site_config (
   footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret,
   microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant,
   color_theme, brand_color, enabled_locales, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password,
-  smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, upgrade_repo, email_templates
+  smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, upgrade_repo, review_enabled, email_templates
 ) VALUES (
   1, 'My Performance', NULL, NULL, NULL, NULL,
   'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et',
@@ -93,7 +95,7 @@ INSERT INTO site_config (
   'All rights reserved.', 0, NULL, NULL,
   0, NULL, NULL, 'common',
   'light', '#2073bf', '["en","fr","am"]', 0, NULL, 587, NULL, NULL,
-  'none', NULL, NULL, 20, 'khoppenworth/HRassessv300', '{}'
+  'none', NULL, NULL, 20, 'khoppenworth/HRassessv300', 1, '{}'
 ) ON DUPLICATE KEY UPDATE
   site_name = COALESCE(site_config.site_name, VALUES(site_name)),
   brand_color = IFNULL(site_config.brand_color, VALUES(brand_color)),
@@ -102,6 +104,7 @@ INSERT INTO site_config (
   smtp_port = IFNULL(site_config.smtp_port, VALUES(smtp_port)),
   smtp_timeout = IFNULL(site_config.smtp_timeout, VALUES(smtp_timeout)),
   upgrade_repo = IFNULL(site_config.upgrade_repo, VALUES(upgrade_repo)),
+  review_enabled = IFNULL(site_config.review_enabled, VALUES(review_enabled)),
   email_templates = IFNULL(site_config.email_templates, VALUES(email_templates));
 
 -- Ensure users table columns match the application expectations.
