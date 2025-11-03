@@ -263,8 +263,8 @@ body.md-bg {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.65rem 1.6rem;
-  min-height: 2.75rem;
+  padding: 0 1.6rem;
+  min-height: var(--app-button-height, 48px);
   border-radius: 999px;
   border: 0;
   background: var(--app-primary-soft);

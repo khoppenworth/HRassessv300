@@ -20,6 +20,26 @@
     : {};
   const isMobileView = () => (mobileMedia ? mobileMedia.matches : window.innerWidth <= 900);
   let closeTopnavSubmenus = null;
+  const focusableSelector = 'a[href], button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  let lastFocusedElement = null;
+  const getTopnavFocusables = () => {
+    if (!topnav) {
+      return [];
+    }
+    return Array.from(topnav.querySelectorAll(focusableSelector)).filter((el) => {
+      if (!(el instanceof HTMLElement)) {
+        return false;
+      }
+      if (el.hasAttribute('disabled')) {
+        return false;
+      }
+      if (el.getAttribute('aria-hidden') === 'true') {
+        return false;
+      }
+      const rects = el.getClientRects();
+      return rects.length > 0 && Array.from(rects).some((rect) => rect.width > 0 && rect.height > 0);
+    });
+  };
   const updateBackdrop = (shouldShow) => {
     if (!backdrop) {
       return;
@@ -54,25 +74,47 @@
     }
     if (isMobileView()) {
       topnav.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+      topnav.setAttribute('tabindex', isOpen ? '0' : '-1');
     } else {
       topnav.removeAttribute('aria-hidden');
+      topnav.removeAttribute('tabindex');
     }
   };
   const setTopnavOpen = (isOpen) => {
     if (!topnav) {
       return;
     }
-    topnav.classList.toggle('is-open', Boolean(isOpen));
+    const nextState = Boolean(isOpen);
+    if (nextState && isMobileView()) {
+      lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    topnav.classList.toggle('is-open', nextState);
     if (toggle) {
-      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      toggle.setAttribute('aria-expanded', nextState ? 'true' : 'false');
     }
     if (typeof closeTopnavSubmenus === 'function') {
       closeTopnavSubmenus();
     }
-    const shouldLock = Boolean(isOpen) && isMobileView();
+    const shouldLock = nextState && isMobileView();
     setBodyScrollLock(shouldLock);
     updateBackdrop(shouldLock);
-    applyTopnavA11yState(Boolean(isOpen));
+    applyTopnavA11yState(nextState);
+    if (shouldLock) {
+      const focusables = getTopnavFocusables();
+      const firstFocusable = focusables.length ? focusables[0] : null;
+      if (firstFocusable && typeof firstFocusable.focus === 'function') {
+        if (typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(() => {
+            firstFocusable.focus();
+          });
+        } else {
+          firstFocusable.focus();
+        }
+      }
+    } else if (!nextState && lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+      lastFocusedElement.focus();
+      lastFocusedElement = null;
+    }
   };
   const closeTopnav = () => {
     setTopnavOpen(false);
@@ -80,6 +122,7 @@
   if (topnav) {
     const triggers = topnav.querySelectorAll('[data-topnav-trigger]');
     const links = topnav.querySelectorAll('.md-topnav-link');
+    const closeButtons = topnav.querySelectorAll('[data-topnav-close]');
 
     const closeSubmenus = () => {
       triggers.forEach((trigger) => {
@@ -122,11 +165,38 @@
       if (event.key === 'Escape') {
         closeSubmenus();
         closeTopnav();
+        return;
+      }
+      if (event.key === 'Tab' && isMobileView() && topnav.classList.contains('is-open')) {
+        const focusables = getTopnavFocusables();
+        if (!focusables.length) {
+          event.preventDefault();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (event.shiftKey) {
+          if (active === first) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (active === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     });
 
     links.forEach((link) => {
       link.addEventListener('click', () => {
+        closeSubmenus();
+        closeTopnav();
+      });
+    });
+
+    closeButtons.forEach((buttonEl) => {
+      buttonEl.addEventListener('click', () => {
         closeSubmenus();
         closeTopnav();
       });
@@ -159,6 +229,7 @@
       if (toggle) {
         toggle.setAttribute('aria-expanded', 'false');
       }
+      lastFocusedElement = null;
     } else {
       const isOpen = topnav.classList.contains('is-open');
       applyTopnavA11yState(isOpen);
