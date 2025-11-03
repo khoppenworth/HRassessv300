@@ -319,7 +319,25 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
 </script>
 <div id="google_translate_element" class="visually-hidden" aria-hidden="true"></div>
 <div class="md-shell">
-<nav id="app-topnav" class="md-topnav md-elev-2" data-topnav aria-label="<?=htmlspecialchars(t($t, 'primary_navigation', 'Primary navigation'), ENT_QUOTES, 'UTF-8')?>">
+<nav
+  id="app-topnav"
+  class="md-topnav md-elev-2"
+  data-topnav
+  aria-label="<?=htmlspecialchars(t($t, 'primary_navigation', 'Primary navigation'), ENT_QUOTES, 'UTF-8')?>"
+  tabindex="-1"
+  aria-hidden="true"
+>
+  <div class="md-topnav-mobile-header" data-topnav-mobile-header>
+    <span class="md-topnav-mobile-title"><?=t($t, 'navigation_menu', 'Navigation')?></span>
+    <button
+      type="button"
+      class="md-topnav-close"
+      data-topnav-close
+      aria-label="<?=htmlspecialchars(t($t, 'close_menu', 'Close menu'), ENT_QUOTES, 'UTF-8')?>"
+    >
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </div>
   <ul class="md-topnav-list">
     <?php
     $workspaceActive = $isActiveNav('workspace.my_performance', 'workspace.submit_assessment');
