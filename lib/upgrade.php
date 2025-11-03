@@ -252,6 +252,9 @@ final class UpgradeEngine
             throw new RuntimeException('Unable to create backup archive at ' . $target);
         }
 
+        $applicationArchivePath = null;
+        $applicationArchiveTempDir = null;
+
         try {
             $summary = [
                 'generated_at' => date(DATE_ATOM),
@@ -292,12 +295,13 @@ final class UpgradeEngine
 
             $archive->addFromString('database/backup.sql', $this->exportDatabase($pdo));
             $this->addUploadsToArchive($archive);
-            $this->addApplicationArchiveToBackup($archive);
+            [$applicationArchivePath, $applicationArchiveTempDir] = $this->addApplicationArchiveToBackup($archive);
         } catch (Throwable $e) {
             $archive->close();
             if (is_file($target)) {
                 @unlink($target);
             }
+            $this->cleanupApplicationArchive($applicationArchivePath, $applicationArchiveTempDir);
             throw $e;
         }
 
@@ -305,8 +309,11 @@ final class UpgradeEngine
             if (is_file($target)) {
                 @unlink($target);
             }
+            $this->cleanupApplicationArchive($applicationArchivePath, $applicationArchiveTempDir);
             throw new RuntimeException('Failed to finalise backup archive at ' . $target);
         }
+
+        $this->cleanupApplicationArchive($applicationArchivePath, $applicationArchiveTempDir);
 
         clearstatcache(true, $target);
         $size = filesize($target);
@@ -907,18 +914,34 @@ final class UpgradeEngine
         }
     }
 
-    private function addApplicationArchiveToBackup(ZipArchive $archive): void
+    private function addApplicationArchiveToBackup(ZipArchive $archive): array
     {
         $tempDir = $this->temporaryDirectory('application_');
         $applicationArchive = $tempDir . DIRECTORY_SEPARATOR . 'application.zip';
 
         try {
             $this->createApplicationArchive($applicationArchive);
-            $archive->addFile($applicationArchive, 'application.zip');
-        } finally {
+            if ($archive->addFile($applicationArchive, 'application.zip') !== true) {
+                throw new RuntimeException('Unable to add application archive to backup.');
+            }
+        } catch (Throwable $e) {
             if (is_file($applicationArchive)) {
                 @unlink($applicationArchive);
             }
+            $this->removeDirectory($tempDir);
+            throw $e;
+        }
+
+        return [$applicationArchive, $tempDir];
+    }
+
+    private function cleanupApplicationArchive(?string $archivePath, ?string $tempDir): void
+    {
+        if (is_string($archivePath) && $archivePath !== '' && is_file($archivePath)) {
+            @unlink($archivePath);
+        }
+
+        if (is_string($tempDir) && $tempDir !== '' && is_dir($tempDir)) {
             $this->removeDirectory($tempDir);
         }
     }
