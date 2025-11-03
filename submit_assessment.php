@@ -17,12 +17,12 @@ try {
         $workFunction = trim((string)($user['work_function'] ?? ''));
         $selectParts = [
             "SELECT q.id AS id, q.title AS title FROM questionnaire_assignment qa " .
-            "JOIN questionnaire q ON q.id = qa.questionnaire_id WHERE qa.staff_id = :sid",
+            "JOIN questionnaire q ON q.id = qa.questionnaire_id WHERE qa.staff_id = :sid AND q.status='published'",
         ];
         $params = [':sid' => $user['id']];
         if ($workFunction !== '') {
             $selectParts[] = "SELECT q2.id AS id, q2.title AS title FROM questionnaire_work_function qwf "
-                . "JOIN questionnaire q2 ON q2.id = qwf.questionnaire_id WHERE qwf.work_function = :wf";
+                . "JOIN questionnaire q2 ON q2.id = qwf.questionnaire_id WHERE qwf.work_function = :wf AND q2.status='published'";
             $params[':wf'] = $workFunction;
         }
         $sql = 'SELECT id, title FROM (' . implode(' UNION ', $selectParts) . ') AS combined ORDER BY title';
@@ -30,11 +30,11 @@ try {
         $stmt->execute($params);
         $q = $stmt->fetchAll();
     } else {
-        $q = $pdo->query("SELECT id, title FROM questionnaire ORDER BY title")->fetchAll();
+        $q = $pdo->query("SELECT id, title FROM questionnaire WHERE status='published' ORDER BY title")->fetchAll();
     }
 } catch (PDOException $e) {
     error_log('submit_assessment questionnaire lookup failed: ' . $e->getMessage());
-    $fallback = $pdo->query('SELECT id, title FROM questionnaire ORDER BY title');
+    $fallback = $pdo->query("SELECT id, title FROM questionnaire WHERE status='published' ORDER BY title");
     $q = $fallback ? $fallback->fetchAll() : [];
 }
 $periods = $pdo->query("SELECT id, label FROM performance_period ORDER BY period_start DESC")->fetchAll();
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Fetch items with weights
-            $itemsStmt = $pdo->prepare('SELECT id, linkId, type, allow_multiple, weight_percent, is_required FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC');
+            $itemsStmt = $pdo->prepare('SELECT id, linkId, type, allow_multiple, weight_percent, is_required FROM questionnaire_item WHERE questionnaire_id=? AND is_active=1 ORDER BY order_index ASC');
             $itemsStmt->execute([$qid]);
             $items = $itemsStmt->fetchAll();
 
@@ -277,9 +277,9 @@ if ($qid) {
     $detailStmt = $pdo->prepare('SELECT id, title, description FROM questionnaire WHERE id=?');
     $detailStmt->execute([$qid]);
     $questionnaireDetails = $detailStmt->fetch() ?: null;
-    $s = $pdo->prepare("SELECT * FROM questionnaire_section WHERE questionnaire_id=? ORDER BY order_index ASC");
+    $s = $pdo->prepare("SELECT * FROM questionnaire_section WHERE questionnaire_id=? AND is_active=1 ORDER BY order_index ASC");
     $s->execute([$qid]); $sections = $s->fetchAll();
-    $i = $pdo->prepare("SELECT * FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC");
+    $i = $pdo->prepare("SELECT * FROM questionnaire_item WHERE questionnaire_id=? AND is_active=1 ORDER BY order_index ASC");
     $i->execute([$qid]);
     $items = $i->fetchAll();
     $itemOptions = [];

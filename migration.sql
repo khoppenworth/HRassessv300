@@ -73,6 +73,66 @@ PREPARE stmt FROM @qi_required_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @q_status_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire'
+    AND COLUMN_NAME = 'status'
+);
+SET @q_status_sql = IF(
+  @q_status_exists = 0,
+  "ALTER TABLE questionnaire ADD COLUMN status ENUM('draft','published','inactive') NOT NULL DEFAULT 'draft' AFTER description",
+  'DO 1'
+);
+PREPARE stmt FROM @q_status_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE questionnaire
+SET status = 'draft'
+WHERE status IS NULL OR status NOT IN ('draft','published','inactive');
+
+SET @qs_active_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_section'
+    AND COLUMN_NAME = 'is_active'
+);
+SET @qs_active_sql = IF(
+  @qs_active_exists = 0,
+  'ALTER TABLE questionnaire_section ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER order_index',
+  'DO 1'
+);
+PREPARE stmt FROM @qs_active_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE questionnaire_section
+SET is_active = 1
+WHERE is_active IS NULL;
+
+SET @qi_active_exists = (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_item'
+    AND COLUMN_NAME = 'is_active'
+);
+SET @qi_active_sql = IF(
+  @qi_active_exists = 0,
+  'ALTER TABLE questionnaire_item ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER is_required',
+  'DO 1'
+);
+PREPARE stmt FROM @qi_active_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE questionnaire_item
+SET is_active = 1
+WHERE is_active IS NULL;
+
 ALTER TABLE questionnaire_item MODIFY COLUMN type ENUM('likert','text','textarea','boolean','choice') NOT NULL DEFAULT 'likert';
 
 CREATE TABLE IF NOT EXISTS questionnaire_item_option (

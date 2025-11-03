@@ -33,6 +33,15 @@ const Builder = (() => {
     '5 - Strongly Agree',
   ];
 
+  const STATUS_OPTIONS = ['draft', 'published', 'inactive'];
+
+  function formatStatusLabel(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'published') return 'Published';
+    if (normalized === 'inactive') return 'Inactive';
+    return 'Draft';
+  }
+
   const STRINGS = window.QB_STRINGS || {
     scoreWeightLabel: 'Score weight (%)',
     scoreWeightHint: 'Only weighted questions contribute to scoring and analytics.',
@@ -259,13 +268,20 @@ const Builder = (() => {
     }
     const rootItems = Array.isArray(questionnaire.items) ? questionnaire.items : [];
     rootItems.forEach((item, index) => {
-      entries.push({ item, sectionIndex: 'root', itemIndex: index });
+      if (item && item.is_active !== false) {
+        entries.push({ item, sectionIndex: 'root', itemIndex: index });
+      }
     });
     const sections = Array.isArray(questionnaire.sections) ? questionnaire.sections : [];
     sections.forEach((section, sectionIndex) => {
+      if (section && section.is_active === false) {
+        return;
+      }
       const list = Array.isArray(section.items) ? section.items : [];
       list.forEach((item, itemIndex) => {
-        entries.push({ item, sectionIndex, itemIndex, section });
+        if (item && item.is_active !== false) {
+          entries.push({ item, sectionIndex, itemIndex, section });
+        }
       });
     });
     return entries;
@@ -689,6 +705,19 @@ const Builder = (() => {
       updateTabLabel(qIndex);
     } else if (role === 'q-description') {
       state.questionnaires[qIndex].description = target.value;
+    } else if (role === 'q-status') {
+      const nextStatus = String(target.value || '').toLowerCase();
+      if (['draft', 'published', 'inactive'].includes(nextStatus)) {
+        state.questionnaires[qIndex].status = nextStatus;
+        requiresRender = true;
+      }
+    } else if (role === 'section-active') {
+      const sectionIndex = parseSectionIndex(target.dataset.sectionIndex);
+      const section = getSection(qIndex, sectionIndex);
+      if (!section) return;
+      section.is_active = target.checked;
+      requiresRender = true;
+      renderSectionNav();
     } else if (role === 'section-title' || role === 'section-description') {
       const sectionIndex = parseSectionIndex(target.dataset.sectionIndex);
       const section = getSection(qIndex, sectionIndex);
@@ -736,6 +765,9 @@ const Builder = (() => {
         item.allow_multiple = target.checked;
       } else if (role === 'item-required') {
         item.is_required = target.checked;
+      } else if (role === 'item-active') {
+        item.is_active = target.checked;
+        requiresRender = true;
       }
     } else if (role === 'option-value') {
       const sectionIndex = parseSectionIndex(target.dataset.sectionIndex);
@@ -865,6 +897,9 @@ const Builder = (() => {
       description: '',
       sections: [],
       items: [],
+      status: 'draft',
+      hasResponses: false,
+      responseCount: 0,
     };
     state.questionnaires.unshift(questionnaire);
     state.activeKey = keyFor(questionnaire);
@@ -875,7 +910,18 @@ const Builder = (() => {
   }
 
   function removeQuestionnaire(qIndex) {
-    if (Number.isNaN(qIndex) || !state.questionnaires[qIndex]) return;
+    const questionnaire = state.questionnaires[qIndex];
+    if (Number.isNaN(qIndex) || !questionnaire) return;
+    if (questionnaire.hasResponses || (questionnaire.responseCount && questionnaire.responseCount > 0)) {
+      const confirmed = window.confirm('This questionnaire has submitted responses. Mark it inactive instead of deleting?');
+      if (!confirmed) {
+        return;
+      }
+      questionnaire.status = 'inactive';
+      markDirty();
+      render();
+      return;
+    }
     if (!window.confirm('Delete this questionnaire and all of its content?')) return;
     state.questionnaires.splice(qIndex, 1);
     ensureActiveKey();
@@ -893,6 +939,8 @@ const Builder = (() => {
       title: 'New Section',
       description: '',
       items: [],
+      is_active: true,
+      hasResponses: false,
     });
     markDirty();
     render();
@@ -901,6 +949,20 @@ const Builder = (() => {
   function removeSection(qIndex, sectionIndex) {
     const questionnaire = state.questionnaires[qIndex];
     if (!questionnaire || sectionIndex === null || sectionIndex === 'root') return;
+    const section = questionnaire.sections[sectionIndex];
+    if (!section) return;
+    const hasResponses = Boolean(section.hasResponses) || (Array.isArray(section.items) && section.items.some((item) => item.hasResponses));
+      if (section.id && hasResponses) {
+        const confirmed = window.confirm('This section includes questions with submitted responses. Mark it inactive?');
+        if (!confirmed) {
+          return;
+        }
+        section.is_active = false;
+        section.hasResponses = true;
+        markDirty();
+        render();
+        return;
+      }
     questionnaire.sections.splice(sectionIndex, 1);
     markDirty();
     render();
@@ -919,6 +981,8 @@ const Builder = (() => {
       allow_multiple: false,
       is_required: false,
       options: createLikertOptions(),
+      is_active: true,
+      hasResponses: false,
     });
     markDirty();
     render();
@@ -927,6 +991,18 @@ const Builder = (() => {
   function removeItem(qIndex, sectionIndex, itemIndex) {
     const list = getItemList(qIndex, sectionIndex);
     if (!list || Number.isNaN(itemIndex) || !list[itemIndex]) return;
+    const item = list[itemIndex];
+    if (item.id && item.hasResponses) {
+      const confirmed = window.confirm('This question has submitted responses. Mark it inactive?');
+      if (!confirmed) {
+        return;
+      }
+      item.is_active = false;
+      item.hasResponses = true;
+      markDirty();
+      render();
+      return;
+    }
     list.splice(itemIndex, 1);
     markDirty();
     render();
@@ -1027,8 +1103,12 @@ const Builder = (() => {
       clientId: q.clientId || `q-${q.id ?? uuid('q')}`,
       title: q.title ?? '',
       description: q.description ?? '',
+      status: typeof q.status === 'string' ? q.status.toLowerCase() : 'draft',
       sections: [],
       items: [],
+      work_functions: Array.isArray(q.work_functions) ? [...q.work_functions] : undefined,
+      hasResponses: Boolean(q.has_responses),
+      responseCount: Number.isFinite(q.response_count) ? q.response_count : parseInt(q.response_count ?? '0', 10) || 0,
     };
     const sections = Array.isArray(q.sections) ? q.sections : [];
     questionnaire.sections = sections.map((section) => ({
@@ -1037,6 +1117,8 @@ const Builder = (() => {
       title: section.title ?? '',
       description: section.description ?? '',
       items: normalizeItems(section.items),
+      is_active: section.is_active !== false,
+      hasResponses: Boolean(section.has_responses),
     }));
     questionnaire.items = normalizeItems(q.items);
     return questionnaire;
@@ -1062,6 +1144,8 @@ const Builder = (() => {
         allow_multiple: normalizedType === 'choice' ? Boolean(item.allow_multiple) : false,
         is_required: Boolean(item.is_required),
         options: normalizedOptions,
+        is_active: item.is_active !== false,
+        hasResponses: Boolean(item.has_responses),
       };
     });
   }
@@ -1073,6 +1157,72 @@ const Builder = (() => {
       clientId: option.clientId || `o-${option.id ?? uuid('o')}`,
       value: option.value ?? '',
     }));
+  }
+
+  function serializeQuestionnaire(questionnaire, publish = false) {
+    const status = typeof questionnaire.status === 'string' ? questionnaire.status.toLowerCase() : 'draft';
+    const normalizedStatus = publish && status !== 'inactive'
+      ? 'published'
+      : status || (publish ? 'published' : 'draft');
+    const payload = {
+      id: questionnaire.id ?? null,
+      clientId: questionnaire.clientId ?? null,
+      title: questionnaire.title ?? '',
+      description: questionnaire.description ?? '',
+      status: normalizedStatus,
+      sections: [],
+      items: [],
+    };
+    if (Array.isArray(questionnaire.work_functions)) {
+      payload.work_functions = [...questionnaire.work_functions];
+    }
+    payload.sections = Array.isArray(questionnaire.sections)
+      ? questionnaire.sections.map((section) => serializeSection(section))
+      : [];
+    payload.items = serializeItems(questionnaire.items);
+    return payload;
+  }
+
+  function serializeSection(section) {
+    return {
+      id: section.id ?? null,
+      clientId: section.clientId ?? null,
+      title: section.title ?? '',
+      description: section.description ?? '',
+      is_active: section.is_active !== false,
+      items: serializeItems(section.items),
+    };
+  }
+
+  function serializeItems(items) {
+    if (!Array.isArray(items)) return [];
+    return items.map((item) => ({
+      id: item.id ?? null,
+      clientId: item.clientId ?? null,
+      linkId: item.linkId ?? '',
+      text: item.text ?? '',
+      type: QUESTION_TYPES.includes(item.type) ? item.type : 'likert',
+      weight_percent: Number.isFinite(item.weight_percent)
+        ? item.weight_percent
+        : parseInt(item.weight_percent || '0', 10) || 0,
+      allow_multiple: QUESTION_TYPES.includes(item.type) && item.type === 'choice'
+        ? Boolean(item.allow_multiple)
+        : false,
+      is_required: Boolean(item.is_required),
+      is_active: item.is_active !== false,
+      options: serializeOptions(item.options),
+    }));
+  }
+
+  function serializeOptions(options) {
+    if (!Array.isArray(options)) return [];
+    return options
+      .map((option) => ({
+        id: option.id ?? null,
+        clientId: option.clientId ?? null,
+        value: option.value ?? '',
+      }))
+      .filter((option) => option.value !== '');
   }
 
   function updateCsrf(token) {
@@ -1230,7 +1380,7 @@ const Builder = (() => {
     const list = document.createElement('ul');
     list.className = 'qb-section-nav-list';
 
-    const rootItems = Array.isArray(active.items) ? active.items : [];
+    const rootItems = Array.isArray(active.items) ? active.items.filter((item) => item && item.is_active !== false) : [];
     if (rootItems.length) {
       list.appendChild(buildSectionNavItem(rootLabel, domIdFor('qb-root-items', active), rootItems.length));
     }
@@ -1240,8 +1390,11 @@ const Builder = (() => {
       const label = section.title && section.title.trim() !== ''
         ? section.title
         : `Section ${index + 1}`;
-      const itemCount = Array.isArray(section.items) ? section.items.length : 0;
-      list.appendChild(buildSectionNavItem(label, domIdFor('qb-section', section), itemCount));
+      const navLabel = section.is_active === false ? `${label} (Inactive)` : label;
+      const itemCount = Array.isArray(section.items)
+        ? section.items.filter((item) => item && item.is_active !== false).length
+        : 0;
+      list.appendChild(buildSectionNavItem(navLabel, domIdFor('qb-section', section), itemCount));
     });
 
     if (!list.childElementCount) {
@@ -1397,6 +1550,44 @@ const Builder = (() => {
 
     header.appendChild(titleWrap);
 
+    const statusValue = String(questionnaire.status || 'draft').toLowerCase();
+    if (statusValue === 'inactive') {
+      card.classList.add('qb-inactive');
+    }
+    const statusWrap = document.createElement('div');
+    statusWrap.className = 'qb-status-control';
+    const statusBadge = document.createElement('span');
+    statusBadge.className = `qb-status-badge qb-status-${statusValue}`;
+    statusBadge.textContent = formatStatusLabel(statusValue);
+    statusWrap.appendChild(statusBadge);
+    const statusSelect = document.createElement('select');
+    statusSelect.className = 'qb-select qb-status-select';
+    statusSelect.dataset.role = 'q-status';
+    statusSelect.dataset.qIndex = String(qIndex);
+    STATUS_OPTIONS.forEach((optionValue) => {
+      const opt = document.createElement('option');
+      opt.value = optionValue;
+      opt.textContent = formatStatusLabel(optionValue);
+      if (optionValue === statusValue) {
+        opt.selected = true;
+      }
+      statusSelect.appendChild(opt);
+    });
+    statusWrap.appendChild(statusSelect);
+    const responseCount = Number(questionnaire.responseCount) || 0;
+    if (responseCount > 0) {
+      const responseBadge = document.createElement('span');
+      responseBadge.className = 'qb-response-pill';
+      responseBadge.textContent = `${responseCount} response${responseCount === 1 ? '' : 's'}`;
+      statusWrap.appendChild(responseBadge);
+    } else if (questionnaire.hasResponses) {
+      const responseBadge = document.createElement('span');
+      responseBadge.className = 'qb-response-pill';
+      responseBadge.textContent = 'Linked responses';
+      statusWrap.appendChild(responseBadge);
+    }
+    header.appendChild(statusWrap);
+
     const actions = document.createElement('div');
     actions.className = 'qb-questionnaire-actions';
 
@@ -1417,7 +1608,7 @@ const Builder = (() => {
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'md-button qb-danger';
-    deleteBtn.textContent = 'Delete';
+    deleteBtn.textContent = (questionnaire.hasResponses || responseCount > 0) ? 'Mark Inactive' : 'Delete';
     deleteBtn.dataset.action = 'delete-questionnaire';
     deleteBtn.dataset.qIndex = String(qIndex);
     actions.appendChild(deleteBtn);
@@ -1466,6 +1657,12 @@ const Builder = (() => {
     sectionEl.dataset.qIndex = String(qIndex);
     sectionEl.dataset.sectionIndex = String(sectionIndex);
     sectionEl.id = domIdFor('qb-section', section);
+    if (section.is_active === false) {
+      sectionEl.classList.add('qb-inactive');
+    }
+    if (section.hasResponses) {
+      sectionEl.dataset.hasResponses = 'true';
+    }
 
     const header = document.createElement('div');
     header.className = 'qb-section-header';
@@ -1503,6 +1700,26 @@ const Builder = (() => {
     const actions = document.createElement('div');
     actions.className = 'qb-section-actions';
 
+    const activeToggle = document.createElement('label');
+    activeToggle.className = 'qb-checkbox qb-status-toggle';
+    const activeInput = document.createElement('input');
+    activeInput.type = 'checkbox';
+    activeInput.checked = section.is_active !== false;
+    activeInput.dataset.role = 'section-active';
+    activeInput.dataset.qIndex = String(qIndex);
+    activeInput.dataset.sectionIndex = String(sectionIndex);
+    const activeText = document.createElement('span');
+    activeText.textContent = 'Active';
+    activeToggle.appendChild(activeInput);
+    activeToggle.appendChild(activeText);
+    actions.appendChild(activeToggle);
+    if (section.hasResponses) {
+      const responseBadge = document.createElement('span');
+      responseBadge.className = 'qb-response-pill';
+      responseBadge.textContent = 'Linked responses';
+      actions.appendChild(responseBadge);
+    }
+
     const addItemBtn = document.createElement('button');
     addItemBtn.className = 'md-button qb-action';
     addItemBtn.textContent = 'Add Item';
@@ -1513,7 +1730,7 @@ const Builder = (() => {
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'md-button qb-danger';
-    deleteBtn.textContent = 'Delete';
+    deleteBtn.textContent = section.hasResponses ? 'Mark Inactive' : 'Delete';
     deleteBtn.dataset.action = 'delete-section';
     deleteBtn.dataset.qIndex = String(qIndex);
     deleteBtn.dataset.sectionIndex = String(sectionIndex);
@@ -1543,6 +1760,12 @@ const Builder = (() => {
     itemEl.dataset.qIndex = String(qIndex);
     itemEl.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
     itemEl.dataset.itemIndex = String(itemIndex);
+    if (item.is_active === false) {
+      itemEl.classList.add('qb-inactive');
+    }
+    if (item.hasResponses) {
+      itemEl.dataset.hasResponses = 'true';
+    }
 
     const handle = document.createElement('span');
     handle.className = 'qb-handle';
@@ -1629,6 +1852,27 @@ const Builder = (() => {
     requiredWrap.appendChild(requiredText);
     itemEl.appendChild(requiredWrap);
 
+    const activeWrap = document.createElement('label');
+    activeWrap.className = 'qb-checkbox qb-status-toggle';
+    const activeInput = document.createElement('input');
+    activeInput.type = 'checkbox';
+    activeInput.checked = item.is_active !== false;
+    activeInput.dataset.role = 'item-active';
+    activeInput.dataset.qIndex = String(qIndex);
+    activeInput.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
+    activeInput.dataset.itemIndex = String(itemIndex);
+    const activeText = document.createElement('span');
+    activeText.textContent = 'Active';
+    activeWrap.appendChild(activeInput);
+    activeWrap.appendChild(activeText);
+    itemEl.appendChild(activeWrap);
+    if (item.hasResponses) {
+      const responseBadge = document.createElement('span');
+      responseBadge.className = 'qb-response-pill';
+      responseBadge.textContent = 'Linked responses';
+      itemEl.appendChild(responseBadge);
+    }
+
     if (isOptionType(item.type)) {
       const choiceWrap = document.createElement('div');
       choiceWrap.className = 'qb-choice-settings';
@@ -1695,7 +1939,7 @@ const Builder = (() => {
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'md-button qb-danger';
-    deleteBtn.textContent = 'Delete';
+    deleteBtn.textContent = item.hasResponses ? 'Mark Inactive' : 'Delete';
     deleteBtn.dataset.action = 'delete-item';
     deleteBtn.dataset.qIndex = String(qIndex);
     deleteBtn.dataset.sectionIndex = sectionIndex === 'root' ? 'root' : String(sectionIndex);
@@ -1855,6 +2099,7 @@ const Builder = (() => {
     updateDirtyState();
     setMessage(publish ? 'Publishing...' : 'Saving...', 'info');
     try {
+      const payloadQuestionnaires = state.questionnaires.map((questionnaire) => serializeQuestionnaire(questionnaire, publish));
       const response = await fetch(withBase(`/admin/questionnaire_manage.php?action=${publish ? 'publish' : 'save'}`), {
         method: 'POST',
         headers: {
@@ -1863,7 +2108,7 @@ const Builder = (() => {
           'Accept': 'application/json',
         },
         credentials: 'same-origin',
-        body: JSON.stringify({ questionnaires: state.questionnaires }),
+        body: JSON.stringify({ questionnaires: payloadQuestionnaires }),
       });
       if (!response.ok) {
         throw new Error(`Failed to ${publish ? 'publish' : 'save'} (${response.status})`);

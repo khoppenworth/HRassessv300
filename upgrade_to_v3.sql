@@ -134,8 +134,29 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- Ensure questionnaire_item includes the is_required flag.
+ALTER TABLE questionnaire
+  ADD COLUMN IF NOT EXISTS status ENUM('draft','published','inactive') NOT NULL DEFAULT 'draft' AFTER description;
+
+ALTER TABLE questionnaire_section
+  ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER order_index;
+
 ALTER TABLE questionnaire_item
   ADD COLUMN IF NOT EXISTS is_required TINYINT(1) NOT NULL DEFAULT 0 AFTER allow_multiple;
+
+ALTER TABLE questionnaire_item
+  ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER is_required;
+
+UPDATE questionnaire
+SET status = 'draft'
+WHERE status IS NULL OR status NOT IN ('draft','published','inactive');
+
+UPDATE questionnaire_section
+SET is_active = 1
+WHERE is_active IS NULL;
+
+UPDATE questionnaire_item
+SET is_active = 1
+WHERE is_active IS NULL;
 
 -- Ensure questionnaire_work_function exists and is keyed properly.
 CREATE TABLE IF NOT EXISTS questionnaire_work_function (

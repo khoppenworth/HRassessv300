@@ -1,9 +1,9 @@
 <?php
 require_once __DIR__.'/utils.php';
 $entries = array();
-$qs = $pdo->query('SELECT * FROM questionnaire ORDER BY id DESC');
+$qs = $pdo->query("SELECT * FROM questionnaire WHERE status='published' ORDER BY id DESC");
 foreach ($qs as $q) {
-    $itemsStmt = $pdo->prepare('SELECT id, linkId, text, type, allow_multiple, COALESCE(weight_percent,0) AS weight_percent FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index ASC');
+    $itemsStmt = $pdo->prepare('SELECT id, linkId, text, type, allow_multiple, COALESCE(weight_percent,0) AS weight_percent FROM questionnaire_item WHERE questionnaire_id=? AND is_active=1 ORDER BY order_index ASC');
     $itemsStmt->execute(array($q['id']));
     $items = $itemsStmt->fetchAll();
     $optionsMap = array();

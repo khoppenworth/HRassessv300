@@ -185,6 +185,37 @@ if ($action === 'fetch') {
         $wfRows = [];
     }
 
+    $questionnaireResponseCounts = [];
+    try {
+        $responseCountStmt = $pdo->query('SELECT questionnaire_id, COUNT(*) AS response_count FROM questionnaire_response GROUP BY questionnaire_id');
+        if ($responseCountStmt) {
+            foreach ($responseCountStmt->fetchAll() as $row) {
+                $qid = isset($row['questionnaire_id']) ? (int)$row['questionnaire_id'] : 0;
+                if ($qid > 0) {
+                    $questionnaireResponseCounts[$qid] = (int)$row['response_count'];
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('questionnaire_manage response count fetch failed: ' . $e->getMessage());
+    }
+
+    $itemResponseCounts = [];
+    try {
+        $itemResponseStmt = $pdo->query('SELECT qr.questionnaire_id, qri.linkId, COUNT(*) AS response_count FROM questionnaire_response_item qri JOIN questionnaire_response qr ON qr.id = qri.response_id GROUP BY qr.questionnaire_id, qri.linkId');
+        if ($itemResponseStmt) {
+            foreach ($itemResponseStmt->fetchAll() as $row) {
+                $qid = isset($row['questionnaire_id']) ? (int)$row['questionnaire_id'] : 0;
+                $linkId = isset($row['linkId']) ? (string)$row['linkId'] : '';
+                if ($qid > 0 && $linkId !== '') {
+                    $itemResponseCounts[$qid][$linkId] = (int)$row['response_count'];
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('questionnaire_manage item response count fetch failed: ' . $e->getMessage());
+    }
+
     $sectionsByQuestionnaire = [];
     foreach ($sectionsRows as $section) {
         $qid = (int)$section['questionnaire_id'];
@@ -194,6 +225,7 @@ if ($action === 'fetch') {
             'title' => $section['title'],
             'description' => $section['description'],
             'order_index' => (int)$section['order_index'],
+            'is_active' => (bool)($section['is_active'] ?? true),
         ];
     }
 
@@ -225,6 +257,8 @@ if ($action === 'fetch') {
             'allow_multiple' => (bool)$item['allow_multiple'],
             'is_required' => (bool)($item['is_required'] ?? false),
             'options' => $optionsByItem[(int)$item['id']] ?? [],
+            'is_active' => (bool)($item['is_active'] ?? true),
+            'has_responses' => !empty($itemResponseCounts[$qid][$item['linkId']] ?? null),
         ];
         if ($sid) {
             $itemsBySection[$sid][] = $formatted;
@@ -245,18 +279,30 @@ if ($action === 'fetch') {
         $sections = [];
         foreach ($sectionsByQuestionnaire[$qid] ?? [] as $section) {
             $sectionId = $section['id'];
+            $sectionItems = $itemsBySection[$sectionId] ?? [];
+            $sectionHasResponses = false;
+            foreach ($sectionItems as $sectionItem) {
+                if (!empty($sectionItem['has_responses'])) {
+                    $sectionHasResponses = true;
+                    break;
+                }
+            }
             $sections[] = $section + [
-                'items' => $itemsBySection[$sectionId] ?? [],
+                'items' => $sectionItems,
+                'has_responses' => $sectionHasResponses,
             ];
         }
         $questionnaires[] = [
             'id' => $qid,
             'title' => $row['title'],
             'description' => $row['description'],
+            'status' => strtolower((string)($row['status'] ?? 'draft')),
             'created_at' => $row['created_at'],
             'sections' => $sections,
             'items' => $itemsByQuestionnaire[$qid] ?? [],
             'work_functions' => $workFunctionsByQuestionnaire[$qid] ?? $availableWorkFunctions,
+            'has_responses' => !empty($questionnaireResponseCounts[$qid] ?? null),
+            'response_count' => (int)($questionnaireResponseCounts[$qid] ?? 0),
         ];
     }
 
@@ -318,16 +364,47 @@ if ($action === 'save' || $action === 'publish') {
         'options' => [],
     ];
 
+    $questionnaireResponseCounts = [];
+    try {
+        $responseCountStmt = $pdo->query('SELECT questionnaire_id, COUNT(*) AS response_count FROM questionnaire_response GROUP BY questionnaire_id');
+        if ($responseCountStmt) {
+            foreach ($responseCountStmt->fetchAll() as $row) {
+                $qid = isset($row['questionnaire_id']) ? (int)$row['questionnaire_id'] : 0;
+                if ($qid > 0) {
+                    $questionnaireResponseCounts[$qid] = (int)$row['response_count'];
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('questionnaire_manage response count fetch failed: ' . $e->getMessage());
+    }
+
+    $itemResponsePresence = [];
+    try {
+        $itemResponseStmt = $pdo->query('SELECT qr.questionnaire_id, qri.linkId FROM questionnaire_response_item qri JOIN questionnaire_response qr ON qr.id = qri.response_id GROUP BY qr.questionnaire_id, qri.linkId');
+        if ($itemResponseStmt) {
+            foreach ($itemResponseStmt->fetchAll() as $row) {
+                $qid = isset($row['questionnaire_id']) ? (int)$row['questionnaire_id'] : 0;
+                $linkId = isset($row['linkId']) ? (string)$row['linkId'] : '';
+                if ($qid > 0 && $linkId !== '') {
+                    $itemResponsePresence[$qid][$linkId] = true;
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('questionnaire_manage item response presence fetch failed: ' . $e->getMessage());
+    }
+
     $pdo->beginTransaction();
     try {
-        $insertQuestionnaireStmt = $pdo->prepare('INSERT INTO questionnaire (title, description) VALUES (?, ?)');
-        $updateQuestionnaireStmt = $pdo->prepare('UPDATE questionnaire SET title=?, description=? WHERE id=?');
+        $insertQuestionnaireStmt = $pdo->prepare('INSERT INTO questionnaire (title, description, status) VALUES (?, ?, ?)');
+        $updateQuestionnaireStmt = $pdo->prepare('UPDATE questionnaire SET title=?, description=?, status=? WHERE id=?');
 
-        $insertSectionStmt = $pdo->prepare('INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index) VALUES (?, ?, ?, ?)');
-        $updateSectionStmt = $pdo->prepare('UPDATE questionnaire_section SET title=?, description=?, order_index=? WHERE id=?');
+        $insertSectionStmt = $pdo->prepare('INSERT INTO questionnaire_section (questionnaire_id, title, description, order_index, is_active) VALUES (?, ?, ?, ?, ?)');
+        $updateSectionStmt = $pdo->prepare('UPDATE questionnaire_section SET title=?, description=?, order_index=?, is_active=? WHERE id=?');
 
-        $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $updateItemStmt = $pdo->prepare('UPDATE questionnaire_item SET section_id=?, linkId=?, text=?, type=?, order_index=?, weight_percent=?, allow_multiple=?, is_required=? WHERE id=?');
+        $insertItemStmt = $pdo->prepare('INSERT INTO questionnaire_item (questionnaire_id, section_id, linkId, text, type, order_index, weight_percent, allow_multiple, is_required, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $updateItemStmt = $pdo->prepare('UPDATE questionnaire_item SET section_id=?, linkId=?, text=?, type=?, order_index=?, weight_percent=?, allow_multiple=?, is_required=?, is_active=? WHERE id=?');
         $insertOptionStmt = $pdo->prepare('INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index) VALUES (?, ?, ?)');
         $updateOptionStmt = $pdo->prepare('UPDATE questionnaire_item_option SET value=?, order_index=? WHERE id=?');
         $insertWorkFunctionStmt = $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
@@ -382,11 +459,19 @@ if ($action === 'save' || $action === 'publish') {
             $qid = isset($qData['id']) ? (int)$qData['id'] : null;
             $title = trim((string)($qData['title'] ?? ''));
             $description = $qData['description'] ?? null;
+            $status = strtolower(trim((string)($qData['status'] ?? '')));
+            if (!in_array($status, ['draft', 'published', 'inactive'], true)) {
+                $status = 'draft';
+            }
+            if ($action === 'publish' && $status !== 'inactive') {
+                $status = 'published';
+            }
 
             if ($qid && isset($questionnaireMap[$qid])) {
-                $updateQuestionnaireStmt->execute([$title, $description, $qid]);
+                $updateQuestionnaireStmt->execute([$title, $description, $status, $qid]);
+                $questionnaireMap[$qid]['status'] = $status;
             } else {
-                $insertQuestionnaireStmt->execute([$title, $description]);
+                $insertQuestionnaireStmt->execute([$title, $description, $status]);
                 $qid = (int)$pdo->lastInsertId();
                 if ($clientId) {
                     $idMap['questionnaires'][$clientId] = $qid;
@@ -395,6 +480,7 @@ if ($action === 'save' || $action === 'publish') {
                     'id' => $qid,
                     'title' => $title,
                     'description' => $description,
+                    'status' => $status,
                 ];
             }
             $questionnaireSeen[] = $qid;
@@ -419,17 +505,20 @@ if ($action === 'save' || $action === 'publish') {
                 $sectionId = isset($sectionData['id']) ? (int)$sectionData['id'] : null;
                 $sectionTitle = trim((string)($sectionData['title'] ?? ''));
                 $sectionDescription = $sectionData['description'] ?? null;
+                $sectionActive = array_key_exists('is_active', $sectionData) ? !empty($sectionData['is_active']) : true;
 
                 if ($sectionId && isset($existingSections[$sectionId])) {
-                    $updateSectionStmt->execute([$sectionTitle, $sectionDescription, $orderIndex, $sectionId]);
+                    $updateSectionStmt->execute([$sectionTitle, $sectionDescription, $orderIndex, $sectionActive ? 1 : 0, $sectionId]);
+                    $existingSections[$sectionId]['is_active'] = $sectionActive ? 1 : 0;
                 } else {
-                    $insertSectionStmt->execute([$qid, $sectionTitle, $sectionDescription, $orderIndex]);
+                    $insertSectionStmt->execute([$qid, $sectionTitle, $sectionDescription, $orderIndex, $sectionActive ? 1 : 0]);
                     $sectionId = (int)$pdo->lastInsertId();
                     if ($sectionClientId) {
                         $idMap['sections'][$sectionClientId] = $sectionId;
                     }
                     $existingSections[$sectionId] = [
                         'id' => $sectionId,
+                        'is_active' => $sectionActive ? 1 : 0,
                     ];
                 }
                 $sectionSeen[] = $sectionId;
@@ -457,17 +546,24 @@ if ($action === 'save' || $action === 'publish') {
                     if ($type !== 'choice') {
                         $allowMultiple = false;
                     }
+                    $itemActive = array_key_exists('is_active', $itemData) ? !empty($itemData['is_active']) : true;
 
                     if ($itemId && isset($existingItems[$itemId])) {
-                        $updateItemStmt->execute([$sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemId]);
+                        $updateItemStmt->execute([$sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemActive ? 1 : 0, $itemId]);
+                        $existingItems[$itemId]['section_id'] = $sectionId;
+                        $existingItems[$itemId]['linkId'] = $linkId;
+                        $existingItems[$itemId]['is_active'] = $itemActive ? 1 : 0;
                     } else {
-                        $insertItemStmt->execute([$qid, $sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0]);
+                        $insertItemStmt->execute([$qid, $sectionId, $linkId, $text, $type, $itemOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemActive ? 1 : 0]);
                         $itemId = (int)$pdo->lastInsertId();
                         if ($itemClientId) {
                             $idMap['items'][$itemClientId] = $itemId;
                         }
                         $existingItems[$itemId] = [
                             'id' => $itemId,
+                            'section_id' => $sectionId,
+                            'linkId' => $linkId,
+                            'is_active' => $itemActive ? 1 : 0,
                         ];
                     }
                     $optionsInput = $itemData['options'] ?? [];
@@ -504,17 +600,24 @@ if ($action === 'save' || $action === 'publish') {
                 if ($type !== 'choice') {
                     $allowMultiple = false;
                 }
+                $itemActive = array_key_exists('is_active', $itemData) ? !empty($itemData['is_active']) : true;
 
                 if ($itemId && isset($existingItems[$itemId])) {
-                    $updateItemStmt->execute([null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemId]);
+                    $updateItemStmt->execute([null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemActive ? 1 : 0, $itemId]);
+                    $existingItems[$itemId]['section_id'] = null;
+                    $existingItems[$itemId]['linkId'] = $linkId;
+                    $existingItems[$itemId]['is_active'] = $itemActive ? 1 : 0;
                 } else {
-                    $insertItemStmt->execute([$qid, null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0]);
+                    $insertItemStmt->execute([$qid, null, $linkId, $text, $type, $rootOrder, $weight, $allowMultiple ? 1 : 0, $isRequired ? 1 : 0, $itemActive ? 1 : 0]);
                     $itemId = (int)$pdo->lastInsertId();
                     if ($itemClientId) {
                         $idMap['items'][$itemClientId] = $itemId;
                     }
                     $existingItems[$itemId] = [
                         'id' => $itemId,
+                        'section_id' => null,
+                        'linkId' => $linkId,
+                        'is_active' => $itemActive ? 1 : 0,
                     ];
                 }
                 $optionsInput = $itemData['options'] ?? [];
@@ -528,9 +631,28 @@ if ($action === 'save' || $action === 'publish') {
 
             $itemsToDelete = array_diff(array_keys($existingItems), $itemSeen);
             if ($itemsToDelete) {
-                $placeholders = implode(',', array_fill(0, count($itemsToDelete), '?'));
-                $stmt = $pdo->prepare("DELETE FROM questionnaire_item WHERE id IN ($placeholders)");
-                $stmt->execute(array_values($itemsToDelete));
+                $itemsToDeactivate = [];
+                $itemsToRemove = [];
+                foreach ($itemsToDelete as $itemId) {
+                    $row = $existingItems[$itemId] ?? [];
+                    $linkId = isset($row['linkId']) ? (string)$row['linkId'] : '';
+                    $hasResponses = $linkId !== '' && !empty($itemResponsePresence[$qid][$linkId] ?? null);
+                    if ($hasResponses) {
+                        $itemsToDeactivate[] = $itemId;
+                    } else {
+                        $itemsToRemove[] = $itemId;
+                    }
+                }
+                if ($itemsToDeactivate) {
+                    $placeholders = implode(',', array_fill(0, count($itemsToDeactivate), '?'));
+                    $stmt = $pdo->prepare("UPDATE questionnaire_item SET is_active=0 WHERE id IN ($placeholders)");
+                    $stmt->execute(array_values($itemsToDeactivate));
+                }
+                if ($itemsToRemove) {
+                    $placeholders = implode(',', array_fill(0, count($itemsToRemove), '?'));
+                    $stmt = $pdo->prepare("DELETE FROM questionnaire_item WHERE id IN ($placeholders)");
+                    $stmt->execute(array_values($itemsToRemove));
+                }
             }
 
             $workFunctionsInput = $qData['work_functions'] ?? $availableWorkFunctions;
@@ -551,20 +673,68 @@ if ($action === 'save' || $action === 'publish') {
                 $insertWorkFunctionStmt->execute([$qid, $wf]);
             }
 
-            $sectionsToDelete = array_diff(array_keys($existingSections), $sectionSeen);
-            if ($sectionsToDelete) {
-                $placeholders = implode(',', array_fill(0, count($sectionsToDelete), '?'));
+        $sectionsToDelete = array_diff(array_keys($existingSections), $sectionSeen);
+        if ($sectionsToDelete) {
+            $sectionsToDeactivate = [];
+            $sectionsToRemove = [];
+            foreach ($sectionsToDelete as $sectionId) {
+                $hasResponses = false;
+                foreach ($itemsMap[$qid] ?? [] as $existingItemRow) {
+                    if ((int)($existingItemRow['section_id'] ?? 0) === $sectionId) {
+                        $linkCandidate = isset($existingItemRow['linkId']) ? (string)$existingItemRow['linkId'] : '';
+                        if ($linkCandidate !== '' && !empty($itemResponsePresence[$qid][$linkCandidate] ?? null)) {
+                            $hasResponses = true;
+                            break;
+                        }
+                    }
+                }
+                if ($hasResponses) {
+                    $sectionsToDeactivate[] = $sectionId;
+                } else {
+                    $sectionsToRemove[] = $sectionId;
+                }
+            }
+            if ($sectionsToDeactivate) {
+                $placeholders = implode(',', array_fill(0, count($sectionsToDeactivate), '?'));
+                $stmt = $pdo->prepare("UPDATE questionnaire_section SET is_active=0 WHERE id IN ($placeholders)");
+                $stmt->execute(array_values($sectionsToDeactivate));
+                $stmt = $pdo->prepare("UPDATE questionnaire_item SET is_active=0 WHERE section_id IN ($placeholders)");
+                $stmt->execute(array_values($sectionsToDeactivate));
+            }
+            if ($sectionsToRemove) {
+                $placeholders = implode(',', array_fill(0, count($sectionsToRemove), '?'));
                 $stmt = $pdo->prepare("DELETE FROM questionnaire_section WHERE id IN ($placeholders)");
-                $stmt->execute(array_values($sectionsToDelete));
+                $stmt->execute(array_values($sectionsToRemove));
             }
         }
+    }
 
-        $deleteQuestionnaires = array_diff(array_keys($questionnaireMap), $questionnaireSeen);
-        if ($deleteQuestionnaires) {
-            $placeholders = implode(',', array_fill(0, count($deleteQuestionnaires), '?'));
-            $stmt = $pdo->prepare("DELETE FROM questionnaire WHERE id IN ($placeholders)");
-            $stmt->execute(array_values($deleteQuestionnaires));
+    $deleteQuestionnaires = array_diff(array_keys($questionnaireMap), $questionnaireSeen);
+    if ($deleteQuestionnaires) {
+        $questionnairesToDeactivate = [];
+        $questionnairesToRemove = [];
+        foreach ($deleteQuestionnaires as $deleteQid) {
+            if (!empty($questionnaireResponseCounts[$deleteQid] ?? null)) {
+                $questionnairesToDeactivate[] = $deleteQid;
+            } else {
+                $questionnairesToRemove[] = $deleteQid;
+            }
         }
+        if ($questionnairesToDeactivate) {
+            $placeholders = implode(',', array_fill(0, count($questionnairesToDeactivate), '?'));
+            $stmt = $pdo->prepare("UPDATE questionnaire SET status='inactive' WHERE id IN ($placeholders)");
+            $stmt->execute(array_values($questionnairesToDeactivate));
+            $stmt = $pdo->prepare("UPDATE questionnaire_section SET is_active=0 WHERE questionnaire_id IN ($placeholders)");
+            $stmt->execute(array_values($questionnairesToDeactivate));
+            $stmt = $pdo->prepare("UPDATE questionnaire_item SET is_active=0 WHERE questionnaire_id IN ($placeholders)");
+            $stmt->execute(array_values($questionnairesToDeactivate));
+        }
+        if ($questionnairesToRemove) {
+            $placeholders = implode(',', array_fill(0, count($questionnairesToRemove), '?'));
+            $stmt = $pdo->prepare("DELETE FROM questionnaire WHERE id IN ($placeholders)");
+            $stmt->execute(array_values($questionnairesToRemove));
+        }
+    }
 
         $pdo->commit();
     } catch (Throwable $e) {

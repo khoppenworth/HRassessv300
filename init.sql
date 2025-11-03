@@ -98,6 +98,7 @@ CREATE TABLE questionnaire (
   id INT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   description TEXT NULL,
+  status ENUM('draft','published','inactive') NOT NULL DEFAULT 'draft',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -115,6 +116,7 @@ CREATE TABLE questionnaire_section (
   title VARCHAR(255) NOT NULL,
   description TEXT NULL,
   order_index INT NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -129,6 +131,7 @@ CREATE TABLE questionnaire_item (
   weight_percent INT NOT NULL DEFAULT 0,
   allow_multiple TINYINT(1) NOT NULL DEFAULT 0,
   is_required TINYINT(1) NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE,
   FOREIGN KEY (section_id) REFERENCES questionnaire_section(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
