@@ -1040,6 +1040,8 @@ body.theme-dark .md-user-meta dd {
 
 .md-user-action-button {
   min-width: clamp(8rem, 18vw, 10.5rem);
+  --app-button-height: 44px;
+  padding-inline: 1.25rem;
 }
 
 .md-user-update-form {
@@ -2531,6 +2533,28 @@ body.theme-dark .md-button.md-primary {
   font-size: 0.85rem;
   text-align: center;
   color: var(--app-muted);
+}
+
+@media (max-width: 640px) {
+  .likert-scale {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .likert-scale__option {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-width: 0;
+    padding: 0.75rem 0.85rem;
+  }
+
+  .likert-scale__option span {
+    text-align: left;
+  }
 }
 
 .trend-chart-wrap {
