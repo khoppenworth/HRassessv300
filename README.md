@@ -232,6 +232,48 @@ while keeping at least English or French active. To add a language:
 - `migration.sql` – incremental changes when upgrading existing databases.
 - `dummy_data.sql` – optional demo users and responses. Remove with `dummy_data_cleanup.sql` if needed.
 
+### Data Export
+
+Administrators can download a CSV of assessment responses from **Administration → Export Data**. When stakeholders prefer
+live dashboards, connect Google Looker Studio directly to the MySQL database and reuse the same export query:
+
+1. In Looker Studio, create a **MySQL** data source that points to the reporting replica (or a production database user with
+   read-only privileges).
+2. Paste the script below into Looker Studio's custom query editor, or run it ahead of time to create a reusable view.
+3. Disable the "Use default date range" option in Looker Studio if you want to control filtering through report parameters,
+   such as performance period or reviewer.
+
+```sql
+-- Create a reusable view for analytics tooling
+CREATE OR REPLACE VIEW analytics_assessment_exports AS
+SELECT
+    qr.id AS response_id,
+    u.username,
+    u.full_name,
+    u.email,
+    u.role,
+    u.work_function,
+    u.account_status,
+    qr.questionnaire_id,
+    q.title AS questionnaire_title,
+    qr.status,
+    qr.score AS score_percent,
+    pp.label AS performance_period,
+    qr.created_at,
+    qr.reviewed_at,
+    reviewer.username AS reviewer_username,
+    reviewer.full_name AS reviewer_full_name,
+    qr.review_comment
+FROM questionnaire_response qr
+JOIN users u ON u.id = qr.user_id
+LEFT JOIN questionnaire q ON q.id = qr.questionnaire_id
+LEFT JOIN users reviewer ON reviewer.id = qr.reviewed_by
+LEFT JOIN performance_period pp ON pp.id = qr.performance_period_id;
+```
+
+Grant the reporting user `SELECT` access to the view (and underlying tables when using a custom query). The resulting dataset
+mirrors the downloadable CSV and is ready for charts, scorecards, and calculated fields in Looker Studio.
+
 ## Questionnaire import
 
 Administrators can upload FHIR `Questionnaire` resources (JSON or XML) from
