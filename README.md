@@ -179,6 +179,8 @@ Environment variables are read directly via `getenv`. Set them in your shell or 
 - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
 - `BASE_URL` (defaults to `/`)
 - `APP_DEBUG` (`1` to show errors in development, otherwise disable display of errors)
+- `RATE_LIMIT_REQUESTS` (optional; requests allowed per IP during the window, defaults to 240)
+- `RATE_LIMIT_WINDOW_SECONDS` (optional; rolling window length in seconds, defaults to 60)
 
 ### Single sign-on
 
