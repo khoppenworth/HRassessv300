@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/simple_pdf.php';
+require_once __DIR__ . '/performance_sections.php';
 
 function analytics_report_allowed_frequencies(): array
 {
@@ -37,6 +38,11 @@ function analytics_report_parse_recipients(string $input): array
 
 function analytics_report_snapshot(PDO $pdo, ?int $questionnaireId = null, bool $includeDetails = false): array
 {
+    $translations = [];
+    if (function_exists('ensure_locale') && function_exists('load_lang')) {
+        $translations = load_lang(ensure_locale());
+    }
+
     $summaryRow = $pdo->query(
         "SELECT COUNT(*) AS total_responses, "
         . "SUM(status='approved') AS approved_count, "
@@ -112,6 +118,32 @@ function analytics_report_snapshot(PDO $pdo, ?int $questionnaireId = null, bool 
         if ($qRow['id'] === $selectedId) {
             $selectedTitle = (string)$qRow['title'];
             break;
+        }
+    }
+
+    $sectionBreakdowns = [];
+    if ($selectedId) {
+        $responseStmt = $pdo->prepare(
+            "SELECT qr.id, qr.questionnaire_id, qr.performance_period_id, qr.status, qr.score, qr.created_at, "
+            . "q.title, pp.label AS period_label, pp.period_start "
+            . "FROM questionnaire_response qr "
+            . "JOIN questionnaire q ON q.id = qr.questionnaire_id "
+            . "LEFT JOIN performance_period pp ON pp.id = qr.performance_period_id "
+            . "WHERE qr.questionnaire_id = ? AND qr.status IN ('submitted','approved','approved_late') "
+            . "ORDER BY qr.created_at ASC, qr.id ASC"
+        );
+        if ($responseStmt) {
+            $responseStmt->execute([$selectedId]);
+            $latestPerQuestionnaire = [];
+            foreach ($responseStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $qid = (int)($row['questionnaire_id'] ?? 0);
+                if ($qid > 0) {
+                    $latestPerQuestionnaire[$qid] = $row;
+                }
+            }
+            if ($latestPerQuestionnaire) {
+                $sectionBreakdowns = compute_section_breakdowns($pdo, array_values($latestPerQuestionnaire), $translations);
+            }
         }
     }
 
@@ -223,6 +255,7 @@ function analytics_report_snapshot(PDO $pdo, ?int $questionnaireId = null, bool 
         'work_functions' => $workFunctions,
         'selected_questionnaire_id' => $selectedId,
         'selected_questionnaire_title' => $selectedTitle,
+        'section_breakdowns' => $sectionBreakdowns,
         'user_breakdown' => $userBreakdown,
         'questionnaire_chart' => $questionnaireChart,
         'work_function_chart' => $workFunctionChart,
@@ -423,6 +456,43 @@ function analytics_report_render_pdf(array $snapshot, array $cfg): string
 
     if (!$chartsAdded) {
         $pdf->addParagraph('Not enough response data is available to generate charts yet.');
+    }
+
+    if (!empty($snapshot['section_breakdowns'])) {
+        $pdf->addSubheading('Section score radar');
+        $palette = analytics_report_palette_colors($cfg);
+        $rendered = 0;
+        foreach ($snapshot['section_breakdowns'] as $radar) {
+            if ($rendered >= 4) {
+                break;
+            }
+            $titleLine = (string)($radar['title'] ?? '');
+            $period = trim((string)($radar['period'] ?? ''));
+            if ($period !== '') {
+                $titleLine = $titleLine !== '' ? $titleLine . ' · ' . $period : $period;
+            }
+            if ($titleLine !== '') {
+                $pdf->addParagraph($titleLine);
+            }
+            $chartImage = analytics_report_generate_radar_chart($radar['sections'] ?? [], $palette, [
+                'max_value' => 100,
+                'value_suffix' => '%',
+            ]);
+            if ($chartImage) {
+                $pdf->addImageBlock($chartImage['data'], $chartImage['width'], $chartImage['height'], 480.0);
+            } else {
+                $rows = [];
+                foreach ($radar['sections'] ?? [] as $section) {
+                    $label = (string)($section['label'] ?? 'Section');
+                    $score = isset($section['score']) ? number_format((float)$section['score'], 1) . '%' : '—';
+                    $rows[] = [$label, $score];
+                }
+                if ($rows) {
+                    $pdf->addTable(['Section', 'Score'], $rows, [48, 12]);
+                }
+            }
+            $rendered++;
+        }
     }
 
     if (!empty($snapshot['include_details']) && !empty($snapshot['user_breakdown'])) {
@@ -766,6 +836,183 @@ function analytics_report_generate_line_chart(array $points, array $palette, arr
         analytics_report_draw_text($image, $meta['label'], $textColor, 18, (int)round($x), $baseline + 16, [
             'align' => 'center',
             'baseline' => 'top',
+        ]);
+    }
+
+    $result = analytics_report_export_gd_image($image);
+    if ($result === null) {
+        return null;
+    }
+
+    return $result;
+}
+
+function analytics_report_generate_radar_chart(array $sections, array $palette, array $options = []): ?array
+{
+    if (!function_exists('imagecreatetruecolor')) {
+        return null;
+    }
+
+    $normalized = [];
+    foreach ($sections as $section) {
+        $value = $section['score'] ?? ($section['value'] ?? null);
+        if (!is_numeric($value)) {
+            continue;
+        }
+        $normalized[] = [
+            'label' => analytics_report_truncate_label((string)($section['label'] ?? '')), 
+            'value' => max(0.0, (float)$value),
+        ];
+    }
+
+    if ($normalized === []) {
+        return null;
+    }
+
+    $width = (int)($options['width'] ?? 900);
+    $height = (int)($options['height'] ?? 900);
+    $image = imagecreatetruecolor($width, $height);
+    if (!$image) {
+        return null;
+    }
+
+    if (function_exists('imageantialias')) {
+        @imageantialias($image, true);
+    }
+
+    $background = imagecolorallocate($image, 255, 255, 255);
+    imagefilledrectangle($image, 0, 0, $width, $height, $background);
+
+    $gridColor = imagecolorallocate($image, 226, 232, 240);
+    $axisColor = imagecolorallocate($image, 148, 163, 184);
+    $textColor = imagecolorallocate($image, 30, 41, 59);
+
+    $primaryRgb = analytics_report_color_to_rgb($palette['primary'] ?? '#2563eb');
+    $fillRgb = analytics_report_adjust_color($primaryRgb, 0.45);
+    $strokeRgb = analytics_report_adjust_color($primaryRgb, -0.2);
+    $vertexRgb = analytics_report_adjust_color($primaryRgb, 0.1);
+    $fillColor = imagecolorallocate($image, $fillRgb[0], $fillRgb[1], $fillRgb[2]);
+    $strokeColor = imagecolorallocate($image, $strokeRgb[0], $strokeRgb[1], $strokeRgb[2]);
+    $vertexColor = imagecolorallocate($image, $vertexRgb[0], $vertexRgb[1], $vertexRgb[2]);
+
+    $margin = (int)($options['margin'] ?? 140);
+    $centerX = (int)round($width / 2);
+    $centerY = (int)round($height / 2);
+    $radius = min($width, $height) / 2 - $margin;
+    if ($radius <= 0) {
+        imagedestroy($image);
+        return null;
+    }
+
+    $values = array_column($normalized, 'value');
+    $maxValue = max($values);
+    if (isset($options['max_value']) && is_numeric($options['max_value'])) {
+        $maxValue = max($maxValue, (float)$options['max_value']);
+    }
+    if ($maxValue <= 0) {
+        $maxValue = 1;
+    }
+    $valueSuffix = isset($options['value_suffix']) ? (string)$options['value_suffix'] : '';
+    if ($valueSuffix === '%' && $maxValue < 100) {
+        $maxValue = 100;
+    }
+    $axisMax = ceil($maxValue / 10) * 10;
+    if ($valueSuffix === '%' && $axisMax < 100) {
+        $axisMax = 100;
+    }
+
+    $levels = (int)($options['grid_steps'] ?? 5);
+    if ($levels < 3) {
+        $levels = 5;
+    }
+
+    $count = count($normalized);
+    $pi = (float)pi();
+    $angleStep = $count > 0 ? (2 * $pi) / $count : 0;
+    $startAngle = -$pi / 2;
+
+    for ($level = 1; $level <= $levels; $level++) {
+        $ratio = $level / $levels;
+        $coords = [];
+        for ($i = 0; $i < $count; $i++) {
+            $angle = $startAngle + $angleStep * $i;
+            $x = $centerX + cos($angle) * $radius * $ratio;
+            $y = $centerY + sin($angle) * $radius * $ratio;
+            $coords[] = (int)round($x);
+            $coords[] = (int)round($y);
+        }
+        if ($coords) {
+            imagepolygon($image, $coords, $count, $gridColor);
+        }
+    }
+
+    for ($i = 0; $i < $count; $i++) {
+        $angle = $startAngle + $angleStep * $i;
+        $x = $centerX + cos($angle) * $radius;
+        $y = $centerY + sin($angle) * $radius;
+        imageline($image, $centerX, $centerY, (int)round($x), (int)round($y), $axisColor);
+    }
+
+    $polygon = [];
+    foreach ($normalized as $index => $section) {
+        $angle = $startAngle + $angleStep * $index;
+        $value = max(0.0, min($axisMax, $section['value']));
+        $ratio = $axisMax > 0 ? $value / $axisMax : 0.0;
+        $x = $centerX + cos($angle) * $radius * $ratio;
+        $y = $centerY + sin($angle) * $radius * $ratio;
+        $polygon[] = (int)round($x);
+        $polygon[] = (int)round($y);
+    }
+
+    if (count($polygon) >= 6) {
+        imagefilledpolygon($image, $polygon, (int)(count($polygon) / 2), $fillColor);
+        if (function_exists('imagesetthickness')) {
+            imagesetthickness($image, 3);
+        }
+        imagepolygon($image, $polygon, (int)(count($polygon) / 2), $strokeColor);
+        if (function_exists('imagesetthickness')) {
+            imagesetthickness($image, 1);
+        }
+    }
+
+    foreach ($normalized as $index => $section) {
+        $angle = $startAngle + $angleStep * $index;
+        $value = max(0.0, min($axisMax, $section['value']));
+        $ratio = $axisMax > 0 ? $value / $axisMax : 0.0;
+        $pointX = $centerX + cos($angle) * $radius * $ratio;
+        $pointY = $centerY + sin($angle) * $radius * $ratio;
+        $pointXInt = (int)round($pointX);
+        $pointYInt = (int)round($pointY);
+        imagefilledellipse($image, $pointXInt, $pointYInt, 16, 16, $vertexColor);
+        imageellipse($image, $pointXInt, $pointYInt, 18, 18, $strokeColor);
+
+        $valueLabel = number_format($section['value'], (int)($options['decimal_places'] ?? 1)) . $valueSuffix;
+        $valueLabelX = $centerX + cos($angle) * $radius * max(0.1, $ratio) * 0.85;
+        $valueLabelY = $centerY + sin($angle) * $radius * max(0.1, $ratio) * 0.85;
+        analytics_report_draw_text($image, $valueLabel, $textColor, 18, (int)round($valueLabelX), (int)round($valueLabelY), [
+            'align' => 'center',
+            'baseline' => 'middle',
+        ]);
+
+        $labelAngleCos = cos($angle);
+        $labelAngleSin = sin($angle);
+        $labelX = $centerX + $labelAngleCos * ($radius + 48);
+        $labelY = $centerY + $labelAngleSin * ($radius + 48);
+        $align = 'center';
+        if ($labelAngleCos > 0.3) {
+            $align = 'left';
+        } elseif ($labelAngleCos < -0.3) {
+            $align = 'right';
+        }
+        $baseline = 'middle';
+        if ($labelAngleSin > 0.4) {
+            $baseline = 'top';
+        } elseif ($labelAngleSin < -0.4) {
+            $baseline = 'bottom';
+        }
+        analytics_report_draw_text($image, $section['label'], $textColor, 20, (int)round($labelX), (int)round($labelY), [
+            'align' => $align,
+            'baseline' => $baseline,
         ]);
     }
 
