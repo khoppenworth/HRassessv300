@@ -7,6 +7,7 @@ $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $workFunctionChoices = work_function_choices($pdo);
+$defaultWorkFunctions = default_work_function_definitions();
 $questionnaires = [];
 $questionnaireMap = [];
 try {
@@ -42,7 +43,11 @@ try {
     error_log('work_function_defaults default fetch failed: ' . $e->getMessage());
     $existingAssignments = [];
 }
-$workFunctionKeys = array_unique(array_merge(array_keys($workFunctionChoices), array_keys($existingAssignments)));
+$workFunctionKeys = array_unique(array_merge(
+    array_keys($defaultWorkFunctions),
+    array_keys($workFunctionChoices),
+    array_keys($existingAssignments)
+));
 usort($workFunctionKeys, static function ($a, $b) use ($pdo) {
     return strcasecmp(work_function_label($pdo, (string)$a), work_function_label($pdo, (string)$b));
 });
