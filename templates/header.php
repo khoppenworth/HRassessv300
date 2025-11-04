@@ -26,6 +26,7 @@ $navKeyMap = [
     'admin/dashboard.php' => 'admin.dashboard',
     'admin/users.php' => 'admin.users',
     'admin/questionnaire_manage.php' => 'admin.manage_questionnaires',
+    'admin/work_function_defaults.php' => 'admin.work_function_defaults',
     'admin/analytics.php' => 'team.analytics',
     'admin/export.php' => 'admin.export',
     'admin/branding.php' => 'admin.branding',
@@ -380,7 +381,7 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
       </li>
     <?php endif; ?>
     <?php if ($role === 'admin'): ?>
-      <?php $adminActive = $isActiveNav('admin.dashboard', 'admin.users', 'admin.manage_questionnaires', 'admin.export', 'admin.branding', 'admin.settings'); ?>
+      <?php $adminActive = $isActiveNav('admin.dashboard', 'admin.users', 'admin.manage_questionnaires', 'admin.work_function_defaults', 'admin.export', 'admin.branding', 'admin.settings'); ?>
       <li class="md-topnav-item<?=$adminActive ? ' is-active' : ''?>" data-topnav-item>
         <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
           <span><?=t($t, 'admin_navigation', 'Administration')?></span>
@@ -390,6 +391,7 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
           <li><a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.dashboard')?>><?=t($t, 'admin_dashboard', 'System Information')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.users')?>><?=t($t, 'manage_users', 'Manage Users')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.manage_questionnaires')?>><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/work_function_defaults.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.work_function_defaults')?>><?=t($t, 'work_function_defaults_title', 'Work Function Defaults')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.export')?>><?=t($t, 'export_data', 'Export Data')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.branding')?>><?=t($t, 'branding', 'Branding & Landing')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.settings')?>><?=t($t, 'settings', 'Settings')?></a></li>
