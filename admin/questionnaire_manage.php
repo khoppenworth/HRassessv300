@@ -270,7 +270,11 @@ if ($action === 'fetch') {
     $workFunctionsByQuestionnaire = [];
     foreach ($wfRows as $wf) {
         $qid = (int)$wf['questionnaire_id'];
-        $workFunctionsByQuestionnaire[$qid][] = $wf['work_function'];
+        $label = isset($wf['work_function']) ? (string)$wf['work_function'] : '';
+        if ($label === '') {
+            continue;
+        }
+        $workFunctionsByQuestionnaire[$qid][] = $label;
     }
 
     $questionnaires = [];
@@ -300,7 +304,7 @@ if ($action === 'fetch') {
             'created_at' => $row['created_at'],
             'sections' => $sections,
             'items' => $itemsByQuestionnaire[$qid] ?? [],
-            'work_functions' => $workFunctionsByQuestionnaire[$qid] ?? $availableWorkFunctions,
+            'work_functions' => array_values(array_unique($workFunctionsByQuestionnaire[$qid] ?? [])),
             'has_responses' => !empty($questionnaireResponseCounts[$qid] ?? null),
             'response_count' => (int)($questionnaireResponseCounts[$qid] ?? 0),
         ];
@@ -655,22 +659,26 @@ if ($action === 'save' || $action === 'publish') {
                 }
             }
 
-            $workFunctionsInput = $qData['work_functions'] ?? $availableWorkFunctions;
-            if (!is_array($workFunctionsInput)) {
-                $workFunctionsInput = $availableWorkFunctions;
-            }
-            $allowedFunctions = [];
-            foreach ($workFunctionsInput as $wf) {
-                if (is_string($wf) && isset($workFunctionChoices[$wf])) {
-                    $allowedFunctions[] = $wf;
+            if (array_key_exists('work_functions', $qData)) {
+                $workFunctionsInput = $qData['work_functions'];
+                if (!is_array($workFunctionsInput)) {
+                    $workFunctionsInput = [];
                 }
-            }
-            if (!$allowedFunctions) {
-                $allowedFunctions = $availableWorkFunctions;
-            }
-            $deleteWorkFunctionStmt->execute([$qid]);
-            foreach ($allowedFunctions as $wf) {
-                $insertWorkFunctionStmt->execute([$qid, $wf]);
+                $allowedFunctions = [];
+                foreach ($workFunctionsInput as $wf) {
+                    if (!is_string($wf)) {
+                        continue;
+                    }
+                    $wfKey = trim($wf);
+                    if ($wfKey === '' || !isset($workFunctionChoices[$wfKey])) {
+                        continue;
+                    }
+                    $allowedFunctions[$wfKey] = $wfKey;
+                }
+                $deleteWorkFunctionStmt->execute([$qid]);
+                foreach (array_keys($allowedFunctions) as $wfKey) {
+                    $insertWorkFunctionStmt->execute([$qid, $wfKey]);
+                }
             }
 
         $sectionsToDelete = array_diff(array_keys($existingSections), $sectionSeen);
