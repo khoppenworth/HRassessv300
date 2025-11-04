@@ -7,6 +7,7 @@ $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
 $workFunctionChoices = work_function_choices($pdo);
+$defaultWorkFunctions = default_work_function_definitions();
 $questionnaires = [];
 $questionnaireMap = [];
 try {
@@ -42,7 +43,11 @@ try {
     error_log('work_function_defaults default fetch failed: ' . $e->getMessage());
     $existingAssignments = [];
 }
-$workFunctionKeys = array_unique(array_merge(array_keys($workFunctionChoices), array_keys($existingAssignments)));
+$workFunctionKeys = array_unique(array_merge(
+    array_keys($defaultWorkFunctions),
+    array_keys($workFunctionChoices),
+    array_keys($existingAssignments)
+));
 usort($workFunctionKeys, static function ($a, $b) use ($pdo) {
     return strcasecmp(work_function_label($pdo, (string)$a), work_function_label($pdo, (string)$b));
 });
@@ -58,6 +63,20 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $input = $_POST['assignments'] ?? [];
+    $payloadJson = $_POST['assignments_payload'] ?? '';
+    if (is_string($payloadJson) && $payloadJson !== '') {
+        $decoded = json_decode($payloadJson, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            $input = $decoded;
+        } else {
+            $errors[] = t(
+                $t,
+                'work_function_defaults_invalid_payload',
+                'The work function selections could not be processed. Please try again.'
+            );
+            $input = [];
+        }
+    }
     if (!is_array($input)) {
         $input = [];
     }
@@ -103,7 +122,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-$selectSize = count($questionnaires) > 0 ? max(4, min(count($questionnaires), 10)) : 4;
 ?>
 <!doctype html>
 <html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
@@ -133,30 +151,26 @@ $selectSize = count($questionnaires) > 0 ? max(4, min(count($questionnaires), 10
         <?php endforeach; ?>
       </div>
     <?php endif; ?>
-    <form method="post" action="<?=htmlspecialchars(url_for('admin/work_function_defaults.php'), ENT_QUOTES, 'UTF-8')?>">
+    <form
+      method="post"
+      action="<?=htmlspecialchars(url_for('admin/work_function_defaults.php'), ENT_QUOTES, 'UTF-8')?>"
+      data-work-function-form
+    >
       <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+      <input type="hidden" name="assignments_payload" value="" data-work-function-payload>
       <div class="md-work-function-grid">
         <?php if ($workFunctionKeys === []): ?>
           <p class="md-hint"><?=htmlspecialchars(t($t, 'work_function_defaults_none', 'No work functions are available yet. Staff members can continue to receive questionnaires assigned directly to them.'), ENT_QUOTES, 'UTF-8')?></p>
         <?php endif; ?>
         <?php foreach ($workFunctionKeys as $wf): ?>
           <?php $label = work_function_label($pdo, $wf); ?>
-          <div class="md-work-function-card" data-work-function-block>
+          <div class="md-work-function-card" data-work-function-block data-work-function="<?=htmlspecialchars($wf, ENT_QUOTES, 'UTF-8')?>">
             <div class="md-work-function-heading">
               <h3><?=htmlspecialchars($label, ENT_QUOTES, 'UTF-8')?></h3>
               <p><?=htmlspecialchars(t($t, 'work_function_defaults_card_hint', 'Staff in this work function receive the selected questionnaires by default.'), ENT_QUOTES, 'UTF-8')?></p>
             </div>
-            <label class="md-field md-field--compact">
-              <span><?=htmlspecialchars(t($t, 'questionnaires', 'Questionnaires'), ENT_QUOTES, 'UTF-8')?></span>
-              <select
-                class="md-work-function-select"
-                name="assignments[<?=htmlspecialchars($wf, ENT_QUOTES, 'UTF-8')?>][]"
-                data-work-function-select
-                data-work-function="<?=htmlspecialchars($wf, ENT_QUOTES, 'UTF-8')?>"
-                multiple
-                size="<?=$selectSize?>"
-                <?php if (!$questionnaires): ?>disabled<?php endif; ?>
-              >
+            <fieldset class="md-work-function-options" aria-label="<?=htmlspecialchars(t($t, 'questionnaires', 'Questionnaires'), ENT_QUOTES, 'UTF-8')?>">
+              <?php if ($questionnaires): ?>
                 <?php foreach ($questionnaires as $questionnaire): ?>
                   <?php
                     $qid = (int)$questionnaire['id'];
@@ -166,12 +180,23 @@ $selectSize = count($questionnaires) > 0 ? max(4, min(count($questionnaires), 10
                     if ($description !== '') {
                         $display .= ' — ' . $description;
                     }
-                    $selected = in_array($qid, $assignmentsByWorkFunction[$wf] ?? [], true);
+                    $checked = in_array($qid, $assignmentsByWorkFunction[$wf] ?? [], true);
                   ?>
-                  <option value="<?=$qid?>" <?=$selected ? 'selected' : ''?>><?=htmlspecialchars($display, ENT_QUOTES, 'UTF-8')?></option>
+                  <label class="md-checkbox">
+                    <input
+                      type="checkbox"
+                      name="assignments[<?=htmlspecialchars($wf, ENT_QUOTES, 'UTF-8')?>][]"
+                      value="<?=$qid?>"
+                      data-work-function-option
+                      <?=$checked ? 'checked' : ''?>
+                    >
+                    <span><?=htmlspecialchars($display, ENT_QUOTES, 'UTF-8')?></span>
+                  </label>
                 <?php endforeach; ?>
-              </select>
-            </label>
+              <?php else: ?>
+                <p class="md-hint"><?=htmlspecialchars(t($t, 'no_questionnaires_configured', 'No questionnaires are configured yet.'), ENT_QUOTES, 'UTF-8')?></p>
+              <?php endif; ?>
+            </fieldset>
             <div class="md-work-function-actions">
               <button type="button" class="md-button md-outline" data-select-all><?=htmlspecialchars(t($t, 'select_all', 'Select All'), ENT_QUOTES, 'UTF-8')?></button>
               <button type="button" class="md-button md-outline" data-clear-all><?=htmlspecialchars(t($t, 'clear_all', 'Clear All'), ENT_QUOTES, 'UTF-8')?></button>
@@ -179,9 +204,6 @@ $selectSize = count($questionnaires) > 0 ? max(4, min(count($questionnaires), 10
           </div>
         <?php endforeach; ?>
       </div>
-      <?php if (!$questionnaires): ?>
-        <p class="md-hint md-work-function-hint"><?=htmlspecialchars(t($t, 'no_questionnaires_configured', 'No questionnaires are configured yet.'), ENT_QUOTES, 'UTF-8')?></p>
-      <?php endif; ?>
       <div class="md-form-actions">
         <button class="md-button md-primary md-elev-2" type="submit"><?=htmlspecialchars(t($t, 'save', 'Save Changes'), ENT_QUOTES, 'UTF-8')?></button>
       </div>
@@ -191,31 +213,56 @@ $selectSize = count($questionnaires) > 0 ? max(4, min(count($questionnaires), 10
 <?php include __DIR__ . '/../templates/footer.php'; ?>
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
 (function () {
+  const form = document.querySelector('[data-work-function-form]');
+  const payloadInput = form ? form.querySelector('[data-work-function-payload]') : null;
   const blocks = document.querySelectorAll('[data-work-function-block]');
+
   blocks.forEach((block) => {
-    const select = block.querySelector('[data-work-function-select]');
-    if (!select) {
-      return;
-    }
     const selectAllBtn = block.querySelector('[data-select-all]');
     const clearBtn = block.querySelector('[data-clear-all]');
-    if (selectAllBtn) {
-      selectAllBtn.addEventListener('click', () => {
-        Array.from(select.options).forEach((option) => {
-          option.selected = !option.disabled;
-        });
-        select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const setAll = (checked) => {
+      const checkboxes = block.querySelectorAll('input[type="checkbox"][data-work-function-option]');
+      checkboxes.forEach((checkbox) => {
+        if (!checkbox.disabled) {
+          checkbox.checked = checked;
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        }
       });
+    };
+
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', () => setAll(true));
     }
     if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        Array.from(select.options).forEach((option) => {
-          option.selected = false;
-        });
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-      });
+      clearBtn.addEventListener('click', () => setAll(false));
     }
   });
+
+  if (form && payloadInput) {
+    form.addEventListener('submit', () => {
+      const payload = {};
+      blocks.forEach((block) => {
+        const workFunction = block.getAttribute('data-work-function');
+        if (!workFunction) {
+          return;
+        }
+        const selections = [];
+        const checkboxes = block.querySelectorAll('input[type="checkbox"][data-work-function-option]:checked');
+        checkboxes.forEach((checkbox) => {
+          if (checkbox.value !== '') {
+            selections.push(checkbox.value);
+          }
+        });
+        payload[workFunction] = selections;
+      });
+      try {
+        payloadInput.value = JSON.stringify(payload);
+      } catch (err) {
+        payloadInput.value = '';
+      }
+    });
+  }
 })();
 </script>
 </body>
