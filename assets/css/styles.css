@@ -129,7 +129,7 @@ button,
   flex-wrap: wrap;
 }
 
-@media (min-width: 901px) {
+@media (min-width: 1025px) {
   .md-appbar {
     flex-wrap: nowrap;
     gap: 1rem;
@@ -2388,13 +2388,13 @@ body.theme-dark .md-button.md-primary {
   }
 }
 
-@media (min-width: 901px) {
+@media (min-width: 1025px) {
   .md-topnav-backdrop {
     display: none;
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .md-shell {
     padding: 1.1rem 1rem 2.2rem;
   }
@@ -2458,7 +2458,7 @@ body.theme-dark .md-button.md-primary {
 
   html.has-js .md-topnav {
     position: fixed;
-    top: var(--appbar-height);
+    top: calc(var(--appbar-height) + env(safe-area-inset-top, 0px));
     left: 0;
     right: 0;
     bottom: 0;
@@ -2469,12 +2469,14 @@ body.theme-dark .md-button.md-primary {
     transform: translateY(-12%);
     opacity: 0;
     pointer-events: none;
-    padding: 1.35rem 1.35rem 3rem;
+    padding: calc(1.35rem + env(safe-area-inset-top, 0px)) 1.35rem calc(3rem + env(safe-area-inset-bottom, 0px));
     background: var(--app-surface);
     gap: 1rem;
     overflow-y: auto;
+    max-height: calc(100vh - var(--appbar-height) - env(safe-area-inset-top, 0px));
     -webkit-overflow-scrolling: touch;
     transition: transform 0.28s ease, opacity 0.28s ease;
+    z-index: 1200;
   }
 
   html.has-js .md-topnav::before {
