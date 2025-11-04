@@ -2956,6 +2956,65 @@ body.theme-dark .md-upgrade-select {
   justify-content: center;
 }
 
+.md-work-function-hint {
+  margin-top: 0.25rem;
+  color: var(--app-text-secondary, var(--md-muted));
+}
+
+.md-work-function-grid {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .md-work-function-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
+.md-work-function-card {
+  background: color-mix(in srgb, var(--md-surface) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-text-secondary, #475569) 14%, transparent);
+  border-radius: var(--md-radius);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+body.theme-dark .md-work-function-card {
+  background: color-mix(in srgb, var(--md-surface) 90%, transparent);
+  border-color: color-mix(in srgb, var(--app-text-secondary, #d1d5f9) 18%, transparent);
+}
+
+.md-work-function-heading h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--app-heading, var(--md-primary-dark));
+}
+
+.md-work-function-heading p {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  color: var(--app-text-secondary, var(--md-muted));
+}
+
+.md-work-function-select {
+  width: 100%;
+  min-height: 8rem;
+}
+
+.md-work-function-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.md-work-function-actions .md-button {
+  flex: 0 0 auto;
+}
+
 
 
 .md-help-overlay {
