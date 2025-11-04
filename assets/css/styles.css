@@ -1109,6 +1109,10 @@ body.theme-dark .md-field.md-field--compact select {
   justify-self: start;
 }
 
+.md-form-grid > .md-form-actions {
+  grid-column: 1 / -1;
+}
+
 .md-field.md-field-inline {
   align-items: flex-start;
 }
