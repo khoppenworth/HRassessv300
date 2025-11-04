@@ -93,6 +93,20 @@ UPDATE questionnaire
 SET status = 'draft'
 WHERE status IS NULL OR status NOT IN ('draft','published','inactive');
 
+SET @existing_published := (
+  SELECT COUNT(*)
+  FROM questionnaire
+  WHERE status = 'published'
+);
+SET @publish_existing_sql := IF(
+  @existing_published = 0,
+  'UPDATE questionnaire SET status = ''published'' WHERE status = ''draft'';',
+  'DO 1'
+);
+PREPARE stmt FROM @publish_existing_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 SET @qs_active_exists = (
   SELECT COUNT(1)
   FROM INFORMATION_SCHEMA.COLUMNS
