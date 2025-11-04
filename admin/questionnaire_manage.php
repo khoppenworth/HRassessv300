@@ -666,7 +666,11 @@ if ($action === 'save' || $action === 'publish') {
                 }
             }
             if (!$allowedFunctions) {
-                $allowedFunctions = $availableWorkFunctions;
+                $pdo->rollBack();
+                send_json([
+                    'status' => 'error',
+                    'message' => t($t, 'qb_work_function_required', 'Select at least one work function before saving.'),
+                ], 422);
             }
             $deleteWorkFunctionStmt->execute([$qid]);
             foreach ($allowedFunctions as $wf) {

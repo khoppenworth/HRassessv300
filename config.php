@@ -70,6 +70,7 @@ if (!defined('APP_BOOTSTRAPPED')) {
     try {
         $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
         ensure_site_config_schema($pdo);
+        ensure_work_function_definition_schema($pdo);
         ensure_users_schema($pdo);
         ensure_questionnaire_item_schema($pdo);
         ensure_questionnaire_work_function_schema($pdo);
@@ -147,44 +148,50 @@ function default_work_function_definitions(): array
     ];
 }
 
-function work_function_choices(PDO $pdo): array
+function work_function_choices(PDO $pdo, bool $forceReload = false): array
 {
     static $cache = null;
+
+    if ($forceReload) {
+        $cache = null;
+    }
+
     if ($cache !== null) {
         return $cache;
     }
 
     $defaults = default_work_function_definitions();
-    $values = [];
+    $choices = [];
 
     try {
-        $stmt = $pdo->query('SELECT DISTINCT work_function FROM questionnaire_work_function ORDER BY work_function');
+        $stmt = $pdo->query('SELECT wf_key, label FROM work_function_definition WHERE is_active = 1 ORDER BY display_order ASC, label ASC');
         if ($stmt) {
-            $values = array_filter(array_map(static fn($value) => trim((string)$value), $stmt->fetchAll(PDO::FETCH_COLUMN)));
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $key = trim((string)($row['wf_key'] ?? ''));
+                if ($key === '') {
+                    continue;
+                }
+                $label = trim((string)($row['label'] ?? ''));
+                if ($label === '' && isset($defaults[$key])) {
+                    $label = $defaults[$key];
+                }
+                if ($label === '') {
+                    $label = ucwords(str_replace('_', ' ', $key));
+                }
+                $choices[$key] = $label;
+            }
         }
     } catch (PDOException $e) {
-        error_log('work_function_choices (questionnaire_work_function): ' . $e->getMessage());
+        error_log('work_function_choices (work_function_definition): ' . $e->getMessage());
     }
 
-    if (!$values) {
-        try {
-            $stmt = $pdo->query('SELECT DISTINCT work_function FROM users WHERE work_function IS NOT NULL AND work_function <> \'\' ORDER BY work_function');
-            if ($stmt) {
-                $values = array_filter(array_map(static fn($value) => trim((string)$value), $stmt->fetchAll(PDO::FETCH_COLUMN)));
-            }
-        } catch (PDOException $e) {
-            error_log('work_function_choices (users): ' . $e->getMessage());
+    if (!$choices) {
+        foreach ($defaults as $key => $label) {
+            $choices[$key] = $label;
         }
     }
 
-    if (!$values) {
-        $values = array_keys($defaults);
-    }
-
-    $cache = [];
-    foreach ($values as $value) {
-        $cache[$value] = $defaults[$value] ?? ucwords(str_replace('_', ' ', $value));
-    }
+    $cache = $choices;
 
     return $cache;
 }
@@ -367,6 +374,7 @@ function ensure_site_config_schema(PDO $pdo): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     $existing = [];
+    $columnMap = [];
     $columns = $pdo->query('SHOW COLUMNS FROM site_config');
     if ($columns) {
         while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
@@ -651,6 +659,92 @@ function delete_branding_logo_file(?string $path): void
     }
 }
 
+function ensure_work_function_definition_schema(PDO $pdo): void
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS work_function_definition (
+            wf_key VARCHAR(64) NOT NULL,
+            label VARCHAR(190) NOT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            display_order INT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (wf_key)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $columnsStmt = $pdo->query('SHOW COLUMNS FROM work_function_definition');
+        $columns = [];
+        if ($columnsStmt) {
+            while ($column = $columnsStmt->fetch(PDO::FETCH_ASSOC)) {
+                $columns[$column['Field']] = $column;
+            }
+        }
+
+        if (!isset($columns['label'])) {
+            $pdo->exec('ALTER TABLE work_function_definition ADD COLUMN label VARCHAR(190) NOT NULL AFTER wf_key');
+        }
+        if (!isset($columns['is_active'])) {
+            $pdo->exec('ALTER TABLE work_function_definition ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER label');
+        }
+        if (!isset($columns['display_order'])) {
+            $pdo->exec('ALTER TABLE work_function_definition ADD COLUMN display_order INT NOT NULL DEFAULT 0 AFTER is_active');
+        }
+        if (!isset($columns['created_at'])) {
+            $pdo->exec('ALTER TABLE work_function_definition ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER display_order');
+        }
+        if (!isset($columns['updated_at'])) {
+            $pdo->exec('ALTER TABLE work_function_definition ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at');
+        }
+
+        $defaults = default_work_function_definitions();
+        $order = 0;
+        $insertStmt = $pdo->prepare('INSERT IGNORE INTO work_function_definition (wf_key, label, is_active, display_order) VALUES (?, ?, 1, ?)');
+        foreach ($defaults as $key => $label) {
+            $order++;
+            $insertStmt->execute([$key, $label, $order]);
+        }
+
+        $existingKeys = [];
+        $keyStmt = $pdo->query('SELECT wf_key FROM work_function_definition');
+        if ($keyStmt) {
+            $existingKeys = array_map(static fn($value) => (string)$value, $keyStmt->fetchAll(PDO::FETCH_COLUMN));
+        }
+        $existingMap = array_fill_keys($existingKeys, true);
+
+        $sourceQueries = [
+            'SELECT DISTINCT work_function FROM users WHERE work_function IS NOT NULL AND work_function <> \'\' ',
+            'SELECT DISTINCT work_function FROM questionnaire_work_function',
+        ];
+        foreach ($sourceQueries as $sql) {
+            try {
+                $stmt = $pdo->query($sql);
+            } catch (PDOException $e) {
+                error_log('ensure_work_function_definition_schema source fetch failed: ' . $e->getMessage());
+                continue;
+            }
+            if (!$stmt) {
+                continue;
+            }
+            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $value) {
+                $key = trim((string)$value);
+                if ($key === '' || isset($existingMap[$key])) {
+                    continue;
+                }
+                $label = $defaults[$key] ?? ucwords(str_replace('_', ' ', $key));
+                $order++;
+                try {
+                    $insertStmt->execute([$key, $label, $order]);
+                    $existingMap[$key] = true;
+                } catch (PDOException $e) {
+                    error_log('ensure_work_function_definition_schema insert failed: ' . $e->getMessage());
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('ensure_work_function_definition_schema: ' . $e->getMessage());
+    }
+}
+
 function ensure_users_schema(PDO $pdo): void
 {
     $existing = [];
@@ -663,10 +757,13 @@ function ensure_users_schema(PDO $pdo): void
     $roleColumn = null;
     if ($columns) {
         while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
-            if (isset($col['Field'])) {
-                $existing[$col['Field']] = true;
+            $field = (string)($col['Field'] ?? '');
+            if ($field === '') {
+                continue;
             }
-            if (($col['Field'] ?? '') === 'role') {
+            $existing[$field] = true;
+            $columnMap[$field] = $col;
+            if ($field === 'role') {
                 $roleColumn = $col;
             }
         }
@@ -674,6 +771,16 @@ function ensure_users_schema(PDO $pdo): void
 
     if ($roleColumn && isset($roleColumn['Type']) && stripos((string)$roleColumn['Type'], 'enum(') !== false) {
         $pdo->exec("ALTER TABLE users MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'staff'");
+    }
+
+    $workFunctionColumn = $columnMap['work_function'] ?? null;
+    if ($workFunctionColumn === null) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN work_function VARCHAR(64) NULL AFTER cadre');
+    } else {
+        $type = strtolower((string)($workFunctionColumn['Type'] ?? ''));
+        if (strpos($type, 'varchar') === false || (int)($workFunctionColumn['Null'] === 'YES' ? 1 : 0) === 0) {
+            $pdo->exec('ALTER TABLE users MODIFY COLUMN work_function VARCHAR(64) NULL');
+        }
     }
 
     $changes = [
@@ -689,6 +796,27 @@ function ensure_users_schema(PDO $pdo): void
         if (!isset($existing[$field])) {
             $pdo->exec($sql);
         }
+    }
+
+    try {
+        $indexes = $pdo->query("SHOW INDEX FROM users WHERE Key_name = 'idx_users_work_function'");
+        $hasIndex = $indexes && $indexes->fetch(PDO::FETCH_ASSOC);
+        if (!$hasIndex) {
+            $pdo->exec('CREATE INDEX idx_users_work_function ON users (work_function)');
+        }
+    } catch (PDOException $e) {
+        error_log('ensure_users_schema index failed: ' . $e->getMessage());
+    }
+
+    try {
+        $fkStmt = $pdo->prepare("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'work_function' AND REFERENCED_TABLE_NAME = 'work_function_definition'");
+        $fkStmt->execute();
+        $existingFk = $fkStmt->fetch(PDO::FETCH_COLUMN);
+        if (!$existingFk) {
+            $pdo->exec('ALTER TABLE users ADD CONSTRAINT fk_users_work_function FOREIGN KEY (work_function) REFERENCES work_function_definition(wf_key) ON DELETE SET NULL ON UPDATE CASCADE');
+        }
+    } catch (PDOException $e) {
+        error_log('ensure_users_schema foreign key failed: ' . $e->getMessage());
     }
 }
 
@@ -713,15 +841,9 @@ function ensure_questionnaire_item_schema(PDO $pdo): void
 function ensure_questionnaire_work_function_schema(PDO $pdo): void
 {
     try {
-        $defaults = array_keys(default_work_function_definitions());
-        $enumValues = array_map(static function ($value) {
-            return str_replace("'", "''", (string)$value);
-        }, $defaults);
-        $enumList = "'" . implode("','", $enumValues) . "'";
-
         $pdo->exec("CREATE TABLE IF NOT EXISTS questionnaire_work_function (
             questionnaire_id INT NOT NULL,
-            work_function ENUM($enumList) NOT NULL,
+            work_function VARCHAR(64) NOT NULL,
             PRIMARY KEY (questionnaire_id, work_function)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
@@ -734,9 +856,12 @@ function ensure_questionnaire_work_function_schema(PDO $pdo): void
         }
 
         if (!isset($columns['work_function'])) {
-            $pdo->exec("ALTER TABLE questionnaire_work_function ADD COLUMN work_function ENUM($enumList) NOT NULL AFTER questionnaire_id");
+            $pdo->exec('ALTER TABLE questionnaire_work_function ADD COLUMN work_function VARCHAR(64) NOT NULL AFTER questionnaire_id');
         } else {
-            $pdo->exec("ALTER TABLE questionnaire_work_function MODIFY COLUMN work_function ENUM($enumList) NOT NULL");
+            $type = strtolower((string)($columns['work_function']['Type'] ?? ''));
+            if (strpos($type, 'varchar') === false) {
+                $pdo->exec('ALTER TABLE questionnaire_work_function MODIFY COLUMN work_function VARCHAR(64) NOT NULL');
+            }
         }
 
         $primaryIndex = $pdo->query("SHOW INDEX FROM questionnaire_work_function WHERE Key_name = 'PRIMARY'");
@@ -745,18 +870,24 @@ function ensure_questionnaire_work_function_schema(PDO $pdo): void
             $pdo->exec('ALTER TABLE questionnaire_work_function ADD PRIMARY KEY (questionnaire_id, work_function)');
         }
 
-        $questionnaireStmt = $pdo->query('SELECT id FROM questionnaire');
-        if ($questionnaireStmt) {
-            $ids = $questionnaireStmt->fetchAll(PDO::FETCH_COLUMN);
-            if ($ids) {
-                $insert = $pdo->prepare('INSERT IGNORE INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
-                foreach ($ids as $qid) {
-                    $qid = (int)$qid;
-                    foreach ($defaults as $wf) {
-                        $insert->execute([$qid, $wf]);
-                    }
-                }
-            }
+        $workFunctionIndex = $pdo->query("SHOW INDEX FROM questionnaire_work_function WHERE Key_name = 'idx_qwf_work_function'");
+        $hasWorkFunctionIndex = $workFunctionIndex && $workFunctionIndex->fetch(PDO::FETCH_ASSOC);
+        if (!$hasWorkFunctionIndex) {
+            $pdo->exec('CREATE INDEX idx_qwf_work_function ON questionnaire_work_function (work_function)');
+        }
+
+        $fkStmt = $pdo->prepare("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'questionnaire_work_function' AND REFERENCED_TABLE_NAME = 'work_function_definition'");
+        $fkStmt->execute();
+        $hasDefinitionFk = $fkStmt->fetch(PDO::FETCH_COLUMN);
+        if (!$hasDefinitionFk) {
+            $pdo->exec('ALTER TABLE questionnaire_work_function ADD CONSTRAINT fk_qwf_definition FOREIGN KEY (work_function) REFERENCES work_function_definition(wf_key) ON DELETE CASCADE ON UPDATE CASCADE');
+        }
+
+        $fkQuestionnaireStmt = $pdo->prepare("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'questionnaire_work_function' AND COLUMN_NAME = 'questionnaire_id' AND REFERENCED_TABLE_NAME = 'questionnaire'");
+        $fkQuestionnaireStmt->execute();
+        $hasQuestionnaireFk = $fkQuestionnaireStmt->fetch(PDO::FETCH_COLUMN);
+        if (!$hasQuestionnaireFk) {
+            $pdo->exec('ALTER TABLE questionnaire_work_function ADD CONSTRAINT fk_qwf_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE');
         }
     } catch (PDOException $e) {
         error_log('ensure_questionnaire_work_function_schema: ' . $e->getMessage());

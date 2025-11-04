@@ -59,6 +59,36 @@ CREATE TABLE site_config (
   email_templates LONGTEXT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE work_function_definition (
+  wf_key VARCHAR(64) NOT NULL,
+  label VARCHAR(190) NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (wf_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO work_function_definition (wf_key, label, display_order) VALUES
+  ('finance', 'Finance', 1),
+  ('general_service', 'General Service', 2),
+  ('hrm', 'HRM', 3),
+  ('ict', 'ICT', 4),
+  ('leadership_tn', 'Leadership TN', 5),
+  ('legal_service', 'Legal Service', 6),
+  ('pme', 'PME', 7),
+  ('quantification', 'Quantification', 8),
+  ('records_documentation', 'Records & Documentation', 9),
+  ('security_driver', 'Security & Driver', 10),
+  ('security', 'Security', 11),
+  ('tmd', 'TMD', 12),
+  ('wim', 'WIM', 13),
+  ('cmd', 'CMD', 14),
+  ('communication', 'Communication', 15),
+  ('dfm', 'DFM', 16),
+  ('driver', 'Driver', 17),
+  ('ethics', 'Ethics', 18);
+
 CREATE TABLE users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(100) UNIQUE NOT NULL,
@@ -71,7 +101,7 @@ CREATE TABLE users (
   phone VARCHAR(50) NULL,
   department VARCHAR(150) NULL,
   cadre VARCHAR(150) NULL,
-  work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL DEFAULT 'general_service',
+  work_function VARCHAR(64) DEFAULT NULL,
   profile_completed TINYINT(1) NOT NULL DEFAULT 0,
   language VARCHAR(5) NOT NULL DEFAULT 'en',
   account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active',
@@ -82,7 +112,8 @@ CREATE TABLE users (
   approved_at DATETIME NULL,
   sso_provider VARCHAR(50) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+  FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_users_work_function FOREIGN KEY (work_function) REFERENCES work_function_definition(wf_key) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE logs (
@@ -176,10 +207,11 @@ CREATE TABLE course_catalogue (
   code VARCHAR(50) NOT NULL,
   title VARCHAR(255) NOT NULL,
   moodle_url VARCHAR(255) NULL,
-  recommended_for ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL,
+  recommended_for VARCHAR(64) NOT NULL,
   min_score INT NOT NULL DEFAULT 0,
   max_score INT NOT NULL DEFAULT 99,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (recommended_for) REFERENCES work_function_definition(wf_key) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE training_recommendation (
@@ -194,9 +226,11 @@ CREATE TABLE training_recommendation (
 
 CREATE TABLE questionnaire_work_function (
   questionnaire_id INT NOT NULL,
-  work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL,
+  work_function VARCHAR(64) NOT NULL,
   PRIMARY KEY (questionnaire_id, work_function),
-  FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE
+  KEY idx_qwf_work_function (work_function),
+  FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE,
+  FOREIGN KEY (work_function) REFERENCES work_function_definition(wf_key) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE questionnaire_assignment (
