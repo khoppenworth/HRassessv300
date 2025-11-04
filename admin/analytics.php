@@ -463,7 +463,7 @@ $questionnaireStmt = $pdo->query(
 $questionnaires = $questionnaireStmt ? $questionnaireStmt->fetchAll(PDO::FETCH_ASSOC) : [];
 
 $responseMetaStmt = $pdo->query(
-    'SELECT qr.id, qr.questionnaire_id, qr.score, qr.status, u.work_function '
+    'SELECT qr.id, qr.questionnaire_id, qr.user_id, qr.score, qr.status, u.work_function '
     . 'FROM questionnaire_response qr '
     . 'JOIN users u ON u.id = qr.user_id'
 );
@@ -472,6 +472,66 @@ $responseMetaRows = $responseMetaStmt ? $responseMetaStmt->fetchAll(PDO::FETCH_A
     = analytics_resolve_score_fallbacks($pdo, $responseMetaRows);
 if (($summary['avg_score'] ?? null) === null && $overallFallbackAverage !== null) {
     $summary['avg_score'] = $overallFallbackAverage;
+}
+
+$overallKpiTracker = [];
+$questionnaireKpiTracker = [];
+foreach ($responseMetaRows as $row) {
+    $rid = (int)($row['id'] ?? 0);
+    $qid = (int)($row['questionnaire_id'] ?? 0);
+    $userId = (int)($row['user_id'] ?? 0);
+    if ($rid <= 0 || $qid <= 0 || $userId <= 0) {
+        continue;
+    }
+    $status = strtolower((string)($row['status'] ?? ''));
+    if ($status === 'draft') {
+        continue;
+    }
+    $score = $row['score'];
+    if ($score === null && isset($computedResponseScores[$rid])) {
+        $score = $computedResponseScores[$rid];
+    } elseif ($score !== null) {
+        $score = (float)$score;
+    }
+    if ($score === null) {
+        continue;
+    }
+    if (!isset($overallKpiTracker[$userId]) || $score > $overallKpiTracker[$userId]) {
+        $overallKpiTracker[$userId] = $score;
+    }
+    if (!isset($questionnaireKpiTracker[$qid][$userId]) || $score > $questionnaireKpiTracker[$qid][$userId]) {
+        $questionnaireKpiTracker[$qid][$userId] = $score;
+    }
+}
+
+$overallKpiStats = [
+    'total' => count($overallKpiTracker),
+    'hit' => 0,
+    'percent' => null,
+];
+foreach ($overallKpiTracker as $score) {
+    if ($score >= 80.0) {
+        $overallKpiStats['hit'] += 1;
+    }
+}
+if ($overallKpiStats['total'] > 0) {
+    $overallKpiStats['percent'] = round(($overallKpiStats['hit'] / $overallKpiStats['total']) * 100, 1);
+}
+
+$questionnaireKpiStats = [];
+foreach ($questionnaireKpiTracker as $qid => $userScores) {
+    $totalUsers = count($userScores);
+    $hitCount = 0;
+    foreach ($userScores as $score) {
+        if ($score >= 80.0) {
+            $hitCount += 1;
+        }
+    }
+    $questionnaireKpiStats[$qid] = [
+        'total' => $totalUsers,
+        'hit' => $hitCount,
+        'percent' => $totalUsers > 0 ? round(($hitCount / $totalUsers) * 100, 1) : null,
+    ];
 }
 
 $questionnaireIds = array_map(static fn($row) => (int)$row['id'], $questionnaires);
@@ -495,8 +555,21 @@ foreach ($questionnaires as &$questionnaireRow) {
     } elseif (isset($questionnaireFallbackAverages[$qid])) {
         $questionnaireRow['avg_score'] = $questionnaireFallbackAverages[$qid];
     }
+    $questionnaireRow['kpi_total_users'] = $questionnaireKpiStats[$qid]['total'] ?? 0;
+    $questionnaireRow['kpi_hit_users'] = $questionnaireKpiStats[$qid]['hit'] ?? 0;
+    $questionnaireRow['kpi_percent'] = $questionnaireKpiStats[$qid]['percent'] ?? null;
 }
 unset($questionnaireRow);
+
+$kpiBreakdownRows = $questionnaires;
+usort($kpiBreakdownRows, static function (array $a, array $b): int {
+    $aPercent = $a['kpi_percent'] ?? -1;
+    $bPercent = $b['kpi_percent'] ?? -1;
+    if ($aPercent === $bPercent) {
+        return strcasecmp((string)($a['title'] ?? ''), (string)($b['title'] ?? ''));
+    }
+    return ($bPercent <=> $aPercent);
+});
 
 $selectedResponses = [];
 $selectedUserBreakdown = [];
@@ -941,6 +1014,118 @@ $pageHelpKey = 'team.analytics';
   <link rel="stylesheet" href="<?=asset_url('assets/css/material.css')?>">
   <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
   <style nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">
+    .md-kpi-card {
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border-radius: 12px;
+      background: var(--app-surface, #fff);
+    }
+    .md-kpi-hero {
+      background: linear-gradient(135deg, #003c8f, #1976d2);
+      color: #fff;
+      border-radius: 12px;
+      padding: 1.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .md-kpi-hero__copy {
+      flex: 1 1 260px;
+      max-width: 520px;
+    }
+    .md-kpi-hero__eyebrow {
+      margin: 0 0 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.75rem;
+      opacity: 0.85;
+    }
+    .md-kpi-hero__title {
+      margin: 0;
+      font-size: 1.4rem;
+    }
+    .md-kpi-hero__meta {
+      margin: 0.75rem 0 0;
+      font-size: 0.95rem;
+      opacity: 0.95;
+    }
+    .md-kpi-hero__ring {
+      --kpi-angle: 0deg;
+      width: 132px;
+      height: 132px;
+      border-radius: 50%;
+      background: conic-gradient(rgba(255, 255, 255, 0.9) var(--kpi-angle), rgba(255, 255, 255, 0.2) 0deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 0 6px rgba(255, 255, 255, 0.35);
+      flex: 0 0 auto;
+    }
+    .md-kpi-hero__ring span {
+      width: calc(100% - 28px);
+      height: calc(100% - 28px);
+      border-radius: 50%;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #1c54b2;
+    }
+    .md-kpi-hero__ring--empty {
+      background: rgba(255, 255, 255, 0.25);
+      box-shadow: inset 0 0 0 6px rgba(255, 255, 255, 0.35);
+    }
+    .md-kpi-hero__ring--empty span {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .md-kpi-breakdown {
+      margin-top: 1.5rem;
+    }
+    .md-kpi-breakdown h3 {
+      margin: 0 0 0.75rem;
+      font-size: 1.05rem;
+    }
+    .md-kpi-breakdown__list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .md-kpi-breakdown__item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      background: var(--app-surface-alt, #f5f7fa);
+    }
+    .md-kpi-breakdown__item div {
+      flex: 1 1 auto;
+    }
+    .md-kpi-breakdown__name {
+      display: block;
+      font-weight: 600;
+    }
+    .md-kpi-breakdown__meta {
+      display: block;
+      font-size: 0.9rem;
+      color: var(--app-text-secondary, #555);
+      margin-top: 0.25rem;
+    }
+    .md-kpi-breakdown__value {
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: var(--app-primary, #0050c8);
+      white-space: nowrap;
+    }
     .md-summary-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1041,6 +1226,73 @@ $pageHelpKey = 'team.analytics';
   <?php if ($reportError): ?>
     <div class="md-alert error"><?=htmlspecialchars($reportError, ENT_QUOTES, 'UTF-8')?></div>
   <?php endif; ?>
+  <div class="md-card md-kpi-card md-elev-2">
+    <div class="md-kpi-hero">
+      <div class="md-kpi-hero__copy">
+        <p class="md-kpi-hero__eyebrow"><?=t($t, 'epss_kpi_label', 'EPSS KPI')?></p>
+        <h3 class="md-kpi-hero__title"><?=t($t, 'epss_kpi_title', 'Percentage of staff reaching 80% or more')?></h3>
+        <p class="md-kpi-hero__meta">
+          <?php if ($overallKpiStats['total'] > 0): ?>
+            <?=sprintf(
+                t($t, 'epss_kpi_meta', '%1$d of %2$d staff reached 80%% or more.'),
+                $overallKpiStats['hit'],
+                $overallKpiStats['total']
+            )?>
+          <?php else: ?>
+            <?=t($t, 'epss_kpi_meta_empty', 'No completed questionnaire scores yet.')?>
+          <?php endif; ?>
+        </p>
+      </div>
+      <?php if ($overallKpiStats['percent'] !== null): ?>
+        <?php
+          $overallKpiValue = number_format((float)$overallKpiStats['percent'], 1);
+          $overallKpiAngle = max(0.0, min(100.0, (float)$overallKpiStats['percent'])) * 3.6;
+        ?>
+        <div class="md-kpi-hero__ring" style="--kpi-angle: <?=$overallKpiAngle?>deg;">
+          <span><?=$overallKpiValue?>%</span>
+        </div>
+      <?php else: ?>
+        <div class="md-kpi-hero__ring md-kpi-hero__ring--empty">
+          <span>—</span>
+        </div>
+      <?php endif; ?>
+    </div>
+    <?php if ($kpiBreakdownRows): ?>
+      <div class="md-kpi-breakdown">
+        <h3><?=t($t, 'epss_kpi_breakdown_title', 'KPI by questionnaire')?></h3>
+        <ul class="md-kpi-breakdown__list">
+          <?php foreach ($kpiBreakdownRows as $row): ?>
+            <?php
+              $percent = $row['kpi_percent'] ?? null;
+              $totalUsers = (int)($row['kpi_total_users'] ?? 0);
+              $hitUsers = (int)($row['kpi_hit_users'] ?? 0);
+              $title = trim((string)($row['title'] ?? ''));
+              $displayTitle = $title !== '' ? $title : t($t, 'questionnaire', 'Questionnaire');
+            ?>
+            <li class="md-kpi-breakdown__item">
+              <div>
+                <span class="md-kpi-breakdown__name"><?=htmlspecialchars($displayTitle, ENT_QUOTES, 'UTF-8')?></span>
+                <span class="md-kpi-breakdown__meta">
+                  <?php if ($totalUsers > 0): ?>
+                    <?=sprintf(
+                        t($t, 'epss_kpi_breakdown_meta', '%1$d of %2$d staff'),
+                        $hitUsers,
+                        $totalUsers
+                    )?>
+                  <?php else: ?>
+                    <?=t($t, 'epss_kpi_breakdown_empty', 'No scores yet')?>
+                  <?php endif; ?>
+                </span>
+              </div>
+              <span class="md-kpi-breakdown__value">
+                <?=$percent !== null ? number_format((float)$percent, 1) . '%' : '—'?>
+              </span>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    <?php endif; ?>
+  </div>
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=t($t, 'analytics_overview', 'Analytics overview')?></h2>
     <div class="md-summary-grid">
