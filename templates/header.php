@@ -345,12 +345,31 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
     ?>
     <li class="md-topnav-item<?=$workspaceActive ? ' is-active' : ''?>" data-topnav-item>
       <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
-        <span><?=t($t, 'my_workspace', 'My Workspace')?></span>
+        <span class="md-topnav-label">
+          <span class="md-topnav-title"><?=t($t, 'my_workspace', 'My Workspace')?></span>
+          <span class="md-topnav-desc"><?=t($t, 'my_workspace_summary', 'Stay on top of your goals and tasks.')?></span>
+        </span>
         <span class="md-topnav-chevron" aria-hidden="true"></span>
       </button>
       <ul class="md-topnav-submenu">
-        <li><a href="<?=htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.my_performance')?>><?=t($t, 'my_performance', 'My Performance')?></a></li>
-        <li><a href="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.submit_assessment')?>><?=t($t, 'submit_assessment', 'Submit Assessment')?></a></li>
+        <li>
+          <a href="<?=htmlspecialchars(url_for('my_performance.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.my_performance')?>>
+            <span class="md-topnav-link-content">
+              <span class="md-topnav-link-title"><?=t($t, 'my_performance', 'My Performance')?></span>
+              <span class="md-topnav-link-desc"><?=t($t, 'my_performance_summary', 'Track your objectives, reviews, and milestones.')?></span>
+            </span>
+            <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+          </a>
+        </li>
+        <li>
+          <a href="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('workspace.submit_assessment')?>>
+            <span class="md-topnav-link-content">
+              <span class="md-topnav-link-title"><?=t($t, 'submit_assessment', 'Submit Assessment')?></span>
+              <span class="md-topnav-link-desc"><?=t($t, 'submit_assessment_summary', 'Complete or update your latest assessment.')?></span>
+            </span>
+            <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+          </a>
+        </li>
       </ul>
     </li>
     <?php if (in_array($role, ['admin', 'supervisor'], true)): ?>
@@ -363,20 +382,63 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
       ?>
       <li class="md-topnav-item<?=$teamActive ? ' is-active' : ''?>" data-topnav-item>
         <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
-          <span><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
+          <span class="md-topnav-label">
+            <span class="md-topnav-title"><?=t($t, 'team_navigation', 'Team & Reviews')?></span>
+            <span class="md-topnav-desc"><?=t($t, 'team_navigation_summary', 'Support your team with reviews and approvals.')?></span>
+          </span>
           <span class="md-topnav-chevron" aria-hidden="true"></span>
         </button>
         <ul class="md-topnav-submenu">
           <?php if ($reviewEnabled): ?>
-          <li><a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.review_queue')?>><?=t($t, 'review_queue', 'Review Queue')?></a></li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.review_queue')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'review_queue', 'Review Queue')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'review_queue_summary', 'Review submissions that need your feedback.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
           <?php endif; ?>
-          <li><a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.pending_accounts')?>><?=t($t, 'pending_accounts', 'Pending Approvals')?></a></li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.pending_accounts')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'pending_accounts', 'Pending Approvals')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'pending_accounts_summary', 'Approve or reject incoming access requests.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
           <?php if ($role === 'admin'): ?>
-          <li><a href="<?=htmlspecialchars(url_for('admin/users.php') . '#questionnaire-assignments', ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments','admin.users')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a></li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/users.php') . '#questionnaire-assignments', ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments','admin.users')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'assign_questionnaires_summary', 'Send questionnaires to the right people in seconds.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
           <?php else: ?>
-          <li><a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a></li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'assign_questionnaires_summary', 'Send questionnaires to the right people in seconds.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
           <?php endif; ?>
-          <li><a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.analytics')?>><?=t($t, 'analytics', 'Analytics')?></a></li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.analytics')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'analytics', 'Analytics')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'analytics_summary', 'Discover trends with interactive analytics.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
         </ul>
       </li>
     <?php endif; ?>
@@ -384,18 +446,85 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
       <?php $adminActive = $isActiveNav('admin.dashboard', 'admin.users', 'admin.manage_questionnaires', 'admin.work_function_defaults', 'admin.export', 'admin.branding', 'admin.settings'); ?>
       <li class="md-topnav-item<?=$adminActive ? ' is-active' : ''?>" data-topnav-item>
         <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
-          <span><?=t($t, 'admin_navigation', 'Administration')?></span>
+          <span class="md-topnav-label">
+            <span class="md-topnav-title"><?=t($t, 'admin_navigation', 'Administration')?></span>
+            <span class="md-topnav-desc"><?=t($t, 'admin_navigation_summary', 'Configure the system and manage advanced tools.')?></span>
+          </span>
           <span class="md-topnav-chevron" aria-hidden="true"></span>
         </button>
         <ul class="md-topnav-submenu">
-          <li><a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.dashboard')?>><?=t($t, 'admin_dashboard', 'System Information')?></a></li>
-          <li><a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.users')?>><?=t($t, 'manage_users', 'Manage Users')?></a></li>
-          <li><a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.manage_questionnaires')?>><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></a></li>
-          <li><a href="<?=htmlspecialchars(url_for('admin/work_function_defaults.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.work_function_defaults')?>><?=t($t, 'work_function_defaults_title', 'Work Function Defaults')?></a></li>
-          <li><a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.export')?>><?=t($t, 'export_data', 'Export Data')?></a></li>
-          <li><a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.branding')?>><?=t($t, 'branding', 'Branding & Landing')?></a></li>
-          <li><a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.settings')?>><?=t($t, 'settings', 'Settings')?></a></li>
-          <li><a href="<?=htmlspecialchars(url_for('swagger.php'), ENT_QUOTES, 'UTF-8')?>" class="md-topnav-link" target="_blank" rel="noopener"><?=t($t,'api_documentation','API Documentation')?></a></li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.dashboard')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'admin_dashboard', 'System Information')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'admin_dashboard_summary', 'Check system health, updates, and alerts.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.users')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'manage_users', 'Manage Users')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'manage_users_summary', 'Create, update, or deactivate user accounts.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.manage_questionnaires')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'manage_questionnaires_summary', 'Build and organize available questionnaires.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/work_function_defaults.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.work_function_defaults')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'work_function_defaults_title', 'Work Function Defaults')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'work_function_defaults_summary', 'Choose default forms for each work function.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.export')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'export_data', 'Export Data')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'export_data_summary', 'Download responses for record keeping or analysis.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.branding')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'branding', 'Branding & Landing')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'branding_summary', 'Update colors, logos, and landing content.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.settings')?>>
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t, 'settings', 'Settings')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'settings_summary', 'Adjust global preferences and integrations.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">&rsaquo;</span>
+            </a>
+          </li>
+          <li>
+            <a href="<?=htmlspecialchars(url_for('swagger.php'), ENT_QUOTES, 'UTF-8')?>" class="md-topnav-link md-topnav-link--external" target="_blank" rel="noopener">
+              <span class="md-topnav-link-content">
+                <span class="md-topnav-link-title"><?=t($t,'api_documentation','API Documentation')?></span>
+                <span class="md-topnav-link-desc"><?=t($t, 'api_documentation_summary', 'Open the developer reference in a new tab.')?></span>
+              </span>
+              <span class="md-topnav-link-icon" aria-hidden="true">↗</span>
+            </a>
+          </li>
         </ul>
       </li>
     <?php endif; ?>
