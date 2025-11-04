@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
-auth_required(['admin','supervisor']);
+auth_required(['supervisor']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
 $locale = ensure_locale();
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }, (array)$questionnaireIds), static fn($val) => $val !== null));
 
     try {
-        $staffStmt = $pdo->prepare("SELECT id, username, full_name FROM users WHERE id = ? AND role='staff' AND account_status='active'");
+        $staffStmt = $pdo->prepare("SELECT id, username, full_name, work_function FROM users WHERE id = ? AND role='staff' AND account_status='active'");
         $staffStmt->execute([$selectedStaffId]);
         $staffRecord = $staffStmt->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
@@ -52,53 +52,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = t($t, 'invalid_user_selection', 'Please choose a valid user.');
         $_SESSION['questionnaire_assignment_error'] = $error;
     } else {
-        try {
-            $pdo->beginTransaction();
-            $deleteStmt = $pdo->prepare('DELETE FROM questionnaire_assignment WHERE staff_id = ?');
-            $deleteStmt->execute([$selectedStaffId]);
-
-            if ($questionnaireIds) {
-                $insertStmt = $pdo->prepare('INSERT INTO questionnaire_assignment (staff_id, questionnaire_id, assigned_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE assigned_by = VALUES(assigned_by), assigned_at = CURRENT_TIMESTAMP');
-                foreach ($questionnaireIds as $qid) {
-                    $insertStmt->execute([$selectedStaffId, $qid, $_SESSION['user']['id']]);
-                }
-            }
-
-            $pdo->commit();
-
-            $staffDetails = null;
+        $staffWorkFunction = trim((string)($staffRecord['work_function'] ?? ''));
+        if ($staffWorkFunction === '') {
+            $_SESSION['questionnaire_assignment_error'] = t($t, 'assignment_missing_work_function', 'Set a work function for this staff member before assigning questionnaires.');
+        } else {
+            $allowedQuestionnaireIds = [];
             try {
-                $staffDetailsStmt = $pdo->prepare('SELECT id, username, full_name, email, next_assessment_date FROM users WHERE id = ?');
-                $staffDetailsStmt->execute([$selectedStaffId]);
-                $staffDetails = $staffDetailsStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+                $allowedStmt = $pdo->prepare("SELECT q.id FROM questionnaire q JOIN questionnaire_work_function qwf ON qwf.questionnaire_id = q.id WHERE q.status='published' AND qwf.work_function = ? ORDER BY q.title ASC");
+                $allowedStmt->execute([$staffWorkFunction]);
+                $allowedQuestionnaireIds = array_map('intval', $allowedStmt->fetchAll(PDO::FETCH_COLUMN));
             } catch (PDOException $e) {
-                error_log('questionnaire_assignments staff detail fetch failed: ' . $e->getMessage());
+                error_log('questionnaire_assignments allowed list failed: ' . $e->getMessage());
+                $allowedQuestionnaireIds = [];
             }
 
-            $assignedTitles = [];
-            if ($staffDetails) {
+            $allowedSet = array_fill_keys($allowedQuestionnaireIds, true);
+            $originalCount = count($questionnaireIds);
+            $questionnaireIds = array_values(array_filter($questionnaireIds, static fn($qid) => isset($allowedSet[$qid])));
+            $questionnaireIds = array_values(array_unique($questionnaireIds));
+
+            if ($originalCount !== count($questionnaireIds)) {
+                $_SESSION['questionnaire_assignment_error'] = t($t, 'assignment_invalid_selection', 'One or more selected questionnaires are not available for this work function.');
+            } else {
                 try {
-                    $titlesStmt = $pdo->prepare("SELECT q.title FROM questionnaire_assignment qa JOIN questionnaire q ON q.id = qa.questionnaire_id WHERE qa.staff_id = ? AND q.status='published' ORDER BY q.title ASC");
-                    $titlesStmt->execute([$selectedStaffId]);
-                    $titles = $titlesStmt->fetchAll(PDO::FETCH_COLUMN);
-                    $fallbackTitle = t($t, 'questionnaire', 'Questionnaire');
-                    foreach ($titles as $title) {
-                        $normalized = trim((string)$title);
-                        $assignedTitles[] = $normalized !== '' ? $normalized : $fallbackTitle;
+                    $pdo->beginTransaction();
+                    $deleteStmt = $pdo->prepare('DELETE FROM questionnaire_assignment WHERE staff_id = ?');
+                    $deleteStmt->execute([$selectedStaffId]);
+
+                    if ($questionnaireIds) {
+                        $insertStmt = $pdo->prepare('INSERT INTO questionnaire_assignment (staff_id, questionnaire_id, assigned_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE assigned_by = VALUES(assigned_by), assigned_at = CURRENT_TIMESTAMP');
+                        foreach ($questionnaireIds as $qid) {
+                            $insertStmt->execute([$selectedStaffId, $qid, $_SESSION['user']['id']]);
+                        }
                     }
+
+                    $pdo->commit();
+
+                    $staffDetails = null;
+                    try {
+                        $staffDetailsStmt = $pdo->prepare('SELECT id, username, full_name, email, next_assessment_date FROM users WHERE id = ?');
+                        $staffDetailsStmt->execute([$selectedStaffId]);
+                        $staffDetails = $staffDetailsStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+                    } catch (PDOException $e) {
+                        error_log('questionnaire_assignments staff detail fetch failed: ' . $e->getMessage());
+                    }
+
+                    $assignedTitles = [];
+                    if ($staffDetails) {
+                        try {
+                            $titlesStmt = $pdo->prepare("SELECT q.title FROM questionnaire_assignment qa JOIN questionnaire q ON q.id = qa.questionnaire_id WHERE qa.staff_id = ? AND q.status='published' ORDER BY q.title ASC");
+                            $titlesStmt->execute([$selectedStaffId]);
+                            $titles = $titlesStmt->fetchAll(PDO::FETCH_COLUMN);
+                            $fallbackTitle = t($t, 'questionnaire', 'Questionnaire');
+                            foreach ($titles as $title) {
+                                $normalized = trim((string)$title);
+                                $assignedTitles[] = $normalized !== '' ? $normalized : $fallbackTitle;
+                            }
+                        } catch (PDOException $e) {
+                            error_log('questionnaire_assignments assignment titles fetch failed: ' . $e->getMessage());
+                        }
+
+                        $assigner = $_SESSION['user'] ?? null;
+                        notify_questionnaire_assignment_update($cfg, $staffDetails, $assignedTitles, $assigner);
+                    }
+
+                    $_SESSION['questionnaire_assignment_flash'] = t($t, 'assignments_saved', 'Assignments updated successfully.');
                 } catch (PDOException $e) {
-                    error_log('questionnaire_assignments assignment titles fetch failed: ' . $e->getMessage());
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    error_log('questionnaire_assignments save failed: ' . $e->getMessage());
+                    $_SESSION['questionnaire_assignment_error'] = t($t, 'assignments_save_failed', 'Unable to update assignments. Please try again.');
                 }
-
-                $assigner = $_SESSION['user'] ?? null;
-                notify_questionnaire_assignment_update($cfg, $staffDetails, $assignedTitles, $assigner);
             }
-
-            $_SESSION['questionnaire_assignment_flash'] = t($t, 'assignments_saved', 'Assignments updated successfully.');
-        } catch (PDOException $e) {
-            $pdo->rollBack();
-            error_log('questionnaire_assignments save failed: ' . $e->getMessage());
-            $_SESSION['questionnaire_assignment_error'] = t($t, 'assignments_save_failed', 'Unable to update assignments. Please try again.');
         }
     }
 
@@ -111,12 +137,33 @@ if ($selectedStaffId <= 0) {
 }
 
 $selectedStaffRecord = $staffById[$selectedStaffId] ?? null;
-try {
-    $questionnaireStmt = $pdo->query("SELECT id, title, description FROM questionnaire WHERE status='published' ORDER BY title ASC");
-    $questionnaires = $questionnaireStmt ? $questionnaireStmt->fetchAll(PDO::FETCH_ASSOC) : [];
-} catch (PDOException $e) {
-    error_log('questionnaire_assignments questionnaire fetch failed: ' . $e->getMessage());
-    $questionnaires = [];
+$selectedWorkFunction = '';
+if ($selectedStaffRecord) {
+    $selectedWorkFunction = trim((string)($selectedStaffRecord['work_function'] ?? ''));
+}
+
+$questionnaires = [];
+if ($selectedStaffId > 0 && $selectedWorkFunction !== '') {
+    try {
+        $questionnaireStmt = $pdo->prepare("SELECT q.id, q.title, q.description FROM questionnaire q JOIN questionnaire_work_function qwf ON qwf.questionnaire_id = q.id WHERE q.status='published' AND qwf.work_function = ? ORDER BY q.title ASC");
+        $questionnaireStmt->execute([$selectedWorkFunction]);
+        $questionnaires = $questionnaireStmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log('questionnaire_assignments questionnaire fetch failed: ' . $e->getMessage());
+        $questionnaires = [];
+    }
+}
+
+$assignmentBlocked = false;
+$assignmentNotice = '';
+if ($selectedStaffId > 0) {
+    if ($selectedWorkFunction === '') {
+        $assignmentBlocked = true;
+        $assignmentNotice = t($t, 'assignment_missing_work_function_detail', 'This staff member does not have a work function assigned. Update their profile before assigning questionnaires.');
+    } elseif (!$questionnaires) {
+        $assignmentBlocked = true;
+        $assignmentNotice = t($t, 'assignment_no_questionnaires_for_function', 'No published questionnaires are linked to this work function yet. Ask an administrator to map questionnaires to work functions.');
+    }
 }
 
 $assignedIds = [];
@@ -242,8 +289,6 @@ $pageHelpKey = 'team.assignments';
     <?php if ($error): ?><div class="md-alert error"><?=htmlspecialchars($error, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
     <?php if (!$staffMembers): ?>
       <p><?=t($t,'no_active_staff','No active staff records available.')?></p>
-    <?php elseif (!$questionnaires): ?>
-      <p><?=t($t,'no_questionnaires_configured','No questionnaires are configured yet.')?></p>
     <?php else: ?>
       <form method="get" class="md-inline-form md-assignment-select" action="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>">
         <label for="staff_id"><?=t($t,'select_staff_member','Select staff member')?>:</label>
@@ -269,6 +314,10 @@ $pageHelpKey = 'team.assignments';
           <?php endif; ?>
         </div>
       <?php endif; ?>
+      <?php if ($assignmentNotice !== ''): ?>
+        <div class="md-alert info"><?=htmlspecialchars($assignmentNotice, ENT_QUOTES, 'UTF-8')?></div>
+      <?php endif; ?>
+      <?php if (!$assignmentBlocked): ?>
       <form method="post" action="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>">
         <input type="hidden" name="csrf" value="<?=csrf_token()?>">
         <input type="hidden" name="staff_id" value="<?=$selectedStaffId?>">
@@ -317,6 +366,7 @@ $pageHelpKey = 'team.assignments';
           <button class="md-button md-primary" type="submit"><?=t($t,'save','Save')?></button>
         </div>
       </form>
+      <?php endif; ?>
       <?php endif; ?>
     <?php endif; ?>
   </div>

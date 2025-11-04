@@ -354,7 +354,10 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
     </li>
     <?php if (in_array($role, ['admin', 'supervisor'], true)): ?>
       <?php
-      $teamNavKeys = ['team.pending_accounts', 'team.assignments', 'team.analytics'];
+      $teamNavKeys = ['team.pending_accounts', 'team.analytics'];
+      if ($role === 'supervisor') {
+          $teamNavKeys[] = 'team.assignments';
+      }
       if ($reviewEnabled) {
           array_unshift($teamNavKeys, 'team.review_queue');
       }
@@ -370,9 +373,7 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
           <li><a href="<?=htmlspecialchars(url_for('admin/supervisor_review.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.review_queue')?>><?=t($t, 'review_queue', 'Review Queue')?></a></li>
           <?php endif; ?>
           <li><a href="<?=htmlspecialchars(url_for('admin/pending_accounts.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.pending_accounts')?>><?=t($t, 'pending_accounts', 'Pending Approvals')?></a></li>
-          <?php if ($role === 'admin'): ?>
-          <li><a href="<?=htmlspecialchars(url_for('admin/users.php') . '#questionnaire-assignments', ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments','admin.users')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a></li>
-          <?php else: ?>
+          <?php if ($role === 'supervisor'): ?>
           <li><a href="<?=htmlspecialchars(url_for('admin/questionnaire_assignments.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.assignments')?>><?=t($t, 'assign_questionnaires', 'Assign Questionnaires')?></a></li>
           <?php endif; ?>
           <li><a href="<?=htmlspecialchars(url_for('admin/analytics.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('team.analytics')?>><?=t($t, 'analytics', 'Analytics')?></a></li>
@@ -380,7 +381,7 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
       </li>
     <?php endif; ?>
     <?php if ($role === 'admin'): ?>
-      <?php $adminActive = $isActiveNav('admin.dashboard', 'admin.users', 'admin.manage_questionnaires', 'admin.export', 'admin.branding', 'admin.settings'); ?>
+      <?php $adminActive = $isActiveNav('admin.dashboard', 'admin.users', 'admin.manage_questionnaires', 'admin.export', 'admin.branding', 'admin.settings', 'admin.system_data'); ?>
       <li class="md-topnav-item<?=$adminActive ? ' is-active' : ''?>" data-topnav-item>
         <button type="button" class="md-topnav-trigger" data-topnav-trigger aria-haspopup="true" aria-expanded="false">
           <span><?=t($t, 'admin_navigation', 'Administration')?></span>
@@ -390,6 +391,7 @@ $topNavLinkAttributes = static function (string ...$keys) use ($isActiveNav): st
           <li><a href="<?=htmlspecialchars(url_for('admin/dashboard.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.dashboard')?>><?=t($t, 'admin_dashboard', 'System Information')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/users.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.users')?>><?=t($t, 'manage_users', 'Manage Users')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.manage_questionnaires')?>><?=t($t, 'manage_questionnaires', 'Manage Questionnaires')?></a></li>
+          <li><a href="<?=htmlspecialchars(url_for('admin/system_data.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.system_data')?>><?=t($t, 'system_data', 'System Data')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/export.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.export')?>><?=t($t, 'export_data', 'Export Data')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/branding.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.branding')?>><?=t($t, 'branding', 'Branding & Landing')?></a></li>
           <li><a href="<?=htmlspecialchars(url_for('admin/settings.php'), ENT_QUOTES, 'UTF-8')?>" <?=$topNavLinkAttributes('admin.settings')?>><?=t($t, 'settings', 'Settings')?></a></li>

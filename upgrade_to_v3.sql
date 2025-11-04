@@ -158,30 +158,131 @@ UPDATE questionnaire_item
 SET is_active = 1
 WHERE is_active IS NULL;
 
--- Ensure questionnaire_work_function exists and is keyed properly.
+-- Ensure work function definitions exist and mappings use flexible keys.
+CREATE TABLE IF NOT EXISTS work_function_definition (
+  wf_key VARCHAR(64) NOT NULL,
+  label VARCHAR(190) NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (wf_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO work_function_definition (wf_key, label, display_order) VALUES
+  ('finance', 'Finance', 1),
+  ('general_service', 'General Service', 2),
+  ('hrm', 'HRM', 3),
+  ('ict', 'ICT', 4),
+  ('leadership_tn', 'Leadership TN', 5),
+  ('legal_service', 'Legal Service', 6),
+  ('pme', 'PME', 7),
+  ('quantification', 'Quantification', 8),
+  ('records_documentation', 'Records & Documentation', 9),
+  ('security_driver', 'Security & Driver', 10),
+  ('security', 'Security', 11),
+  ('tmd', 'TMD', 12),
+  ('wim', 'WIM', 13),
+  ('cmd', 'CMD', 14),
+  ('communication', 'Communication', 15),
+  ('dfm', 'DFM', 16),
+  ('driver', 'Driver', 17),
+  ('ethics', 'Ethics', 18)
+ON DUPLICATE KEY UPDATE label = VALUES(label);
+
+ALTER TABLE users MODIFY COLUMN work_function VARCHAR(64) DEFAULT NULL;
+
+SET @v3_users_fk := (
+  SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'work_function'
+    AND REFERENCED_TABLE_NAME = 'work_function_definition'
+  LIMIT 1
+);
+SET @v3_users_fk_sql := IF(
+  @v3_users_fk IS NULL,
+  'ALTER TABLE users ADD CONSTRAINT fk_users_work_function FOREIGN KEY (work_function) REFERENCES work_function_definition(wf_key) ON DELETE SET NULL',
+  'SELECT 1'
+);
+PREPARE stmt FROM @v3_users_fk_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS questionnaire_work_function (
   questionnaire_id INT NOT NULL,
-  work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL,
+  work_function VARCHAR(64) NOT NULL,
   PRIMARY KEY (questionnaire_id, work_function)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE questionnaire_work_function
-  MODIFY COLUMN work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL;
+ALTER TABLE questionnaire_work_function MODIFY COLUMN work_function VARCHAR(64) NOT NULL;
+
+SET @has_qwf_idx := (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'questionnaire_work_function'
+    AND INDEX_NAME = 'idx_qwf_work_function'
+);
+SET @sql_qwf_idx := IF(
+  @has_qwf_idx = 0,
+  'ALTER TABLE questionnaire_work_function ADD KEY idx_qwf_work_function (work_function);',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_qwf_idx;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 SET @has_qwf_fk := (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
   WHERE CONSTRAINT_SCHEMA = DATABASE()
     AND TABLE_NAME = 'questionnaire_work_function'
-    AND CONSTRAINT_NAME = 'fk_qwf_questionnaire'
+    AND CONSTRAINT_NAME = 'fk_qwf_definition'
 );
 SET @sql_qwf_fk := IF(
   @has_qwf_fk = 0,
-  'ALTER TABLE questionnaire_work_function ADD CONSTRAINT fk_qwf_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE;',
+  'ALTER TABLE questionnaire_work_function ADD CONSTRAINT fk_qwf_definition FOREIGN KEY (work_function) REFERENCES work_function_definition(wf_key) ON DELETE CASCADE ON UPDATE CASCADE;',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql_qwf_fk;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+INSERT INTO work_function_definition (wf_key, label)
+SELECT DISTINCT wf.work_function, wf.work_function
+FROM questionnaire_work_function wf
+LEFT JOIN work_function_definition def ON def.wf_key = wf.work_function
+WHERE def.wf_key IS NULL;
+
+INSERT INTO work_function_definition (wf_key, label)
+SELECT DISTINCT u.work_function, u.work_function
+FROM users u
+LEFT JOIN work_function_definition def ON def.wf_key = u.work_function
+WHERE u.work_function IS NOT NULL AND u.work_function <> '' AND def.wf_key IS NULL;
+
+ALTER TABLE course_catalogue MODIFY COLUMN recommended_for VARCHAR(64) NOT NULL;
+
+SET @has_catalogue_fk := (
+  SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'course_catalogue'
+    AND COLUMN_NAME = 'recommended_for'
+    AND REFERENCED_TABLE_NAME = 'work_function_definition'
+  LIMIT 1
+);
+SET @sql_catalogue_fk := IF(
+  @has_catalogue_fk = 0,
+  'ALTER TABLE course_catalogue ADD CONSTRAINT fk_course_catalogue_work_function FOREIGN KEY (recommended_for) REFERENCES work_function_definition(wf_key) ON DELETE RESTRICT;',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_catalogue_fk;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+INSERT INTO work_function_definition (wf_key, label)
+SELECT DISTINCT c.recommended_for, c.recommended_for
+FROM course_catalogue c
+LEFT JOIN work_function_definition def ON def.wf_key = c.recommended_for
+WHERE c.recommended_for IS NOT NULL AND c.recommended_for <> '' AND def.wf_key IS NULL;
 
 -- Ensure questionnaire_assignment exists for supervisor targeting.
 CREATE TABLE IF NOT EXISTS questionnaire_assignment (
