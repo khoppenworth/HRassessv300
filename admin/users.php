@@ -9,42 +9,26 @@ $cfg = get_site_config($pdo);
 $workFunctionOptions = work_function_choices($pdo);
 $defaultWorkFunction = array_key_first($workFunctionOptions) ?? 'general_service';
 
-$questionnaires = [];
-$questionnaireMap = [];
+$defaultAssignmentsByWorkFunction = [];
 try {
-    $questionnaireStmt = $pdo->query("SELECT id, title, description FROM questionnaire WHERE status='published' ORDER BY title ASC");
-    if ($questionnaireStmt) {
-        $questionnaires = $questionnaireStmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($questionnaires as $row) {
-            $qid = isset($row['id']) ? (int)$row['id'] : 0;
-            if ($qid > 0) {
-                $questionnaireMap[$qid] = $row;
+    $defaultsStmt = $pdo->query("SELECT qwf.work_function, q.id, q.title, q.description FROM questionnaire_work_function qwf JOIN questionnaire q ON q.id = qwf.questionnaire_id WHERE q.status='published' ORDER BY q.title ASC");
+    if ($defaultsStmt) {
+        foreach ($defaultsStmt->fetchAll(PDO::FETCH_ASSOC) as $defaultRow) {
+            $wf = trim((string)($defaultRow['work_function'] ?? ''));
+            $qid = isset($defaultRow['id']) ? (int)$defaultRow['id'] : 0;
+            if ($wf === '' || $qid <= 0) {
+                continue;
             }
+            $defaultAssignmentsByWorkFunction[$wf][] = [
+                'id' => $qid,
+                'title' => trim((string)($defaultRow['title'] ?? '')),
+                'description' => trim((string)($defaultRow['description'] ?? '')),
+            ];
         }
     }
 } catch (PDOException $e) {
-    error_log('Admin user questionnaire list failed: ' . $e->getMessage());
-    $questionnaires = [];
-    $questionnaireMap = [];
-}
-
-$defaultAssignmentsByWorkFunction = [];
-if ($questionnaireMap) {
-    try {
-        $defaultsStmt = $pdo->query('SELECT questionnaire_id, work_function FROM questionnaire_work_function');
-        if ($defaultsStmt) {
-            foreach ($defaultsStmt->fetchAll(PDO::FETCH_ASSOC) as $defaultRow) {
-                $qid = isset($defaultRow['questionnaire_id']) ? (int)$defaultRow['questionnaire_id'] : 0;
-                $wf = trim((string)($defaultRow['work_function'] ?? ''));
-                if ($qid > 0 && $wf !== '') {
-                    $defaultAssignmentsByWorkFunction[$wf][] = $qid;
-                }
-            }
-        }
-    } catch (PDOException $e) {
-        error_log('Admin user questionnaire defaults failed: ' . $e->getMessage());
-        $defaultAssignmentsByWorkFunction = [];
-    }
+    error_log('Admin user questionnaire defaults failed: ' . $e->getMessage());
+    $defaultAssignmentsByWorkFunction = [];
 }
 
 $msg = $_SESSION['admin_users_flash'] ?? '';
@@ -151,20 +135,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $workFunction = $_POST['work_function'] ?? $defaultWorkFunction;
         $accountStatus = $_POST['account_status'] ?? 'active';
         $nextAssessment = trim($_POST['next_assessment_date'] ?? '');
-        $questionnaireIds = [];
-        $postedQuestionnaires = $_POST['questionnaire_ids'] ?? [];
-        if (!is_array($postedQuestionnaires)) {
-            $postedQuestionnaires = [$postedQuestionnaires];
-        }
-        foreach ($postedQuestionnaires as $value) {
-            if (is_numeric($value)) {
-                $qid = (int)$value;
-                if ($qid > 0 && isset($questionnaireMap[$qid])) {
-                    $questionnaireIds[$qid] = $qid;
-                }
-            }
-        }
-        $questionnaireIds = array_values($questionnaireIds);
         if (!in_array($accountStatus, ['active','pending','disabled'], true)) {
             $accountStatus = 'active';
         }
@@ -187,7 +157,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 if (!isset($workFunctionOptions[$workFunction])) { $workFunction = $defaultWorkFunction; }
                 $existingUser = null;
-                $existingAssignments = [];
                 if ($id > 0) {
                     try {
                         $existingStmt = $pdo->prepare('SELECT id, email, full_name, username, account_status, next_assessment_date FROM users WHERE id = ?');
@@ -195,14 +164,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $existingUser = $existingStmt->fetch(PDO::FETCH_ASSOC) ?: null;
                     } catch (PDOException $e) {
                         error_log('Admin user existing fetch failed: ' . $e->getMessage());
-                    }
-                    try {
-                        $assignmentStmt = $pdo->prepare('SELECT questionnaire_id FROM questionnaire_assignment WHERE staff_id = ? ORDER BY questionnaire_id');
-                        $assignmentStmt->execute([$id]);
-                        $existingAssignments = array_map('intval', $assignmentStmt->fetchAll(PDO::FETCH_COLUMN));
-                    } catch (PDOException $e) {
-                        error_log('Admin user assignment fetch failed: ' . $e->getMessage());
-                        $existingAssignments = [];
                     }
                 }
                 $fields = ['role = ?', 'work_function = ?', 'account_status = ?', 'next_assessment_date = ?'];
@@ -220,30 +181,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->beginTransaction();
                     $stm = $pdo->prepare($sql);
                     $stm->execute($params);
-                    $assignmentChanged = false;
-                    if ($role !== 'staff') {
-                        if ($existingAssignments) {
-                            $assignmentChanged = true;
-                        }
-                        $deleteAssignments = $pdo->prepare('DELETE FROM questionnaire_assignment WHERE staff_id = ?');
-                        $deleteAssignments->execute([$id]);
-                        $questionnaireIds = [];
-                    } else {
-                        $normalizedExisting = $existingAssignments;
-                        sort($normalizedExisting);
-                        $normalizedNew = $questionnaireIds;
-                        sort($normalizedNew);
-                        $assignmentChanged = $normalizedExisting !== $normalizedNew;
-                        $deleteAssignments = $pdo->prepare('DELETE FROM questionnaire_assignment WHERE staff_id = ?');
-                        $deleteAssignments->execute([$id]);
-                        if ($questionnaireIds) {
-                            $insertAssignment = $pdo->prepare('INSERT INTO questionnaire_assignment (staff_id, questionnaire_id, assigned_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE assigned_by = VALUES(assigned_by), assigned_at = CURRENT_TIMESTAMP');
-                            $assignerId = isset($_SESSION['user']['id']) ? (int)$_SESSION['user']['id'] : null;
-                            foreach ($questionnaireIds as $qid) {
-                                $insertAssignment->execute([$id, $qid, $assignerId]);
-                            }
-                        }
-                    }
                     $pdo->commit();
                     if ($accountStatus === 'active' && $nextAssessment) {
                         try {
@@ -274,19 +211,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!isset($updatedUser)) {
                         $updatedUser = null;
                     }
-                    if (($role === 'staff') && $assignmentChanged && $updatedUser) {
-                        $assignedTitles = [];
-                        foreach ($questionnaireIds as $qid) {
-                            $title = trim((string)($questionnaireMap[$qid]['title'] ?? ''));
-                            if ($title === '') {
-                                $title = t($t, 'questionnaire', 'Questionnaire');
-                            }
-                            $assignedTitles[] = $title;
-                        }
-                        sort($assignedTitles, SORT_NATURAL | SORT_FLAG_CASE);
-                        $assigner = $_SESSION['user'] ?? null;
-                        notify_questionnaire_assignment_update($cfg, $updatedUser, $assignedTitles, $assigner);
-                    }
                     $msg = t($t, 'user_updated', 'User updated successfully.');
                 } catch (PDOException $e) {
                     if ($pdo->inTransaction()) {
@@ -311,22 +235,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $rows = $pdo->query("SELECT * FROM users ORDER BY id DESC")->fetchAll();
-$assignmentsByStaff = [];
-try {
-    $assignmentListStmt = $pdo->query('SELECT staff_id, questionnaire_id FROM questionnaire_assignment ORDER BY staff_id, questionnaire_id');
-    if ($assignmentListStmt) {
-        foreach ($assignmentListStmt->fetchAll(PDO::FETCH_ASSOC) as $assignmentRow) {
-            $sid = isset($assignmentRow['staff_id']) ? (int)$assignmentRow['staff_id'] : 0;
-            $qid = isset($assignmentRow['questionnaire_id']) ? (int)$assignmentRow['questionnaire_id'] : 0;
-            if ($sid > 0 && $qid > 0) {
-                $assignmentsByStaff[$sid][] = $qid;
-            }
-        }
-    }
-} catch (PDOException $e) {
-    error_log('Admin user assignment listing failed: ' . $e->getMessage());
-    $assignmentsByStaff = [];
-}
 $roleLabels = [];
 foreach ($roleOptions as $option) {
     $label = (string)($option['label'] ?? $option['role_key']);
@@ -378,29 +286,19 @@ foreach ($rows as $r) {
     $roleKey = $r['role'] ?? 'staff';
     $roleLabel = $roleLabels[$roleKey] ?? $roleKey;
     $userId = (int)$r['id'];
-    $assignedIds = array_map('intval', $assignmentsByStaff[$userId] ?? []);
-    $defaultIds = array_map('intval', $defaultAssignmentsByWorkFunction[$workFunctionKey] ?? []);
-    $defaultIds = array_values(array_unique(array_filter($defaultIds, static fn ($val) => $val > 0)));
-    sort($defaultIds);
-    if ($defaultIds) {
-        $assignedIds = array_values(array_diff($assignedIds, $defaultIds));
-    }
-    sort($assignedIds);
-    $assignedTitles = [];
-    foreach ($assignedIds as $assignedId) {
-        $title = trim((string)($questionnaireMap[$assignedId]['title'] ?? ''));
-        if ($title === '') {
-            $title = t($t, 'questionnaire', 'Questionnaire');
-        }
-        $assignedTitles[] = $title;
-    }
+    $defaultEntries = $defaultAssignmentsByWorkFunction[$workFunctionKey] ?? [];
     $defaultTitles = [];
-    foreach ($defaultIds as $defaultId) {
-        $title = trim((string)($questionnaireMap[$defaultId]['title'] ?? ''));
+    foreach ($defaultEntries as $entry) {
+        $title = trim((string)($entry['title'] ?? ''));
         if ($title === '') {
             $title = t($t, 'questionnaire', 'Questionnaire');
         }
-        $defaultTitles[] = $title;
+        $description = trim((string)($entry['description'] ?? ''));
+        if ($description !== '') {
+            $defaultTitles[] = $title . ' — ' . $description;
+        } else {
+            $defaultTitles[] = $title;
+        }
     }
     $lastName = '';
     if ($fullName !== '') {
@@ -434,9 +332,6 @@ foreach ($rows as $r) {
         'role_key' => $roleKey,
         'role_label' => $roleLabel,
         'work_function_key' => $workFunctionKey,
-        'assigned_ids' => $assignedIds,
-        'assigned_titles' => $assignedTitles,
-        'default_ids' => $defaultIds,
         'default_titles' => $defaultTitles,
         'search_last' => $searchLast,
         'search_full' => $searchFull,
@@ -471,23 +366,13 @@ foreach ($rows as $r) {
     color: var(--app-muted);
     font-style: italic;
   }
-  .md-user-assignment-field select {
-    min-height: 8rem;
-  }
-  .md-user-assignment-hint {
-    display: block;
-    margin-top: 0.35rem;
-    font-size: 0.8rem;
-    color: var(--app-muted);
-  }
   .md-user-assignment-defaults {
-    margin: 0.5rem 0 0;
-    padding: 0.65rem 0.75rem;
-    border-radius: 6px;
+    margin: 1rem 0;
+    padding: 0.75rem;
+    border-radius: 8px;
     border: 1px solid var(--app-border, #d0d5dd);
-    background: var(--app-surface-alt, rgba(229, 231, 235, 0.35));
-    font-size: 0.85rem;
-    color: var(--app-muted, #475467);
+    background: var(--app-surface-alt, rgba(229, 231, 235, 0.5));
+    font-size: 0.9rem;
   }
   .md-user-assignment-defaults strong {
     display: block;
@@ -495,11 +380,23 @@ foreach ($rows as $r) {
     color: var(--app-text-primary, #1f2937);
   }
   .md-user-assignment-defaults ul {
-    margin: 0;
+    margin: 0.5rem 0 0;
     padding-left: 1.1rem;
+    columns: 2;
+    column-gap: 1.25rem;
+    list-style: disc;
+  }
+  @media (max-width: 720px) {
+    .md-user-assignment-defaults ul {
+      columns: 1;
+    }
   }
   .md-user-assignment-defaults li {
-    margin: 0.2rem 0;
+    margin: 0.25rem 0;
+  }
+  .md-user-assignment-empty {
+    margin: 0.35rem 0 0;
+    color: var(--app-muted, #475467);
   }
 </style>
 </head>
@@ -630,54 +527,24 @@ foreach ($rows as $r) {
                   <span><?=t($t,'next_assessment','Next Assessment Date')?></span>
                   <input type="date" name="next_assessment_date" value="<?=htmlspecialchars($record['next_assessment'], ENT_QUOTES, 'UTF-8')?>">
                 </label>
-                <label class="md-field md-field--compact md-user-assignment-field">
-                  <span><?=t($t,'assign_questionnaires','Assign Questionnaires')?></span>
-                  <?php $assignmentSelectSize = max(6, min(12, count($questionnaires))); ?>
-                  <select name="questionnaire_ids[]" multiple size="<?=$assignmentSelectSize?>">
-                    <?php foreach ($questionnaires as $questionnaire): ?>
-                      <?php $qid = (int)($questionnaire['id'] ?? 0); ?>
-                      <?php if ($qid <= 0) { continue; } ?>
-                      <?php $title = trim((string)($questionnaire['title'] ?? '')); ?>
-                      <?php if ($title === '') { $title = t($t,'questionnaire','Questionnaire'); } ?>
-                      <?php $description = trim((string)($questionnaire['description'] ?? '')); ?>
-                      <option value="<?=$qid?>" <?=in_array($qid, $record['assigned_ids'], true)?'selected':''?>>
-                        <?=htmlspecialchars($title, ENT_QUOTES, 'UTF-8')?><?php if ($description !== ''): ?> — <?=htmlspecialchars($description, ENT_QUOTES, 'UTF-8')?><?php endif; ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
-                  <small class="md-user-assignment-hint"><?=t($t,'assignment_instructions','Choose the questionnaires that should be available to this staff member.')?></small>
-                </label>
-                <?php if ($record['assigned_titles']): ?>
-                  <div class="md-user-assignment-defaults">
-                    <strong><?=t($t,'currently_assigned','Currently assigned questionnaires:')?></strong>
-                    <ul>
-                      <?php foreach ($record['assigned_titles'] as $assignedTitle): ?>
-                        <li><?=htmlspecialchars($assignedTitle, ENT_QUOTES, 'UTF-8')?></li>
-                      <?php endforeach; ?>
-                    </ul>
-                  </div>
-                <?php endif; ?>
-                <?php if ($record['role_key'] === 'staff'): ?>
-                  <?php if ($record['default_titles']): ?>
-                    <div class="md-user-assignment-defaults">
-                      <strong><?=t($t,'assignment_defaults_hint','These questionnaires are automatically available because of the staff member\'s work function. They cannot be removed here.')?></strong>
+                <div class="md-user-assignment-defaults">
+                  <?php if ($record['role_key'] === 'staff'): ?>
+                    <strong><?=t($t,'assignment_defaults_hint','These questionnaires are automatically available because of the staff member\'s work function. They cannot be removed here.')?></strong>
+                    <?php if ($record['default_titles']): ?>
                       <ul>
                         <?php foreach ($record['default_titles'] as $defaultTitle): ?>
                           <li><?=htmlspecialchars($defaultTitle, ENT_QUOTES, 'UTF-8')?></li>
                         <?php endforeach; ?>
                       </ul>
-                    </div>
+                    <?php else: ?>
+                      <p class="md-user-assignment-empty"><?=t($t,'assignment_defaults_none','This work function does not have default questionnaires yet.')?></p>
+                    <?php endif; ?>
+                    <p class="md-user-assignment-empty"><?=t($t,'assignment_manage_from_defaults','Update the work function defaults to change which questionnaires appear here.')?></p>
                   <?php else: ?>
-                    <p class="md-user-assignment-defaults"><?=t($t,'assignment_defaults_none','This work function does not have default questionnaires yet.')?></p>
+                    <strong><?=t($t,'assignment_staff_only','Questionnaires are only assigned to staff accounts. These selections will take effect once the user role is set to staff.')?></strong>
+                    <p class="md-user-assignment-empty"><?=t($t,'assignment_manage_from_defaults','Update the work function defaults to change which questionnaires appear here.')?></p>
                   <?php endif; ?>
-                  <?php if (!$questionnaires): ?>
-                    <p class="md-user-assignment-defaults"><?=t($t,'no_questionnaires_configured','No questionnaires are configured yet.')?></p>
-                  <?php endif; ?>
-                <?php elseif (!$questionnaires): ?>
-                  <p class="md-user-assignment-defaults"><?=t($t,'no_questionnaires_configured','No questionnaires are configured yet.')?></p>
-                <?php else: ?>
-                  <p class="md-user-assignment-defaults"><?=t($t,'assignment_staff_only','Questionnaires are only assigned to staff accounts. These selections will take effect once the user role is set to staff.')?></p>
-                <?php endif; ?>
+                </div>
               </div>
               <div class="md-user-form-actions">
                 <button name="reset" class="md-button md-elev-1 md-user-action-button"><?=t($t,'apply','Apply')?></button>
