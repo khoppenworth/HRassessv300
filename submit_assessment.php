@@ -15,20 +15,17 @@ $user = current_user();
 try {
     if ($user['role'] === 'staff') {
         $workFunction = trim((string)($user['work_function'] ?? ''));
-        $selectParts = [
-            "SELECT q.id AS id, q.title AS title FROM questionnaire_assignment qa " .
-            "JOIN questionnaire q ON q.id = qa.questionnaire_id WHERE qa.staff_id = :sid AND q.status='published'",
-        ];
-        $params = [':sid' => $user['id']];
         if ($workFunction !== '') {
-            $selectParts[] = "SELECT q2.id AS id, q2.title AS title FROM questionnaire_work_function qwf "
-                . "JOIN questionnaire q2 ON q2.id = qwf.questionnaire_id WHERE qwf.work_function = :wf AND q2.status='published'";
-            $params[':wf'] = $workFunction;
+            $stmt = $pdo->prepare(
+                "SELECT q.id AS id, q.title AS title FROM questionnaire_work_function qwf " .
+                "JOIN questionnaire q ON q.id = qwf.questionnaire_id " .
+                "WHERE qwf.work_function = :wf AND q.status='published' ORDER BY q.title"
+            );
+            $stmt->execute([':wf' => $workFunction]);
+            $q = $stmt->fetchAll();
+        } else {
+            $q = [];
         }
-        $sql = 'SELECT id, title FROM (' . implode(' UNION ', $selectParts) . ') AS combined ORDER BY title';
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $q = $stmt->fetchAll();
     } else {
         $q = $pdo->query("SELECT id, title FROM questionnaire WHERE status='published' ORDER BY title")->fetchAll();
     }

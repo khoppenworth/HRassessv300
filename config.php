@@ -745,19 +745,11 @@ function ensure_questionnaire_work_function_schema(PDO $pdo): void
             $pdo->exec('ALTER TABLE questionnaire_work_function ADD PRIMARY KEY (questionnaire_id, work_function)');
         }
 
-        $questionnaireStmt = $pdo->query('SELECT id FROM questionnaire');
-        if ($questionnaireStmt) {
-            $ids = $questionnaireStmt->fetchAll(PDO::FETCH_COLUMN);
-            if ($ids) {
-                $insert = $pdo->prepare('INSERT IGNORE INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
-                foreach ($ids as $qid) {
-                    $qid = (int)$qid;
-                    foreach ($defaults as $wf) {
-                        $insert->execute([$qid, $wf]);
-                    }
-                }
-            }
-        }
+        // Preserve any administrator-defined questionnaire assignments without
+        // seeding defaults on every request. The previous behaviour inserted
+        // every questionnaire/work function combination which overwrote custom
+        // selections made through the admin portal. By limiting this helper to
+        // structural concerns we ensure saved assignments remain intact.
     } catch (PDOException $e) {
         error_log('ensure_questionnaire_work_function_schema: ' . $e->getMessage());
     }
