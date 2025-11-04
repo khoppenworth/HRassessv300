@@ -147,9 +147,12 @@ function default_work_function_definitions(): array
     ];
 }
 
-function work_function_choices(PDO $pdo): array
+function work_function_choices(PDO $pdo, bool $forceRefresh = false): array
 {
     static $cache = null;
+    if ($forceRefresh) {
+        $cache = null;
+    }
     if ($cache !== null) {
         return $cache;
     }

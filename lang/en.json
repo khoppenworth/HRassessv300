@@ -536,6 +536,7 @@
   "work_function_defaults_none": "No work functions are available yet. Staff members can continue to receive questionnaires assigned directly to them.",
   "work_function_defaults_saved": "Default questionnaire assignments updated.",
   "work_function_defaults_save_failed": "Unable to save work function defaults. Please try again.",
+  "work_function_defaults_invalid_payload": "The work function selections could not be processed. Please try again.",
   "yes": "Yes",
   "year": "Year",
   "your_trend": "Your Score Trend",
