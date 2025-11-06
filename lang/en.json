@@ -48,6 +48,7 @@
   "available_questionnaires": "Available questionnaires",
   "filter_questionnaires": "Filter questionnaires",
   "filter_questionnaires_placeholder": "Type to narrow the list…",
+  "filter_no_results": "No questionnaires match your search.",
   "select_all": "Select All",
   "clear_all": "Clear All",
   "selected_staff": "Selected staff",

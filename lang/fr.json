@@ -47,6 +47,7 @@
   "available_questionnaires": "Questionnaires disponibles",
   "filter_questionnaires": "Filtrer les questionnaires",
   "filter_questionnaires_placeholder": "Tapez pour réduire la liste…",
+  "filter_no_results": "Aucun questionnaire ne correspond à votre recherche.",
   "select_all": "Tout sélectionner",
   "clear_all": "Tout effacer",
   "selected_staff": "Employé sélectionné",
