@@ -179,6 +179,16 @@ function canonical_work_function_key(string $value, ?array $defaults = null): st
     return '';
 }
 
+if (!function_exists('canonical')) {
+    /**
+     * @deprecated Use canonical_work_function_key() instead.
+     */
+    function canonical(string $value, ?array $defaults = null): string
+    {
+        return canonical_work_function_key($value, $defaults);
+    }
+}
+
 function work_function_choices(PDO $pdo, bool $forceRefresh = false): array
 {
     static $cache = null;
