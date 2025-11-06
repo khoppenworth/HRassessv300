@@ -124,7 +124,6 @@ function site_default_brand_color(array $cfg): string
     return derive_brand_color_from_seed($seedSource);
 }
 
-
 function csrf_token(): string {
     if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }
     return $_SESSION['csrf'];
