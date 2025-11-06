@@ -1029,14 +1029,6 @@ if (isset($_POST['import'])) {
           <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
         </div>
         <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
-        <div class="qb-scoring-note">
-          <strong><?=t($t, 'qb_scoring_hint_title', 'Scoring & analytics')?></strong>
-          <p><?=t(
-              $t,
-              'qb_scoring_hint_text',
-              'Assign weights so priority questions total about 100%. Items left at 0 are informational only and do not affect scores or analytics.'
-          )?></p>
-        </div>
         <div id="qb-list" class="qb-list" aria-live="polite"></div>
       </div>
     </div>
@@ -1047,6 +1039,16 @@ if (isset($_POST['import'])) {
         <nav id="qb-section-nav" class="qb-section-nav" aria-label="<?=htmlspecialchars(t($t,'section_navigation','Section navigation'), ENT_QUOTES, 'UTF-8')?>" data-empty-label="<?=htmlspecialchars(t($t,'select_questionnaire_to_view_sections','Select a questionnaire to view its sections'), ENT_QUOTES, 'UTF-8')?>" data-root-label="<?=htmlspecialchars(t($t,'items_without_section','Items without a section'), ENT_QUOTES, 'UTF-8')?>" data-untitled-label="<?=htmlspecialchars(t($t,'untitled_questionnaire','Untitled questionnaire'), ENT_QUOTES, 'UTF-8')?>">
           <p class="qb-section-nav-empty"><?=t($t,'select_questionnaire_to_view_sections','Select a questionnaire to view its sections')?></p>
         </nav>
+      </div>
+      <div class="md-card md-elev-2 qb-sidebar-card qb-scoring-card">
+        <div class="qb-scoring-note">
+          <strong><?=t($t, 'qb_scoring_hint_title', 'Scoring & analytics')?></strong>
+          <p><?=t(
+              $t,
+              'qb_scoring_hint_text',
+              'Assign weights so priority questions total about 100%. Items left at 0 are informational only and do not affect scores or analytics.'
+          )?></p>
+        </div>
       </div>
       <div class="md-card md-elev-2 qb-sidebar-card">
         <h3 class="md-card-title"><?=t($t,'fhir_import','FHIR Import')?></h3>
