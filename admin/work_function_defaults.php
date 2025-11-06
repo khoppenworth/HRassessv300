@@ -43,11 +43,23 @@ try {
     error_log('work_function_defaults default fetch failed: ' . $e->getMessage());
     $existingAssignments = [];
 }
+$normalizedAssignments = [];
+foreach ($existingAssignments as $wf => $ids) {
+    $canonical = canonical_work_function_key($wf);
+    if ($canonical === '') {
+        continue;
+    }
+    $normalizedAssignments[$canonical] = array_values(array_unique(array_map(static fn($id) => (int)$id, $ids)));
+}
+$existingAssignments = $normalizedAssignments;
+
 $workFunctionKeys = array_unique(array_merge(
     array_keys($defaultWorkFunctions),
     array_keys($workFunctionChoices),
     array_keys($existingAssignments)
 ));
+$workFunctionKeys = array_map(static fn($value) => canonical_work_function_key((string)$value), $workFunctionKeys);
+$workFunctionKeys = array_values(array_filter(array_unique($workFunctionKeys), static fn($value) => $value !== ''));
 usort($workFunctionKeys, static function ($a, $b) use ($pdo) {
     return strcasecmp(work_function_label($pdo, (string)$a), work_function_label($pdo, (string)$b));
 });
@@ -169,6 +181,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <h3><?=htmlspecialchars($label, ENT_QUOTES, 'UTF-8')?></h3>
               <p><?=htmlspecialchars(t($t, 'work_function_defaults_card_hint', 'Staff in this work function receive the selected questionnaires by default.'), ENT_QUOTES, 'UTF-8')?></p>
             </div>
+            <?php if ($questionnaires): ?>
+              <div class="md-work-function-toolbar">
+                <label class="md-work-function-search">
+                  <span class="md-visually-hidden"><?=htmlspecialchars(t($t, 'filter_questionnaires', 'Filter questionnaires'), ENT_QUOTES, 'UTF-8')?></span>
+                  <input
+                    type="search"
+                    placeholder="<?=htmlspecialchars(t($t, 'filter_questionnaires_placeholder', 'Type to narrow the list…'), ENT_QUOTES, 'UTF-8')?>"
+                    data-questionnaire-search
+                    aria-label="<?=htmlspecialchars(t($t, 'filter_questionnaires', 'Filter questionnaires'), ENT_QUOTES, 'UTF-8')?>"
+                    autocomplete="off"
+                  >
+                </label>
+                <div class="md-work-function-actions">
+                  <button type="button" class="md-button md-outline" data-select-all><?=htmlspecialchars(t($t, 'select_all', 'Select All'), ENT_QUOTES, 'UTF-8')?></button>
+                  <button type="button" class="md-button md-outline" data-clear-all><?=htmlspecialchars(t($t, 'clear_all', 'Clear All'), ENT_QUOTES, 'UTF-8')?></button>
+                </div>
+              </div>
+            <?php endif; ?>
             <fieldset class="md-work-function-options" aria-label="<?=htmlspecialchars(t($t, 'questionnaires', 'Questionnaires'), ENT_QUOTES, 'UTF-8')?>">
               <?php if ($questionnaires): ?>
                 <?php foreach ($questionnaires as $questionnaire): ?>
@@ -176,31 +206,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $qid = (int)$questionnaire['id'];
                     $title = trim((string)($questionnaire['title'] ?? ''));
                     $description = trim((string)($questionnaire['description'] ?? ''));
-                    $display = $title !== '' ? $title : t($t, 'untitled_questionnaire', 'Untitled questionnaire');
-                    if ($description !== '') {
-                        $display .= ' — ' . $description;
-                    }
+                    $displayTitle = $title !== '' ? $title : t($t, 'untitled_questionnaire', 'Untitled questionnaire');
+                    $searchText = trim($displayTitle . ' ' . $description);
                     $checked = in_array($qid, $assignmentsByWorkFunction[$wf] ?? [], true);
                   ?>
-                  <label class="md-checkbox">
-                    <input
-                      type="checkbox"
-                      name="assignments[<?=htmlspecialchars($wf, ENT_QUOTES, 'UTF-8')?>][]"
-                      value="<?=$qid?>"
-                      data-work-function-option
-                      <?=$checked ? 'checked' : ''?>
-                    >
-                    <span><?=htmlspecialchars($display, ENT_QUOTES, 'UTF-8')?></span>
-                  </label>
+                  <div
+                    class="md-work-function-option"
+                    data-questionnaire-option
+                    data-search-text="<?=htmlspecialchars($searchText, ENT_QUOTES, 'UTF-8')?>"
+                  >
+                    <label class="md-checkbox md-checkbox-stacked">
+                      <input
+                        type="checkbox"
+                        name="assignments[<?=htmlspecialchars($wf, ENT_QUOTES, 'UTF-8')?>][]"
+                        value="<?=$qid?>"
+                        data-work-function-option
+                        <?=$checked ? 'checked' : ''?>
+                      >
+                      <span class="md-questionnaire-copy">
+                        <span class="md-questionnaire-title"><?=htmlspecialchars($displayTitle, ENT_QUOTES, 'UTF-8')?></span>
+                        <?php if ($description !== ''): ?>
+                          <span class="md-questionnaire-desc"><?=htmlspecialchars($description, ENT_QUOTES, 'UTF-8')?></span>
+                        <?php endif; ?>
+                      </span>
+                    </label>
+                  </div>
                 <?php endforeach; ?>
+                <p class="md-work-function-filter-empty" data-filter-empty hidden><?=htmlspecialchars(t($t, 'filter_no_results', 'No questionnaires match your search.'), ENT_QUOTES, 'UTF-8')?></p>
               <?php else: ?>
                 <p class="md-hint"><?=htmlspecialchars(t($t, 'no_questionnaires_configured', 'No questionnaires are configured yet.'), ENT_QUOTES, 'UTF-8')?></p>
               <?php endif; ?>
             </fieldset>
-            <div class="md-work-function-actions">
-              <button type="button" class="md-button md-outline" data-select-all><?=htmlspecialchars(t($t, 'select_all', 'Select All'), ENT_QUOTES, 'UTF-8')?></button>
-              <button type="button" class="md-button md-outline" data-clear-all><?=htmlspecialchars(t($t, 'clear_all', 'Clear All'), ENT_QUOTES, 'UTF-8')?></button>
-            </div>
           </div>
         <?php endforeach; ?>
       </div>
@@ -220,11 +256,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   blocks.forEach((block) => {
     const selectAllBtn = block.querySelector('[data-select-all]');
     const clearBtn = block.querySelector('[data-clear-all]');
+    const searchInput = block.querySelector('[data-questionnaire-search]');
+    const optionRows = block.querySelectorAll('[data-questionnaire-option]');
+    const emptyMessage = block.querySelector('[data-filter-empty]');
 
     const setAll = (checked) => {
       const checkboxes = block.querySelectorAll('input[type="checkbox"][data-work-function-option]');
       checkboxes.forEach((checkbox) => {
-        if (!checkbox.disabled) {
+        const optionRow = checkbox.closest('[data-questionnaire-option]');
+        if (!checkbox.disabled && optionRow && !optionRow.hidden) {
           checkbox.checked = checked;
           checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
@@ -236,6 +276,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (clearBtn) {
       clearBtn.addEventListener('click', () => setAll(false));
+    }
+
+    const applyFilter = () => {
+      if (!searchInput) {
+        return;
+      }
+      const term = searchInput.value.trim().toLowerCase();
+      let visibleCount = 0;
+      optionRows.forEach((row) => {
+        const haystack = (row.dataset.searchText || '').toLowerCase();
+        const matches = term === '' || haystack.includes(term);
+        row.hidden = !matches;
+        if (matches) {
+          visibleCount += 1;
+        }
+      });
+      if (emptyMessage) {
+        emptyMessage.hidden = visibleCount !== 0;
+      }
+    };
+
+    if (searchInput) {
+      searchInput.addEventListener('input', applyFilter);
+      searchInput.addEventListener('change', applyFilter);
+      applyFilter();
     }
   });
 

@@ -147,6 +147,38 @@ function default_work_function_definitions(): array
     ];
 }
 
+function canonical_work_function_key(string $value, ?array $defaults = null): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    if ($defaults === null) {
+        $defaults = default_work_function_definitions();
+    }
+
+    if (isset($defaults[$value])) {
+        return $value;
+    }
+
+    foreach ($defaults as $key => $label) {
+        if (strcasecmp($value, $key) === 0 || strcasecmp($value, (string)$label) === 0) {
+            return $key;
+        }
+    }
+
+    $normalized = strtolower($value);
+    $normalized = preg_replace('/[^a-z0-9]+/i', '_', $normalized) ?? '';
+    $normalized = trim($normalized, '_');
+
+    if ($normalized !== '' && isset($defaults[$normalized])) {
+        return $normalized;
+    }
+
+    return '';
+}
+
 function work_function_choices(PDO $pdo, bool $forceRefresh = false): array
 {
     static $cache = null;
@@ -184,10 +216,32 @@ function work_function_choices(PDO $pdo, bool $forceRefresh = false): array
         $values = array_keys($defaults);
     }
 
-    $cache = [];
+    $choices = [];
     foreach ($values as $value) {
-        $cache[$value] = $defaults[$value] ?? ucwords(str_replace('_', ' ', $value));
+        $key = canonical_work_function_key((string)$value, $defaults);
+        if ($key === '') {
+            continue;
+        }
+        $choices[$key] = $defaults[$key] ?? ucwords(str_replace('_', ' ', (string)$key));
     }
+
+    if ($choices === []) {
+        foreach ($defaults as $key => $label) {
+            $choices[$key] = $label;
+        }
+    } else {
+        foreach ($defaults as $key => $label) {
+            if (!isset($choices[$key])) {
+                $choices[$key] = $label;
+            }
+        }
+    }
+
+    uasort($choices, static function ($a, $b) {
+        return strcasecmp((string)$a, (string)$b);
+    });
+
+    $cache = $choices;
 
     return $cache;
 }
@@ -200,6 +254,11 @@ function is_valid_work_function(PDO $pdo, string $value): bool
 function work_function_label(PDO $pdo, string $value): string
 {
     $choices = work_function_choices($pdo);
+    $canonical = canonical_work_function_key($value);
+    if ($canonical !== '' && isset($choices[$canonical])) {
+        return $choices[$canonical];
+    }
+
     return $choices[$value] ?? $value;
 }
 

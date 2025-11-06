@@ -47,6 +47,7 @@
   "available_questionnaires": "የሚገኙ ጥያቄ ሰነዶች",
   "filter_questionnaires": "ጥያቄ ሰነዶችን አጣራ",
   "filter_questionnaires_placeholder": "ዝርዝሩን ለማጠቃለል ይፃፉ…",
+  "filter_no_results": "ምንም ጥያቄ በፍለጋዎ አልተገኘም።",
   "select_all": "ሁሉንም ምረጥ",
   "clear_all": "ሁሉንም አጥፋ",
   "selected_staff": "የተመረጠ ሰራተኛ",
