@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+use PDO;
+use PDOException;
+
 if (!function_exists('default_work_function_definitions')) {
     function default_work_function_definitions(): array
     {
