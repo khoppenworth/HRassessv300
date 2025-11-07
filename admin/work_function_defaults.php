@@ -1,6 +1,14 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../lib/work_functions.php';
+if (!function_exists('canonical_work_function_key')) {
+    function canonical_work_function_key(string $key): string
+    {
+        $key = trim($key);
+        $key = str_replace([' ', '-'], '_', $key);
+        return strtolower($key);
+    }
+}
 auth_required(['admin']);
 refresh_current_user($pdo);
 require_profile_completion($pdo);
