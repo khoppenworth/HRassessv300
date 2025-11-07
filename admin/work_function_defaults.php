@@ -15,8 +15,6 @@ require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
-$workFunctionChoices = work_function_choices($pdo);
-$defaultWorkFunctions = default_work_function_definitions();
 $questionnaires = [];
 $questionnaireMap = [];
 try {
@@ -36,45 +34,13 @@ try {
     $questionnaires = [];
     $questionnaireMap = [];
 }
-$existingAssignments = [];
-try {
-    $defaultsStmt = $pdo->query('SELECT questionnaire_id, work_function FROM questionnaire_work_function');
-    if ($defaultsStmt) {
-        foreach ($defaultsStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $qid = isset($row['questionnaire_id']) ? (int)$row['questionnaire_id'] : 0;
-            $wf = trim((string)($row['work_function'] ?? ''));
-            if ($qid > 0 && $wf !== '') {
-                $existingAssignments[$wf][] = $qid;
-            }
-        }
-    }
-} catch (PDOException $e) {
-    error_log('work_function_defaults default fetch failed: ' . $e->getMessage());
-    $existingAssignments = [];
-}
-$normalizedAssignments = [];
-foreach ($existingAssignments as $wf => $ids) {
-    $canonical = canonical_work_function_key($wf);
-    if ($canonical === '') {
-        continue;
-    }
-    $normalizedAssignments[$canonical] = array_values(array_unique(array_map(static fn($id) => (int)$id, $ids)));
-}
-$existingAssignments = $normalizedAssignments;
-
-$workFunctionKeys = array_unique(array_merge(
-    array_keys($defaultWorkFunctions),
-    array_keys($workFunctionChoices),
-    array_keys($existingAssignments)
-));
-$workFunctionKeys = array_map(static fn($value) => canonical_work_function_key((string)$value), $workFunctionKeys);
-$workFunctionKeys = array_values(array_filter(array_unique($workFunctionKeys), static fn($value) => $value !== ''));
-usort($workFunctionKeys, static function ($a, $b) use ($pdo) {
-    return strcasecmp(work_function_label($pdo, (string)$a), work_function_label($pdo, (string)$b));
-});
-$assignmentsByWorkFunction = [];
+$workFunctionOptions = available_work_functions($pdo);
+$workFunctionKeys = array_keys($workFunctionOptions);
+$assignmentsByWorkFunction = work_function_assignments($pdo);
 foreach ($workFunctionKeys as $wf) {
-    $assignmentsByWorkFunction[$wf] = array_values(array_unique($existingAssignments[$wf] ?? []));
+    if (!isset($assignmentsByWorkFunction[$wf])) {
+        $assignmentsByWorkFunction[$wf] = [];
+    }
 }
 $msg = $_SESSION['work_function_defaults_flash'] ?? '';
 if ($msg !== '') {
@@ -101,43 +67,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!is_array($input)) {
         $input = [];
     }
-    $normalized = [];
-    foreach ($workFunctionKeys as $wf) {
-        $selection = $input[$wf] ?? [];
-        if (!is_array($selection)) {
-            $selection = [];
-        }
-        $valid = [];
-        foreach ($selection as $value) {
-            $qid = (int)$value;
-            if ($qid <= 0 || !isset($questionnaireMap[$qid])) {
-                continue;
-            }
-            $valid[$qid] = $qid;
-        }
-        $normalized[$wf] = array_values($valid);
-    }
+    $normalized = normalize_work_function_assignments(
+        $input,
+        $workFunctionKeys,
+        array_keys($questionnaireMap)
+    );
     $assignmentsByWorkFunction = $normalized;
     if ($errors === []) {
         try {
-            $pdo->beginTransaction();
-            $pdo->exec('DELETE FROM questionnaire_work_function');
-            if ($normalized !== []) {
-                $insert = $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
-                foreach ($normalized as $wf => $ids) {
-                    foreach ($ids as $qid) {
-                        $insert->execute([$qid, $wf]);
-                    }
-                }
-            }
-            $pdo->commit();
+            save_work_function_assignments($pdo, $normalized);
             $_SESSION['work_function_defaults_flash'] = t($t, 'work_function_defaults_saved', 'Default questionnaire assignments updated.');
             header('Location: ' . url_for('admin/work_function_defaults.php'));
             exit;
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
             error_log('work_function_defaults save failed: ' . $e->getMessage());
             $errors[] = t($t, 'work_function_defaults_save_failed', 'Unable to save work function defaults. Please try again.');
         }
@@ -184,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <p class="md-hint"><?=htmlspecialchars(t($t, 'work_function_defaults_none', 'No work functions are available yet. Staff members can continue to receive questionnaires assigned directly to them.'), ENT_QUOTES, 'UTF-8')?></p>
         <?php endif; ?>
         <?php foreach ($workFunctionKeys as $wf): ?>
-          <?php $label = work_function_label($pdo, $wf); ?>
+          <?php $label = $workFunctionOptions[$wf] ?? work_function_label($pdo, $wf); ?>
           <div class="md-work-function-card" data-work-function-block data-work-function="<?=htmlspecialchars($wf, ENT_QUOTES, 'UTF-8')?>">
             <div class="md-work-function-heading">
               <h3><?=htmlspecialchars($label, ENT_QUOTES, 'UTF-8')?></h3>
