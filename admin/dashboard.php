@@ -632,6 +632,19 @@ $pageHelpKey = 'admin.dashboard';
         <?php if ($lastCheckDisplay): ?>
           <p class="md-upgrade-meta"><?=t($t,'last_checked','Last checked:')?> <?=htmlspecialchars($lastCheckDisplay, ENT_QUOTES, 'UTF-8')?></p>
         <?php endif; ?>
+        <div class="md-upgrade-inline-actions">
+          <form method="post">
+            <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+            <input type="hidden" name="action" value="check_upgrade">
+            <button type="submit" class="md-button md-elev-1 md-upgrade-action-button"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
+          </form>
+          <form method="post">
+            <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+            <input type="hidden" name="action" value="install_upgrade">
+            <button type="submit" class="md-button md-primary md-elev-2 md-upgrade-action-button" <?=($upgradeRepoDisplay === '' ? 'disabled' : '')?>><?=t($t,'install_upgrade','Install Upgrade')?></button>
+          </form>
+        </div>
+        <p class="md-upgrade-meta"><?=t($t,'upgrade_hint_script','The upgrade script automatically creates backups before applying changes. Download manual backups whenever you need an extra copy.')?></p>
       </article>
       <article class="md-card md-upgrade-card">
         <h3 class="md-upgrade-heading"><?=t($t,'upgrade_overview_backup','Backups')?></h3>
@@ -648,106 +661,85 @@ $pageHelpKey = 'admin.dashboard';
     </div>
 
     <div class="md-upgrade-layout">
-      <div class="md-upgrade-column">
-        <article class="md-card md-upgrade-card">
-          <h3 class="md-upgrade-heading"><?=t($t,'upgrade_repo_label','Release source')?></h3>
-          <p class="md-upgrade-meta"><?=t($t,'upgrade_repo_hint','Specify the GitHub repository slug or a full HTTPS Git URL used to check for releases (for example, https://github.com/khoppenworth/HRassessv300).')?></p>
-          <form method="post" class="md-upgrade-form">
+      <article class="md-card md-upgrade-card">
+        <h3 class="md-upgrade-heading"><?=t($t,'upgrade_repo_label','Release source')?></h3>
+        <p class="md-upgrade-meta"><?=t($t,'upgrade_repo_hint','Specify the GitHub repository slug or a full HTTPS Git URL used to check for releases (for example, https://github.com/khoppenworth/HRassessv300).')?></p>
+        <form method="post" class="md-upgrade-form">
+          <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+          <input type="hidden" name="action" value="update_upgrade_repo">
+          <label class="md-upgrade-field">
+            <span class="md-upgrade-field-label"><?=t($t,'upgrade_repo_label','Release source')?></span>
+            <input type="text" name="upgrade_repo" value="<?=htmlspecialchars((string)$upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>" placeholder="https://github.com/owner/repository" class="md-upgrade-input" inputmode="url" spellcheck="false" autocapitalize="none" autocomplete="off">
+          </label>
+          <button type="submit" class="md-button md-primary md-elev-1 md-upgrade-submit"><?=t($t,'save_upgrade_source','Save source')?></button>
+        </form>
+      </article>
+
+      <article class="md-card md-upgrade-card">
+        <h3 class="md-upgrade-heading"><?=t($t,'upgrade_log_heading','Recent upgrade activity')?></h3>
+        <?php if ($upgradeLog): ?>
+          <?php if (!empty($upgradeLog['timestamp'])): ?>
+            <p class="md-upgrade-meta"><?=t($t,'upgrade_log_timestamp','Run at:')?> <?=htmlspecialchars(date('M j, Y g:i a', (int)$upgradeLog['timestamp']), ENT_QUOTES, 'UTF-8')?></p>
+          <?php endif; ?>
+          <?php if (!empty($upgradeLog['command'])): ?>
+            <p class="md-upgrade-meta"><strong><?=t($t,'upgrade_command_label','Executed command')?>:</strong> <code><?=htmlspecialchars($upgradeLog['command'], ENT_QUOTES, 'UTF-8')?></code></p>
+          <?php endif; ?>
+          <p class="md-upgrade-meta"><strong><?=t($t,'upgrade_exit_code_label','Exit code')?>:</strong> <span class="md-upgrade-chip <?=(int)($upgradeLog['exit_code'] ?? 1) === 0 ? 'success' : 'error'?>"><?=htmlspecialchars((string)($upgradeLog['exit_code'] ?? '—'), ENT_QUOTES, 'UTF-8')?></span></p>
+          <?php if (!empty($upgradeLog['stdout'])): ?>
+            <div class="md-upgrade-log-block">
+              <strong><?=t($t,'upgrade_stdout_label','Output')?>:</strong>
+              <pre class="md-code-block"><?=htmlspecialchars($upgradeLog['stdout'], ENT_QUOTES, 'UTF-8')?></pre>
+            </div>
+          <?php endif; ?>
+          <?php if (!empty($upgradeLog['stderr'])): ?>
+            <div class="md-upgrade-log-block">
+              <strong><?=t($t,'upgrade_stderr_label','Errors')?>:</strong>
+              <pre class="md-code-block"><?=htmlspecialchars($upgradeLog['stderr'], ENT_QUOTES, 'UTF-8')?></pre>
+            </div>
+          <?php endif; ?>
+        <?php else: ?>
+          <p class="md-upgrade-meta"><?=t($t,'no_upgrade_activity','No upgrade commands have been executed yet.')?></p>
+        <?php endif; ?>
+      </article>
+
+      <article class="md-card md-upgrade-card">
+        <h3 class="md-upgrade-heading"><?=t($t,'upgrade_recent_backups','Upgrade backups')?></h3>
+        <?php if ($formattedBackups): ?>
+          <?php $downloadBackupFormId = 'download-backup-form'; ?>
+          <form method="post" class="md-upgrade-restore-form" id="restore-backup-form">
             <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-            <input type="hidden" name="action" value="update_upgrade_repo">
+            <input type="hidden" name="action" value="restore_backup">
             <label class="md-upgrade-field">
-              <span class="md-upgrade-field-label"><?=t($t,'upgrade_repo_label','Release source')?></span>
-              <input type="text" name="upgrade_repo" value="<?=htmlspecialchars((string)$upgradeRepoDisplay, ENT_QUOTES, 'UTF-8')?>" placeholder="https://github.com/owner/repository" class="md-upgrade-input" inputmode="url" spellcheck="false" autocapitalize="none" autocomplete="off">
+              <span class="md-upgrade-field-label"><?=t($t,'select_backup_label','Backup to restore')?></span>
+              <select name="backup_id" class="md-upgrade-select" data-upgrade-backup-select>
+                <?php foreach ($formattedBackups as $backupMeta): ?>
+                  <option value="<?=htmlspecialchars($backupMeta['id'], ENT_QUOTES, 'UTF-8')?>" <?=$backupMeta['id'] === $selectedBackupId ? 'selected' : ''?>>
+                    <?=htmlspecialchars($backupMeta['option_label'], ENT_QUOTES, 'UTF-8')?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
             </label>
-            <button type="submit" class="md-button md-primary md-elev-1 md-upgrade-submit"><?=t($t,'save_upgrade_source','Save source')?></button>
+            <p class="md-upgrade-meta"><?=t($t,'select_backup_hint','Choose a snapshot to restore or download.')?></p>
+            <label class="md-upgrade-checkbox">
+              <input type="checkbox" name="restore_db" value="1">
+              <span><?=t($t,'restore_database','Restore database')?></span>
+            </label>
+            <p class="md-upgrade-meta"><?=t($t,'restore_database_hint','Also restore the database from the selected backup.')?></p>
+            <div class="md-upgrade-backup-toolbar">
+              <button type="submit" class="md-button md-outline md-elev-1 md-upgrade-action-button"><?=t($t,'restore_backup','Restore backup')?></button>
+              <button type="submit" form="<?=htmlspecialchars($downloadBackupFormId, ENT_QUOTES, 'UTF-8')?>" class="md-button md-elev-1 md-upgrade-action-button">
+                <?=t($t,'download_backup','Download backup')?>
+              </button>
+            </div>
           </form>
-        </article>
-
-        <article class="md-card md-upgrade-card">
-          <h3 class="md-upgrade-heading"><?=t($t,'upgrade_actions_heading','Upgrade actions')?></h3>
-          <div class="md-upgrade-action-grid">
-            <form method="post">
-              <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-              <input type="hidden" name="action" value="check_upgrade">
-              <button type="submit" class="md-button md-elev-1 md-upgrade-action-button"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
-            </form>
-            <form method="post">
-              <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-              <input type="hidden" name="action" value="install_upgrade">
-              <button type="submit" class="md-button md-primary md-elev-2 md-upgrade-action-button" <?=($upgradeRepoDisplay === '' ? 'disabled' : '')?>><?=t($t,'install_upgrade','Install Upgrade')?></button>
-            </form>
-          </div>
-          <p class="md-upgrade-meta"><?=t($t,'upgrade_hint_script','The upgrade script automatically creates backups before applying changes. Download manual backups whenever you need an extra copy.')?></p>
-        </article>
-
-        <article class="md-card md-upgrade-card">
-          <h3 class="md-upgrade-heading"><?=t($t,'upgrade_log_heading','Recent upgrade activity')?></h3>
-          <?php if ($upgradeLog): ?>
-            <?php if (!empty($upgradeLog['timestamp'])): ?>
-              <p class="md-upgrade-meta"><?=t($t,'upgrade_log_timestamp','Run at:')?> <?=htmlspecialchars(date('M j, Y g:i a', (int)$upgradeLog['timestamp']), ENT_QUOTES, 'UTF-8')?></p>
-            <?php endif; ?>
-            <?php if (!empty($upgradeLog['command'])): ?>
-              <p class="md-upgrade-meta"><strong><?=t($t,'upgrade_command_label','Executed command')?>:</strong> <code><?=htmlspecialchars($upgradeLog['command'], ENT_QUOTES, 'UTF-8')?></code></p>
-            <?php endif; ?>
-            <p class="md-upgrade-meta"><strong><?=t($t,'upgrade_exit_code_label','Exit code')?>:</strong> <span class="md-upgrade-chip <?=(int)($upgradeLog['exit_code'] ?? 1) === 0 ? 'success' : 'error'?>"><?=htmlspecialchars((string)($upgradeLog['exit_code'] ?? '—'), ENT_QUOTES, 'UTF-8')?></span></p>
-            <?php if (!empty($upgradeLog['stdout'])): ?>
-              <div class="md-upgrade-log-block">
-                <strong><?=t($t,'upgrade_stdout_label','Output')?>:</strong>
-                <pre class="md-code-block"><?=htmlspecialchars($upgradeLog['stdout'], ENT_QUOTES, 'UTF-8')?></pre>
-              </div>
-            <?php endif; ?>
-            <?php if (!empty($upgradeLog['stderr'])): ?>
-              <div class="md-upgrade-log-block">
-                <strong><?=t($t,'upgrade_stderr_label','Errors')?>:</strong>
-                <pre class="md-code-block"><?=htmlspecialchars($upgradeLog['stderr'], ENT_QUOTES, 'UTF-8')?></pre>
-              </div>
-            <?php endif; ?>
-          <?php else: ?>
-            <p class="md-upgrade-meta"><?=t($t,'no_upgrade_activity','No upgrade commands have been executed yet.')?></p>
-          <?php endif; ?>
-        </article>
-      </div>
-
-      <div class="md-upgrade-column">
-        <article class="md-card md-upgrade-card">
-          <h3 class="md-upgrade-heading"><?=t($t,'upgrade_recent_backups','Upgrade backups')?></h3>
-          <?php if ($formattedBackups): ?>
-            <?php $downloadBackupFormId = 'download-backup-form'; ?>
-            <form method="post" class="md-upgrade-restore-form" id="restore-backup-form">
-              <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-              <input type="hidden" name="action" value="restore_backup">
-              <label class="md-upgrade-field">
-                <span class="md-upgrade-field-label"><?=t($t,'select_backup_label','Backup to restore')?></span>
-                <select name="backup_id" class="md-upgrade-select" data-upgrade-backup-select>
-                  <?php foreach ($formattedBackups as $backupMeta): ?>
-                    <option value="<?=htmlspecialchars($backupMeta['id'], ENT_QUOTES, 'UTF-8')?>" <?=$backupMeta['id'] === $selectedBackupId ? 'selected' : ''?>>
-                      <?=htmlspecialchars($backupMeta['option_label'], ENT_QUOTES, 'UTF-8')?>
-                    </option>
-                  <?php endforeach; ?>
-                </select>
-              </label>
-              <p class="md-upgrade-meta"><?=t($t,'select_backup_hint','Choose a snapshot to restore or download.')?></p>
-              <label class="md-upgrade-checkbox">
-                <input type="checkbox" name="restore_db" value="1">
-                <span><?=t($t,'restore_database','Restore database')?></span>
-              </label>
-              <p class="md-upgrade-meta"><?=t($t,'restore_database_hint','Also restore the database from the selected backup.')?></p>
-              <div class="md-upgrade-backup-toolbar">
-                <button type="submit" class="md-button md-outline md-elev-1 md-upgrade-action-button"><?=t($t,'restore_backup','Restore backup')?></button>
-                <button type="submit" form="<?=htmlspecialchars($downloadBackupFormId, ENT_QUOTES, 'UTF-8')?>" class="md-button md-elev-1 md-upgrade-action-button">
-                  <?=t($t,'download_backup','Download backup')?>
-                </button>
-              </div>
-            </form>
-            <form method="post" id="<?=htmlspecialchars($downloadBackupFormId, ENT_QUOTES, 'UTF-8')?>" class="md-upgrade-hidden-form">
-              <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-              <input type="hidden" name="action" value="download_backups">
-            </form>
-          <?php else: ?>
-            <p class="md-upgrade-meta"><?=t($t,'no_backups_available','No upgrade backups are available yet.')?></p>
-          <?php endif; ?>
-        </article>
-      </div>
+          <form method="post" id="<?=htmlspecialchars($downloadBackupFormId, ENT_QUOTES, 'UTF-8')?>" class="md-upgrade-hidden-form">
+            <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+            <input type="hidden" name="action" value="download_backups">
+          </form>
+        <?php else: ?>
+          <p class="md-upgrade-meta"><?=t($t,'no_backups_available','No upgrade backups are available yet.')?></p>
+        <?php endif; ?>
+      </article>
     </div>
   </section>
   <div class="md-dashboard-grid">
