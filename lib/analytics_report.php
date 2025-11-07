@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/simple_pdf.php';
 require_once __DIR__ . '/performance_sections.php';
+require_once __DIR__ . '/work_functions.php';
 
 function analytics_report_allowed_frequencies(): array
 {
