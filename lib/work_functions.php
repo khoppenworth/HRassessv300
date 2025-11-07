@@ -43,25 +43,38 @@ function canonical_work_function_key(string $value, ?array $definitions = null):
     }
 
     $definitions = $definitions ?? default_work_function_definitions();
+    $normalizedDefinitions = [];
+    foreach ($definitions as $key => $label) {
+        $normalizedDefinitions[strtolower((string)$key)] = (string)$key;
+    }
+
     if (isset($definitions[$value])) {
-        return $value;
+        return (string)$value;
+    }
+
+    $lowerValue = strtolower($value);
+    if (isset($normalizedDefinitions[$lowerValue])) {
+        return $normalizedDefinitions[$lowerValue];
     }
 
     foreach ($definitions as $key => $label) {
-        if (strcasecmp($value, (string)$key) === 0 || strcasecmp($value, (string)$label) === 0) {
+        if (strcasecmp($value, (string)$label) === 0) {
             return (string)$key;
         }
     }
 
-    $normalized = strtolower($value);
-    $normalized = preg_replace('/[^a-z0-9]+/i', '_', $normalized) ?? '';
+    $normalized = preg_replace('/[^a-z0-9]+/i', '_', $lowerValue) ?? '';
     $normalized = trim($normalized, '_');
 
-    if ($normalized !== '' && isset($definitions[$normalized])) {
-        return $normalized;
+    if ($normalized === '') {
+        return '';
     }
 
-    return '';
+    if (isset($normalizedDefinitions[$normalized])) {
+        return $normalizedDefinitions[$normalized];
+    }
+
+    return $normalized;
 }
 
 function canonical(string $value, ?array $definitions = null): string
