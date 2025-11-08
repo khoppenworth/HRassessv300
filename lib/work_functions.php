@@ -6,29 +6,6 @@ declare(strict_types=1);
  *
  * @return array<string,string>
  */
-function default_work_function_definitions(): array
-{
-    return [
-        'finance' => 'Finance',
-        'general_service' => 'General Service',
-        'hrm' => 'HRM',
-        'ict' => 'ICT',
-        'leadership_tn' => 'Leadership TN',
-        'legal_service' => 'Legal Service',
-        'pme' => 'PME',
-        'quantification' => 'Quantification',
-        'records_documentation' => 'Records & Documentation',
-        'security_driver' => 'Security & Driver',
-        'security' => 'Security',
-        'tmd' => 'TMD',
-        'wim' => 'WIM',
-        'cmd' => 'CMD',
-        'communication' => 'Communication',
-        'dfm' => 'DFM',
-        'driver' => 'Driver',
-        'ethics' => 'Ethics',
-    ];
-}
 
 /**
  * Normalize a work function identifier to the canonical key.
@@ -131,40 +108,6 @@ function work_function_choices(PDO $pdo, bool $forceRefresh = false): array
     $cache[$cacheKey] = $choices;
 
     return $choices;
-}
-
-function is_valid_work_function(PDO $pdo, string $value): bool
-{
-    if ($value === '') {
-        return false;
-    }
-
-    $canonical = canonical_work_function_key($value);
-    if ($canonical === '') {
-        return false;
-    }
-
-    $choices = work_function_choices($pdo);
-
-    return isset($choices[$canonical]);
-}
-
-function work_function_label(PDO $pdo, string $value): string
-{
-    $choices = work_function_choices($pdo);
-    $canonical = canonical_work_function_key($value);
-
-    if ($canonical !== '' && isset($choices[$canonical])) {
-        return $choices[$canonical];
-    }
-
-    if ($canonical !== '') {
-        return ucwords(str_replace('_', ' ', $canonical));
-    }
-
-    $value = trim($value);
-
-    return $value !== '' ? ucwords(str_replace('_', ' ', $value)) : '';
 }
 
 /**
