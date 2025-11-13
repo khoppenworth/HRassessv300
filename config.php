@@ -344,6 +344,39 @@ function ensure_site_config_schema(PDO $pdo): void {
             $pdo->exec($sql);
         }
     }
+
+    site_config_available_columns($pdo, true);
+}
+
+function site_config_available_columns(PDO $pdo, bool $refresh = false): array
+{
+    static $cache = null;
+
+    if ($refresh || $cache === null) {
+        $columns = [];
+
+        try {
+            $result = $pdo->query('SHOW COLUMNS FROM site_config');
+            if ($result) {
+                while ($col = $result->fetch(PDO::FETCH_ASSOC)) {
+                    if (!isset($col['Field'])) {
+                        continue;
+                    }
+                    $name = strtolower(trim((string)$col['Field']));
+                    if ($name !== '') {
+                        $columns[$name] = true;
+                    }
+                }
+            }
+        } catch (PDOException $e) {
+            error_log('site_config_available_columns failed: ' . $e->getMessage());
+            $columns = [];
+        }
+
+        $cache = $columns;
+    }
+
+    return $cache ?? [];
 }
 
 function decode_enabled_locales($value): array
