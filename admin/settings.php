@@ -136,6 +136,27 @@ try {
             'email_templates' => encode_email_templates($emailTemplates),
         ];
 
+        $siteConfigColumns = site_config_available_columns($pdo);
+        $reviewColumnAvailable = isset($siteConfigColumns['review_enabled']);
+        if (!$reviewColumnAvailable) {
+            ensure_site_config_schema($pdo);
+            $siteConfigColumns = site_config_available_columns($pdo, true);
+            $reviewColumnAvailable = isset($siteConfigColumns['review_enabled']);
+        }
+
+        foreach (array_keys($fields) as $column) {
+            if (!isset($siteConfigColumns[$column])) {
+                if ($column === 'review_enabled') {
+                    $errors[] = t($t, 'review_column_missing_notice', 'The review workflow setting could not be saved because the database is missing the required column. Please run the latest upgrade script and try again.');
+                }
+                unset($fields[$column]);
+            }
+        }
+
+        if ($fields === []) {
+            $errors[] = t($t, 'settings_missing_columns_notice', 'Settings could not be saved because the configuration table is missing required columns.');
+        }
+
         if ($errors === []) {
             $enabledLocales = enforce_locale_requirements($selectedLocales);
             $fields['enabled_locales'] = encode_enabled_locales($enabledLocales);
@@ -150,7 +171,7 @@ try {
             $stm = $pdo->prepare('UPDATE site_config SET ' . implode(', ', $assignments) . ' WHERE id=1');
             $stm->execute($values);
             $autoApproveNotice = '';
-            if ($previousReviewEnabled && $review_enabled === 0) {
+            if ($reviewColumnAvailable && $previousReviewEnabled && $review_enabled === 0) {
                 try {
                     $autoApproved = $pdo->exec("UPDATE questionnaire_response SET status='approved', reviewed_by=NULL, reviewed_at=NOW(), review_comment=NULL WHERE status='submitted'");
                     if (is_int($autoApproved) && $autoApproved > 0) {
