@@ -338,6 +338,8 @@ function available_work_functions(PDO $pdo, bool $forceRefresh = false): array
     $cache[$cacheKey] = $labels;
 
     return $labels;
+}
+
 use PDO;
 use PDOException;
 
@@ -365,7 +367,6 @@ if (!function_exists('default_work_function_definitions')) {
             'ethics' => 'Ethics',
         ];
     }
-}
 
 /**
  * Normalize a work function identifier to the canonical key.
@@ -675,4 +676,6 @@ function available_work_functions(PDO $pdo, bool $forceRefresh = false): array
     $cache[$cacheKey] = $labels;
 
     return $labels;
+}
+
 }
