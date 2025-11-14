@@ -791,9 +791,16 @@ function ensure_biannual_performance_periods(PDO $pdo): void
     }
 
     $currentYear = (int)date('Y');
-    $years = range($currentYear - 1, $currentYear + 1);
+    $years = range($currentYear - 1, $currentYear + 2);
+
+    $startedTransaction = false;
 
     try {
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $startedTransaction = true;
+        }
+
         $stmt = $pdo->prepare("INSERT INTO performance_period (label, period_start, period_end) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE period_start = VALUES(period_start), period_end = VALUES(period_end)");
         foreach ($years as $year) {
             $h1Label = sprintf('%d H1', $year);
@@ -802,6 +809,7 @@ function ensure_biannual_performance_periods(PDO $pdo): void
                 sprintf('%d-01-01', $year),
                 sprintf('%d-06-30', $year),
             ]);
+
             $h2Label = sprintf('%d H2', $year);
             $stmt->execute([
                 $h2Label,
@@ -809,7 +817,14 @@ function ensure_biannual_performance_periods(PDO $pdo): void
                 sprintf('%d-12-31', $year),
             ]);
         }
+
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
     } catch (PDOException $e) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         error_log('ensure_biannual_performance_periods: ' . $e->getMessage());
     }
 }
