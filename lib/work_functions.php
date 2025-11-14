@@ -6,6 +6,29 @@ declare(strict_types=1);
  *
  * @return array<string,string>
  */
+function default_work_function_definitions(): array
+{
+    return [
+        'cmd' => 'Change Management & Development',
+        'communication' => 'Communications & Partnerships',
+        'dfm' => 'Demand Forecasting & Management',
+        'driver' => 'Driver Services',
+        'ethics' => 'Ethics & Compliance',
+        'finance' => 'Finance & Grants',
+        'general_service' => 'General Services',
+        'hrm' => 'Human Resources Management',
+        'ict' => 'Information & Communication Technology',
+        'leadership_tn' => 'Leadership & Team Nurturing',
+        'legal_service' => 'Legal Services',
+        'pme' => 'Planning, Monitoring & Evaluation',
+        'quantification' => 'Quantification & Procurement',
+        'records_documentation' => 'Records & Documentation',
+        'security' => 'Security Operations',
+        'security_driver' => 'Security & Driver Management',
+        'tmd' => 'Training & Mentorship Development',
+        'wim' => 'Warehouse & Inventory Management',
+    ];
+}
 
 /**
  * Normalize a work function identifier to the canonical key.
@@ -294,4 +317,27 @@ function available_work_functions(PDO $pdo, bool $forceRefresh = false): array
     $cache[$cacheKey] = $labels;
 
     return $labels;
+}
+
+/**
+ * Resolve the display label for a work function key.
+ */
+function work_function_label(PDO $pdo, string $workFunction): string
+{
+    $canonical = canonical_work_function_key($workFunction);
+    if ($canonical === '') {
+        return '';
+    }
+
+    $options = available_work_functions($pdo);
+    if (isset($options[$canonical])) {
+        return (string) $options[$canonical];
+    }
+
+    $definitions = default_work_function_definitions();
+    if (isset($definitions[$canonical])) {
+        return (string) $definitions[$canonical];
+    }
+
+    return ucwords(str_replace('_', ' ', $canonical));
 }
