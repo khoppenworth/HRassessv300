@@ -107,6 +107,18 @@
   outline: none;
 }
 
+.qb-section-nav-button.is-active {
+  background: var(--app-primary);
+  color: var(--md-on-primary);
+  border-color: var(--app-primary);
+  font-weight: 600;
+}
+
+.qb-section-nav-item.is-active .qb-section-nav-count {
+  color: var(--app-primary);
+  font-weight: 600;
+}
+
 .qb-section-nav-count {
   font-size: 0.8rem;
   color: var(--app-muted, rgba(0, 0, 0, 0.6));

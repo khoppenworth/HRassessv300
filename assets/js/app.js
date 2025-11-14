@@ -140,6 +140,7 @@
       trigger.setAttribute('aria-expanded', 'false');
       trigger.addEventListener('click', (event) => {
         event.preventDefault();
+        event.stopPropagation();
         const item = trigger.closest('[data-topnav-item]');
         if (!item) {
           return;
