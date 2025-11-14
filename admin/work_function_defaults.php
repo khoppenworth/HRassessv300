@@ -7,6 +7,7 @@ require_profile_completion($pdo);
 $locale = ensure_locale();
 $t = load_lang($locale);
 $cfg = get_site_config($pdo);
+$workFunctionService = work_function_service();
 $questionnaires = [];
 $questionnaireMap = [];
 try {
@@ -67,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $assignmentsByWorkFunction = $normalized;
     if ($errors === []) {
         try {
-            save_work_function_assignments($pdo, $normalized);
+            $workFunctionService->saveAssignments($pdo, $normalized);
             $_SESSION['work_function_defaults_flash'] = t($t, 'work_function_defaults_saved', 'Default questionnaire assignments updated.');
             header('Location: ' . url_for('admin/work_function_defaults.php'));
             exit;

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/lib/email_templates.php';
+require_once __DIR__ . '/lib/work_function_service.php';
 require_once __DIR__ . '/lib/work_functions.php';
 
 if (!defined('APP_BOOTSTRAPPED')) {
