@@ -161,14 +161,20 @@ try {
             $enabledLocales = enforce_locale_requirements($selectedLocales);
             $fields['enabled_locales'] = encode_enabled_locales($enabledLocales);
 
-            $assignments = [];
             $values = [];
             foreach ($fields as $column => $value) {
-                $assignments[] = "$column=?";
                 $values[] = ($value !== '') ? $value : null;
             }
 
-            $stm = $pdo->prepare('UPDATE site_config SET ' . implode(', ', $assignments) . ' WHERE id=1');
+            $columns = array_keys($fields);
+            $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+            $updates = [];
+            foreach ($columns as $column) {
+                $updates[] = "$column=VALUES($column)";
+            }
+
+            $sql = 'INSERT INTO site_config (id, ' . implode(', ', $columns) . ') VALUES (1, ' . $placeholders . ') ON DUPLICATE KEY UPDATE ' . implode(', ', $updates);
+            $stm = $pdo->prepare($sql);
             $stm->execute($values);
             $autoApproveNotice = '';
             if ($reviewColumnAvailable && $previousReviewEnabled && $review_enabled === 0) {

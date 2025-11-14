@@ -74,6 +74,7 @@ if (!defined('APP_BOOTSTRAPPED')) {
         ensure_users_schema($pdo);
         ensure_questionnaire_item_schema($pdo);
         ensure_questionnaire_work_function_schema($pdo);
+        ensure_work_function_catalog($pdo);
         ensure_questionnaire_assignment_schema($pdo);
         ensure_biannual_performance_periods($pdo);
         ensure_analytics_report_schedule_schema($pdo);
@@ -611,6 +612,7 @@ function delete_branding_logo_file(?string $path): void
 function ensure_users_schema(PDO $pdo): void
 {
     $existing = [];
+    $columnDetails = [];
     try {
         $columns = $pdo->query('SHOW COLUMNS FROM users');
     } catch (PDOException $e) {
@@ -621,7 +623,9 @@ function ensure_users_schema(PDO $pdo): void
     if ($columns) {
         while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
             if (isset($col['Field'])) {
-                $existing[$col['Field']] = true;
+                $fieldName = (string)$col['Field'];
+                $existing[$fieldName] = true;
+                $columnDetails[$fieldName] = $col;
             }
             if (($col['Field'] ?? '') === 'role') {
                 $roleColumn = $col;
@@ -631,6 +635,30 @@ function ensure_users_schema(PDO $pdo): void
 
     if ($roleColumn && isset($roleColumn['Type']) && stripos((string)$roleColumn['Type'], 'enum(') !== false) {
         $pdo->exec("ALTER TABLE users MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'staff'");
+    }
+
+    $workFunctionColumn = $columnDetails['work_function'] ?? null;
+    if ($workFunctionColumn === null) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN work_function VARCHAR(100) NULL AFTER cadre");
+    } else {
+        $type = strtolower((string)($workFunctionColumn['Type'] ?? ''));
+        $nullable = strtolower((string)($workFunctionColumn['Null'] ?? '')) === 'yes';
+        $needsAlter = false;
+        if (str_contains($type, 'enum(')) {
+            $needsAlter = true;
+        } elseif (!str_contains($type, 'char')) {
+            $needsAlter = true;
+        } elseif (preg_match('/varchar\((\d+)\)/i', $type, $matches)) {
+            if ((int)$matches[1] < 100) {
+                $needsAlter = true;
+            }
+        }
+        if (!$nullable) {
+            $needsAlter = true;
+        }
+        if ($needsAlter) {
+            $pdo->exec('ALTER TABLE users MODIFY COLUMN work_function VARCHAR(100) NULL');
+        }
     }
 
     $changes = [

@@ -923,8 +923,8 @@ SET @users_work_function_exists = (
 );
 SET @users_work_function_sql = IF(
   @users_work_function_exists = 0,
-  'ALTER TABLE users ADD COLUMN work_function ENUM(''finance'',''general_service'',''hrm'',''ict'',''leadership_tn'',''legal_service'',''pme'',''quantification'',''records_documentation'',''security_driver'',''security'',''tmd'',''wim'',''cmd'',''communication'',''dfm'',''driver'',''ethics'') NOT NULL DEFAULT ''general_service'' AFTER cadre',
-  'DO 1'
+  'ALTER TABLE users ADD COLUMN work_function VARCHAR(100) NULL AFTER cadre',
+  'ALTER TABLE users MODIFY COLUMN work_function VARCHAR(100) NULL'
 );
 PREPARE stmt FROM @users_work_function_sql;
 EXECUTE stmt;
@@ -1192,7 +1192,38 @@ CREATE TABLE IF NOT EXISTS training_recommendation (
 
 CREATE TABLE IF NOT EXISTS questionnaire_work_function (
   questionnaire_id INT NOT NULL,
-  work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL,
+  work_function VARCHAR(100) NOT NULL,
   PRIMARY KEY (questionnaire_id, work_function),
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS work_function_catalog (
+  slug VARCHAR(100) NOT NULL PRIMARY KEY,
+  label VARCHAR(255) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  archived_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO work_function_catalog (slug, label, sort_order) VALUES
+  ('cmd', 'Change Management & Development', 1),
+  ('communication', 'Communications & Partnerships', 2),
+  ('dfm', 'Demand Forecasting & Management', 3),
+  ('driver', 'Driver Services', 4),
+  ('ethics', 'Ethics & Compliance', 5),
+  ('finance', 'Finance & Grants', 6),
+  ('general_service', 'General Services', 7),
+  ('hrm', 'Human Resources Management', 8),
+  ('ict', 'Information & Communication Technology', 9),
+  ('leadership_tn', 'Leadership & Team Nurturing', 10),
+  ('legal_service', 'Legal Services', 11),
+  ('pme', 'Planning, Monitoring & Evaluation', 12),
+  ('quantification', 'Quantification & Procurement', 13),
+  ('records_documentation', 'Records & Documentation', 14),
+  ('security', 'Security Operations', 15),
+  ('security_driver', 'Security & Driver Management', 16),
+  ('tmd', 'Training & Mentorship Development', 17),
+  ('wim', 'Warehouse & Inventory Management', 18)
+ON DUPLICATE KEY UPDATE
+  label = VALUES(label),
+  sort_order = VALUES(sort_order);

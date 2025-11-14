@@ -213,6 +213,7 @@ $expectedSchemas = [
         'username' => ['type' => 'varchar', 'null' => 'NO'],
         'password' => ['type' => 'varchar', 'null' => 'NO'],
         'role' => ['type' => 'varchar', 'null' => 'NO', 'default' => 'staff'],
+        'work_function' => ['type' => 'varchar', 'null' => 'YES'],
         'language' => ['type' => 'varchar', 'null' => 'YES'],
         'account_status' => ['type' => "enum('pending','active','disabled')", 'null' => 'NO', 'default' => 'active'],
         'must_reset_password' => ['type' => 'tinyint', 'null' => 'NO', 'default' => '0'],
@@ -227,7 +228,14 @@ $expectedSchemas = [
     ],
     'questionnaire_work_function' => [
         'questionnaire_id' => ['type' => 'int', 'null' => 'NO'],
-        'work_function' => ['type' => 'enum', 'null' => 'NO'],
+        'work_function' => ['type' => 'varchar', 'null' => 'NO'],
+    ],
+    'work_function_catalog' => [
+        'slug' => ['type' => 'varchar', 'null' => 'NO', 'key' => 'PRI'],
+        'label' => ['type' => 'varchar', 'null' => 'NO'],
+        'sort_order' => ['type' => 'int', 'null' => 'NO'],
+        'archived_at' => ['type' => 'datetime', 'null' => 'YES'],
+        'created_at' => ['type' => 'datetime', 'null' => 'NO'],
     ],
     'questionnaire_assignment' => [
         'staff_id' => ['type' => 'int', 'null' => 'NO'],

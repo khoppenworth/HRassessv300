@@ -2,11 +2,11 @@
 declare(strict_types=1);
 
 /**
- * Retrieve the built-in work function definition list.
+ * Retrieve the built-in (code-level) work function definition list.
  *
  * @return array<string,string>
  */
-function default_work_function_definitions(): array
+function built_in_work_function_definitions(): array
 {
     return [
         'cmd' => 'Change Management & Development',
@@ -30,6 +30,264 @@ function default_work_function_definitions(): array
     ];
 }
 
+function ensure_work_function_catalog(PDO $pdo): void
+{
+    $driver = strtolower((string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME));
+    if ($driver === 'sqlite') {
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS work_function_catalog ('
+            . 'slug TEXT NOT NULL PRIMARY KEY, '
+            . 'label TEXT NOT NULL, '
+            . 'sort_order INTEGER NOT NULL DEFAULT 0, '
+            . 'archived_at TEXT NULL, '
+            . 'created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP'
+            . ')'
+        );
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_work_function_catalog_sort ON work_function_catalog (archived_at, sort_order, label)');
+    } else {
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS work_function_catalog ('
+            . 'slug VARCHAR(100) NOT NULL PRIMARY KEY, '
+            . 'label VARCHAR(255) NOT NULL, '
+            . 'sort_order INT NOT NULL DEFAULT 0, '
+            . 'archived_at DATETIME NULL, '
+            . 'created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'
+            . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+        );
+        try {
+            $pdo->exec('CREATE INDEX idx_work_function_catalog_sort ON work_function_catalog (archived_at, sort_order, label)');
+        } catch (Throwable $e) {
+            // Ignore duplicate index errors.
+        }
+    }
+
+    $count = 0;
+    try {
+        $stmt = $pdo->query('SELECT COUNT(*) FROM work_function_catalog');
+        if ($stmt) {
+            $count = (int) $stmt->fetchColumn();
+        }
+    } catch (PDOException $e) {
+        error_log('ensure_work_function_catalog count failed: ' . $e->getMessage());
+    }
+
+    if ($count === 0) {
+        $defaults = built_in_work_function_definitions();
+        $sortOrder = 1;
+        $insert = $pdo->prepare('INSERT INTO work_function_catalog (slug, label, sort_order) VALUES (?, ?, ?)');
+        foreach ($defaults as $slug => $label) {
+            try {
+                $insert->execute([$slug, $label, $sortOrder]);
+                $sortOrder++;
+            } catch (PDOException $e) {
+                error_log('ensure_work_function_catalog insert failed: ' . $e->getMessage());
+            }
+        }
+    }
+}
+
+/**
+ * Fetch the active work function definitions from the catalog.
+ *
+ * @return array<string,string>
+ */
+function work_function_definitions(PDO $pdo, bool $forceRefresh = false): array
+{
+    static $cache = [];
+    $cacheKey = spl_object_id($pdo);
+
+    if (!$forceRefresh && isset($cache[$cacheKey])) {
+        return $cache[$cacheKey];
+    }
+
+    ensure_work_function_catalog($pdo);
+
+    $definitions = [];
+    try {
+        $stmt = $pdo->query('SELECT slug, label FROM work_function_catalog WHERE archived_at IS NULL ORDER BY sort_order, label');
+        if ($stmt) {
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $slug = trim((string)($row['slug'] ?? ''));
+                $label = trim((string)($row['label'] ?? ''));
+                if ($slug === '' || $label === '') {
+                    continue;
+                }
+                $definitions[$slug] = $label;
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('work_function_definitions query failed: ' . $e->getMessage());
+    }
+
+    if ($definitions === []) {
+        $definitions = built_in_work_function_definitions();
+    }
+
+    $cache[$cacheKey] = $definitions;
+
+    return $definitions;
+}
+
+/**
+ * Fetch all catalog entries including archived ones.
+ *
+ * @return array<string,array{label:string,archived_at:?string,sort_order:int}>
+ */
+function work_function_catalog(PDO $pdo, bool $forceRefresh = false): array
+{
+    static $cache = [];
+    $cacheKey = spl_object_id($pdo);
+
+    if (!$forceRefresh && isset($cache[$cacheKey])) {
+        return $cache[$cacheKey];
+    }
+
+    ensure_work_function_catalog($pdo);
+
+    $records = [];
+    try {
+        $stmt = $pdo->query('SELECT slug, label, sort_order, archived_at FROM work_function_catalog ORDER BY sort_order, label');
+        if ($stmt) {
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $slug = trim((string)($row['slug'] ?? ''));
+                if ($slug === '') {
+                    continue;
+                }
+                $records[$slug] = [
+                    'label' => trim((string)($row['label'] ?? '')),
+                    'sort_order' => (int)($row['sort_order'] ?? 0),
+                    'archived_at' => $row['archived_at'] ?? null,
+                ];
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('work_function_catalog query failed: ' . $e->getMessage());
+    }
+
+    $cache[$cacheKey] = $records;
+
+    return $records;
+}
+
+function reset_work_function_caches(PDO $pdo): void
+{
+    work_function_catalog($pdo, true);
+    work_function_definitions($pdo, true);
+    work_function_assignments($pdo, true);
+    work_function_choices($pdo, true);
+    available_work_functions($pdo, true);
+}
+
+function generate_unique_work_function_slug(string $candidate, array $existing): string
+{
+    $base = $candidate;
+    $suffix = 2;
+    while (isset($existing[$candidate])) {
+        $candidate = $base . '_' . $suffix;
+        $suffix++;
+        if ($suffix > 5000) {
+            break;
+        }
+    }
+
+    return $candidate;
+}
+
+function create_work_function(PDO $pdo, string $label, ?string $slug = null): array
+{
+    $label = trim($label);
+    if ($label === '') {
+        throw new InvalidArgumentException('Label is required');
+    }
+
+    $catalog = work_function_catalog($pdo);
+    $definitions = work_function_definitions($pdo);
+    $existingKeys = array_fill_keys(array_keys($catalog), true);
+    foreach (array_keys($definitions) as $key) {
+        $existingKeys[$key] = true;
+    }
+
+    $slugSource = $slug !== null && trim($slug) !== '' ? (string)$slug : $label;
+    $candidate = canonical_work_function_key($slugSource, $definitions + built_in_work_function_definitions());
+    if ($candidate === '') {
+        $candidate = canonical_work_function_key($label, $definitions + built_in_work_function_definitions());
+    }
+    if ($candidate === '') {
+        throw new InvalidArgumentException('Unable to derive work function key');
+    }
+
+    $candidate = generate_unique_work_function_slug($candidate, $existingKeys);
+
+    $pdo->beginTransaction();
+    try {
+        $sortOrder = 1;
+        try {
+            $stmt = $pdo->query('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM work_function_catalog');
+            if ($stmt) {
+                $sortOrder = (int)$stmt->fetchColumn();
+            }
+        } catch (PDOException $e) {
+            error_log('create_work_function sort order failed: ' . $e->getMessage());
+        }
+
+        $insert = $pdo->prepare('INSERT INTO work_function_catalog (slug, label, sort_order, archived_at) VALUES (?, ?, ?, NULL)');
+        $insert->execute([$candidate, $label, $sortOrder]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    reset_work_function_caches($pdo);
+
+    return ['slug' => $candidate, 'label' => $label];
+}
+
+function update_work_function_label(PDO $pdo, string $slug, string $label): void
+{
+    $label = trim($label);
+    if ($label === '') {
+        throw new InvalidArgumentException('Label is required');
+    }
+
+    $catalog = work_function_catalog($pdo);
+    if (!isset($catalog[$slug]) || $catalog[$slug]['archived_at'] !== null) {
+        throw new InvalidArgumentException('Work function does not exist');
+    }
+
+    $stmt = $pdo->prepare('UPDATE work_function_catalog SET label=? WHERE slug=?');
+    $stmt->execute([$label, $slug]);
+
+    reset_work_function_caches($pdo);
+}
+
+function archive_work_function(PDO $pdo, string $slug): void
+{
+    $catalog = work_function_catalog($pdo);
+    if (!isset($catalog[$slug]) || $catalog[$slug]['archived_at'] !== null) {
+        throw new InvalidArgumentException('Work function does not exist');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $archive = $pdo->prepare('UPDATE work_function_catalog SET archived_at = CURRENT_TIMESTAMP WHERE slug = ?');
+        $archive->execute([$slug]);
+
+        $removeAssignments = $pdo->prepare('DELETE FROM questionnaire_work_function WHERE work_function = ?');
+        $removeAssignments->execute([$slug]);
+
+        $clearUsers = $pdo->prepare('UPDATE users SET work_function = NULL WHERE work_function = ?');
+        $clearUsers->execute([$slug]);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    reset_work_function_caches($pdo);
+}
+
 /**
  * Normalize a work function identifier to the canonical key.
  *
@@ -42,7 +300,7 @@ function canonical_work_function_key(string $value, ?array $definitions = null):
         return '';
     }
 
-    $definitions = $definitions ?? default_work_function_definitions();
+    $definitions = $definitions ?? built_in_work_function_definitions();
     $normalizedDefinitions = [];
     foreach ($definitions as $key => $label) {
         $normalizedDefinitions[strtolower((string)$key)] = (string)$key;
@@ -94,7 +352,7 @@ function work_function_choices(PDO $pdo, bool $forceRefresh = false): array
         return $cache[$cacheKey];
     }
 
-    $definitions = default_work_function_definitions();
+    $definitions = work_function_definitions($pdo, $forceRefresh);
     $choices = $definitions;
     $sources = [];
 
@@ -146,13 +404,14 @@ function work_function_assignments(PDO $pdo, bool $forceRefresh = false): array
     }
 
     $assignments = [];
+    $definitions = work_function_definitions($pdo, $forceRefresh);
 
     try {
         $stmt = $pdo->query('SELECT questionnaire_id, work_function FROM questionnaire_work_function');
         if ($stmt) {
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $questionnaireId = isset($row['questionnaire_id']) ? (int)$row['questionnaire_id'] : 0;
-                $workFunction = canonical_work_function_key((string)($row['work_function'] ?? ''));
+                $workFunction = canonical_work_function_key((string)($row['work_function'] ?? ''), $definitions);
                 if ($questionnaireId <= 0 || $workFunction === '') {
                     continue;
                 }
@@ -251,9 +510,10 @@ function save_work_function_assignments(PDO $pdo, array $assignments): void
     try {
         $pdo->exec('DELETE FROM questionnaire_work_function');
         if ($assignments !== []) {
+            $definitions = work_function_definitions($pdo);
             $insert = $pdo->prepare('INSERT INTO questionnaire_work_function (questionnaire_id, work_function) VALUES (?, ?)');
             foreach ($assignments as $workFunction => $questionnaireIds) {
-                $workFunction = canonical_work_function_key((string)$workFunction);
+                $workFunction = canonical_work_function_key((string)$workFunction, $definitions);
                 if ($workFunction === '') {
                     continue;
                 }
@@ -289,7 +549,7 @@ function available_work_functions(PDO $pdo, bool $forceRefresh = false): array
         return $cache[$cacheKey];
     }
 
-    $definitions = default_work_function_definitions();
+    $definitions = work_function_definitions($pdo, $forceRefresh);
     $choices = work_function_choices($pdo, $forceRefresh);
     $assignments = work_function_assignments($pdo, $forceRefresh);
 
@@ -324,7 +584,8 @@ function available_work_functions(PDO $pdo, bool $forceRefresh = false): array
  */
 function work_function_label(PDO $pdo, string $workFunction): string
 {
-    $canonical = canonical_work_function_key($workFunction);
+    $definitions = work_function_definitions($pdo);
+    $canonical = canonical_work_function_key($workFunction, $definitions);
     if ($canonical === '') {
         return '';
     }
@@ -334,7 +595,6 @@ function work_function_label(PDO $pdo, string $workFunction): string
         return (string) $options[$canonical];
     }
 
-    $definitions = default_work_function_definitions();
     if (isset($definitions[$canonical])) {
         return (string) $definitions[$canonical];
     }

@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS training_recommendation;
 DROP TABLE IF EXISTS analytics_report_schedule;
 DROP TABLE IF EXISTS questionnaire_assignment;
 DROP TABLE IF EXISTS questionnaire_work_function;
+DROP TABLE IF EXISTS work_function_catalog;
 DROP TABLE IF EXISTS course_catalogue;
 DROP TABLE IF EXISTS questionnaire_response_item;
 DROP TABLE IF EXISTS questionnaire_response;
@@ -71,7 +72,7 @@ CREATE TABLE users (
   phone VARCHAR(50) NULL,
   department VARCHAR(150) NULL,
   cadre VARCHAR(150) NULL,
-  work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL DEFAULT 'general_service',
+  work_function VARCHAR(100) DEFAULT NULL,
   profile_completed TINYINT(1) NOT NULL DEFAULT 0,
   language VARCHAR(5) NOT NULL DEFAULT 'en',
   account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active',
@@ -194,10 +195,38 @@ CREATE TABLE training_recommendation (
 
 CREATE TABLE questionnaire_work_function (
   questionnaire_id INT NOT NULL,
-  work_function ENUM('finance','general_service','hrm','ict','leadership_tn','legal_service','pme','quantification','records_documentation','security_driver','security','tmd','wim','cmd','communication','dfm','driver','ethics') NOT NULL,
+  work_function VARCHAR(100) NOT NULL,
   PRIMARY KEY (questionnaire_id, work_function),
   FOREIGN KEY (questionnaire_id) REFERENCES questionnaire(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE work_function_catalog (
+  slug VARCHAR(100) NOT NULL PRIMARY KEY,
+  label VARCHAR(255) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  archived_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO work_function_catalog (slug, label, sort_order) VALUES
+  ('cmd', 'Change Management & Development', 1),
+  ('communication', 'Communications & Partnerships', 2),
+  ('dfm', 'Demand Forecasting & Management', 3),
+  ('driver', 'Driver Services', 4),
+  ('ethics', 'Ethics & Compliance', 5),
+  ('finance', 'Finance & Grants', 6),
+  ('general_service', 'General Services', 7),
+  ('hrm', 'Human Resources Management', 8),
+  ('ict', 'Information & Communication Technology', 9),
+  ('leadership_tn', 'Leadership & Team Nurturing', 10),
+  ('legal_service', 'Legal Services', 11),
+  ('pme', 'Planning, Monitoring & Evaluation', 12),
+  ('quantification', 'Quantification & Procurement', 13),
+  ('records_documentation', 'Records & Documentation', 14),
+  ('security', 'Security Operations', 15),
+  ('security_driver', 'Security & Driver Management', 16),
+  ('tmd', 'Training & Mentorship Development', 17),
+  ('wim', 'Warehouse & Inventory Management', 18);
 
 CREATE TABLE questionnaire_assignment (
   staff_id INT NOT NULL,
