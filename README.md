@@ -37,6 +37,22 @@ Performance assessment portal built with PHP and MySQL.
    ```
 8. Visit [http://localhost:8080](http://localhost:8080) and sign in with the seeded administrator credentials.
 
+## Testing
+
+The repository includes lightweight smoke tests that exercise the questionnaire
+weighting helpers, work-function defaults, and analytics snapshot builder. Run
+them individually from the project root:
+
+```sh
+php tests/work_function_assignments_test.php
+php tests/questionnaire_scoring_test.php
+php tests/analytics_report_snapshot_test.php
+```
+
+These scripts create in-memory SQLite schemas so they do not require the MySQL
+server. Extend them or convert to PHPUnit tests as you grow coverage around the
+questionnaire lifecycle and analytics endpoints.
+
 ## Scheduled analytics reports
 
 Administrators can configure recurring analytics emails from the **Analytics → Scheduled analytics reports** card. Once a schedule is active, add the CLI helper to cron so PDFs are generated and emailed on time:
