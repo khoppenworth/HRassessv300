@@ -26,6 +26,15 @@ try {
     $questionnaires = [];
     $questionnaireMap = [];
 }
+$msg = $_SESSION['work_function_defaults_flash'] ?? '';
+if ($msg !== '') {
+    unset($_SESSION['work_function_defaults_flash']);
+}
+$catalogMsg = $_SESSION['work_function_catalog_flash'] ?? '';
+if ($catalogMsg !== '') {
+    unset($_SESSION['work_function_catalog_flash']);
+}
+
 $workFunctionOptions = available_work_functions($pdo);
 $workFunctionKeys = array_keys($workFunctionOptions);
 $assignmentsByWorkFunction = work_function_assignments($pdo);
@@ -34,48 +43,102 @@ foreach ($workFunctionKeys as $wf) {
         $assignmentsByWorkFunction[$wf] = [];
     }
 }
-$msg = $_SESSION['work_function_defaults_flash'] ?? '';
-if ($msg !== '') {
-    unset($_SESSION['work_function_defaults_flash']);
-}
+
 $errors = [];
+$catalogErrors = [];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_check();
-    $input = $_POST['assignments'] ?? [];
-    $payloadJson = $_POST['assignments_payload'] ?? '';
-    if (is_string($payloadJson) && $payloadJson !== '') {
-        $decoded = json_decode($payloadJson, true);
-        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-            $input = $decoded;
-        } else {
-            $errors[] = t(
-                $t,
-                'work_function_defaults_invalid_payload',
-                'The work function selections could not be processed. Please try again.'
-            );
+    $mode = isset($_POST['mode']) ? (string)$_POST['mode'] : 'assignments';
+    if (in_array($mode, ['catalog_add', 'catalog_update', 'catalog_archive'], true)) {
+        csrf_check();
+        try {
+            if ($mode === 'catalog_add') {
+                $label = (string)($_POST['label'] ?? '');
+                $slugInput = isset($_POST['slug']) ? (string)$_POST['slug'] : null;
+                create_work_function($pdo, $label, $slugInput);
+                $_SESSION['work_function_catalog_flash'] = t($t, 'work_function_catalog_created', 'Work function added.');
+                header('Location: ' . url_for('admin/work_function_defaults.php'));
+                exit;
+            }
+            if ($mode === 'catalog_update') {
+                $slug = (string)($_POST['slug'] ?? '');
+                $label = (string)($_POST['label'] ?? '');
+                update_work_function_label($pdo, $slug, $label);
+                $_SESSION['work_function_catalog_flash'] = t($t, 'work_function_catalog_updated', 'Work function updated.');
+                header('Location: ' . url_for('admin/work_function_defaults.php'));
+                exit;
+            }
+            if ($mode === 'catalog_archive') {
+                $slug = (string)($_POST['slug'] ?? '');
+                archive_work_function($pdo, $slug);
+                $_SESSION['work_function_catalog_flash'] = t($t, 'work_function_catalog_archived', 'Work function archived.');
+                header('Location: ' . url_for('admin/work_function_defaults.php'));
+                exit;
+            }
+        } catch (InvalidArgumentException $e) {
+            $catalogErrors[] = $e->getMessage();
+        } catch (Throwable $e) {
+            error_log('work_function_catalog action failed: ' . $e->getMessage());
+            $catalogErrors[] = t($t, 'work_function_catalog_error', 'Unable to update work functions. Please try again.');
+        }
+    } else {
+        csrf_check();
+        $input = $_POST['assignments'] ?? [];
+        $payloadJson = $_POST['assignments_payload'] ?? '';
+        if (is_string($payloadJson) && $payloadJson !== '') {
+            $decoded = json_decode($payloadJson, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $input = $decoded;
+            } else {
+                $errors[] = t(
+                    $t,
+                    'work_function_defaults_invalid_payload',
+                    'The work function selections could not be processed. Please try again.'
+                );
+                $input = [];
+            }
+        }
+        if (!is_array($input)) {
             $input = [];
         }
-    }
-    if (!is_array($input)) {
-        $input = [];
-    }
-    $normalized = normalize_work_function_assignments(
-        $input,
-        $workFunctionKeys,
-        array_keys($questionnaireMap)
-    );
-    $assignmentsByWorkFunction = $normalized;
-    if ($errors === []) {
-        try {
-            save_work_function_assignments($pdo, $normalized);
-            $_SESSION['work_function_defaults_flash'] = t($t, 'work_function_defaults_saved', 'Default questionnaire assignments updated.');
-            header('Location: ' . url_for('admin/work_function_defaults.php'));
-            exit;
-        } catch (Throwable $e) {
-            error_log('work_function_defaults save failed: ' . $e->getMessage());
-            $errors[] = t($t, 'work_function_defaults_save_failed', 'Unable to save work function defaults. Please try again.');
+        $normalized = normalize_work_function_assignments(
+            $input,
+            $workFunctionKeys,
+            array_keys($questionnaireMap)
+        );
+        $assignmentsByWorkFunction = $normalized;
+        if ($errors === []) {
+            try {
+                save_work_function_assignments($pdo, $normalized);
+                $_SESSION['work_function_defaults_flash'] = t($t, 'work_function_defaults_saved', 'Default questionnaire assignments updated.');
+                header('Location: ' . url_for('admin/work_function_defaults.php'));
+                exit;
+            } catch (Throwable $e) {
+                error_log('work_function_defaults save failed: ' . $e->getMessage());
+                $errors[] = t($t, 'work_function_defaults_save_failed', 'Unable to save work function defaults. Please try again.');
+            }
         }
     }
+}
+
+$workFunctionCatalog = work_function_catalog($pdo);
+$staffCounts = [];
+try {
+    $stmt = $pdo->query("SELECT work_function, COUNT(*) AS c FROM users WHERE work_function IS NOT NULL AND work_function <> '' GROUP BY work_function");
+    if ($stmt) {
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $wf = canonical_work_function_key((string)($row['work_function'] ?? ''));
+            if ($wf !== '') {
+                $staffCounts[$wf] = (int)($row['c'] ?? 0);
+            }
+        }
+    }
+} catch (PDOException $e) {
+    error_log('work_function_defaults staff count failed: ' . $e->getMessage());
+}
+$assignmentCounts = [];
+foreach ($assignmentsByWorkFunction as $wf => $ids) {
+    $assignmentCounts[$wf] = is_array($ids) ? count($ids) : 0;
 }
 ?>
 <!doctype html>
@@ -96,6 +159,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="md-card md-elev-2">
     <h2 class="md-card-title"><?=htmlspecialchars(t($t, 'work_function_defaults_title', 'Work Function Defaults'), ENT_QUOTES, 'UTF-8')?></h2>
     <p class="md-hint md-work-function-hint"><?=htmlspecialchars(t($t, 'work_function_defaults_hint', 'Choose the questionnaires that should be provided automatically to staff members based on their work function or cadre.'), ENT_QUOTES, 'UTF-8')?></p>
+    <?php if ($catalogMsg !== ''): ?>
+      <div class="md-alert success"><?=htmlspecialchars($catalogMsg, ENT_QUOTES, 'UTF-8')?></div>
+    <?php endif; ?>
+    <?php if ($catalogErrors): ?>
+      <div class="md-alert error">
+        <?php foreach ($catalogErrors as $error): ?>
+          <p><?=htmlspecialchars($error, ENT_QUOTES, 'UTF-8')?></p>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+    <div class="md-work-function-manage">
+      <h3 class="md-subhead"><?=htmlspecialchars(t($t, 'work_function_catalog_title', 'Manage Work Functions'), ENT_QUOTES, 'UTF-8')?></h3>
+      <p class="md-hint"><?=htmlspecialchars(t($t, 'work_function_catalog_hint', 'Add, rename, or archive work functions to control questionnaire availability.'), ENT_QUOTES, 'UTF-8')?></p>
+      <form method="post" class="md-work-function-add" action="<?=htmlspecialchars(url_for('admin/work_function_defaults.php'), ENT_QUOTES, 'UTF-8')?>">
+        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+        <input type="hidden" name="mode" value="catalog_add">
+        <div class="md-work-function-add-fields">
+          <label class="md-field md-field-inline">
+            <span><?=htmlspecialchars(t($t, 'work_function_label_name', 'Work function name'), ENT_QUOTES, 'UTF-8')?></span>
+            <input name="label" required autocomplete="off" placeholder="<?=htmlspecialchars(t($t, 'work_function_label_placeholder', 'e.g. Community Health'), ENT_QUOTES, 'UTF-8')?>">
+          </label>
+          <label class="md-field md-field-inline">
+            <span><?=htmlspecialchars(t($t, 'work_function_key_optional', 'Optional unique key'), ENT_QUOTES, 'UTF-8')?></span>
+            <input name="slug" autocomplete="off" placeholder="<?=htmlspecialchars(t($t, 'work_function_key_placeholder', 'leave blank to generate automatically'), ENT_QUOTES, 'UTF-8')?>">
+          </label>
+          <button type="submit" class="md-button md-primary md-compact md-elev-1"><?=htmlspecialchars(t($t, 'work_function_add', 'Add work function'), ENT_QUOTES, 'UTF-8')?></button>
+        </div>
+      </form>
+      <div class="md-work-function-catalog">
+        <?php $activeCatalog = array_filter($workFunctionCatalog, static fn($row) => ($row['archived_at'] ?? null) === null); ?>
+        <?php if ($activeCatalog === []): ?>
+          <p class="md-hint"><?=htmlspecialchars(t($t, 'work_function_catalog_empty', 'No work functions are currently available.'), ENT_QUOTES, 'UTF-8')?></p>
+        <?php endif; ?>
+        <?php foreach ($workFunctionCatalog as $slug => $record): ?>
+          <?php
+          if (($record['archived_at'] ?? null) !== null) {
+              continue;
+          }
+          $questionnaireCount = $assignmentCounts[$slug] ?? 0;
+          $staffCount = $staffCounts[$slug] ?? 0;
+          $statsTemplate = t($t, 'work_function_catalog_stats', '{questionnaires} questionnaires · {staff} staff');
+          $statsText = strtr($statsTemplate, [
+              '{questionnaires}' => number_format($questionnaireCount),
+              '{staff}' => number_format($staffCount),
+          ]);
+          $confirmText = t($t, 'work_function_archive_confirm', 'Archive this work function? Existing assignments will be removed.');
+          $confirmJson = json_encode($confirmText, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+          if ($confirmJson === false) {
+              $confirmJson = json_encode((string)$confirmText);
+          }
+          ?>
+          <form method="post" class="md-work-function-row" action="<?=htmlspecialchars(url_for('admin/work_function_defaults.php'), ENT_QUOTES, 'UTF-8')?>">
+            <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+            <input type="hidden" name="slug" value="<?=htmlspecialchars($slug, ENT_QUOTES, 'UTF-8')?>">
+            <div class="md-work-function-row-main">
+              <label class="md-field md-field-inline">
+                <span><?=htmlspecialchars(t($t, 'work_function_label_name', 'Work function name'), ENT_QUOTES, 'UTF-8')?></span>
+                <input name="label" value="<?=htmlspecialchars($record['label'] ?? '', ENT_QUOTES, 'UTF-8')?>" required autocomplete="off">
+              </label>
+              <div class="md-work-function-row-meta">
+                <span class="md-tag"><?=htmlspecialchars($slug, ENT_QUOTES, 'UTF-8')?></span>
+                <span class="md-tag md-muted"><?=htmlspecialchars($statsText, ENT_QUOTES, 'UTF-8')?></span>
+              </div>
+            </div>
+            <div class="md-work-function-row-actions">
+              <button type="submit" name="mode" value="catalog_update" class="md-button md-primary md-compact"><?=htmlspecialchars(t($t, 'save', 'Save Changes'), ENT_QUOTES, 'UTF-8')?></button>
+              <button type="submit" name="mode" value="catalog_archive" class="md-button md-outline md-compact" onclick="return confirm(<?=htmlspecialchars((string)$confirmJson, ENT_QUOTES, 'UTF-8')?>);"><?=htmlspecialchars(t($t, 'work_function_archive', 'Archive'), ENT_QUOTES, 'UTF-8')?></button>
+            </div>
+          </form>
+        <?php endforeach; ?>
+      </div>
+    </div>
     <?php if ($msg !== ''): ?>
       <div class="md-alert success"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div>
     <?php endif; ?>

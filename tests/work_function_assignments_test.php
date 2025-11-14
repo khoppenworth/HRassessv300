@@ -88,6 +88,55 @@ if ($rows !== $expected) {
     exit(1);
 }
 
+$custom = create_work_function($pdo, 'Custom Squad');
+if (!isset($custom['slug']) || $custom['slug'] === '') {
+    fwrite(STDERR, "Failed to create custom work function.\n");
+    exit(1);
+}
+
+update_work_function_label($pdo, $custom['slug'], 'Custom Response Squad');
+$definitions = work_function_definitions($pdo, true);
+if (($definitions[$custom['slug']] ?? '') !== 'Custom Response Squad') {
+    fwrite(STDERR, "Renaming work function did not update the catalog.\n");
+    exit(1);
+}
+
+$pdo->exec("UPDATE users SET work_function='" . $custom['slug'] . "' WHERE id=1");
+save_work_function_assignments($pdo, ['hrm' => [2], $custom['slug'] => [1]]);
+
+$rows = $pdo
+    ->query('SELECT questionnaire_id, work_function FROM questionnaire_work_function ORDER BY work_function, questionnaire_id')
+    ->fetchAll(PDO::FETCH_ASSOC);
+
+$expected = [
+    ['questionnaire_id' => 1, 'work_function' => $custom['slug']],
+    ['questionnaire_id' => 2, 'work_function' => 'hrm'],
+];
+
+if ($rows !== $expected) {
+    fwrite(STDERR, "Assignments including custom work function did not match expectations.\n");
+    exit(1);
+}
+
+archive_work_function($pdo, $custom['slug']);
+
+$rows = $pdo
+    ->query('SELECT questionnaire_id, work_function FROM questionnaire_work_function ORDER BY work_function, questionnaire_id')
+    ->fetchAll(PDO::FETCH_ASSOC);
+
+if ($rows !== [
+    ['questionnaire_id' => 2, 'work_function' => 'hrm'],
+]) {
+    fwrite(STDERR, "Archiving the work function should remove related assignments.\n");
+    exit(1);
+}
+
+$userValue = $pdo->query('SELECT work_function FROM users WHERE id=1')->fetchColumn();
+if ($userValue !== null && $userValue !== '') {
+    fwrite(STDERR, "Archiving the work function should clear user assignments.\n");
+    exit(1);
+}
+
 if (work_function_label($pdo, 'finance') !== 'Finance & Grants') {
     fwrite(STDERR, "Failed to resolve finance label.\n");
     exit(1);

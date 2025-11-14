@@ -3227,6 +3227,81 @@ body.theme-dark .md-work-function-option {
   color: var(--app-text-secondary, var(--md-muted));
 }
 
+.md-work-function-manage {
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.md-work-function-add-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.md-work-function-add .md-field {
+  flex: 1 1 240px;
+  margin-bottom: 0;
+}
+
+.md-work-function-add .md-button {
+  align-self: flex-start;
+  white-space: nowrap;
+}
+
+.md-work-function-catalog {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.md-work-function-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(31, 41, 55, 0.12);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--md-surface) 98%, transparent);
+}
+
+body.theme-dark .md-work-function-row {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--md-surface) 90%, transparent);
+}
+
+.md-work-function-row-main {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.md-work-function-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--app-text-secondary, var(--md-muted));
+}
+
+body.theme-dark .md-work-function-row-meta {
+  color: rgba(229, 231, 235, 0.85);
+}
+
+.md-work-function-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.md-work-function-row-actions .md-button {
+  min-width: 0;
+}
+
 .md-visually-hidden {
   position: absolute;
   width: 1px;
