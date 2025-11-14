@@ -103,13 +103,30 @@ function ensure_locale(): string {
     $_SESSION['lang'] = $locale;
 
     if (PHP_SAPI !== 'cli' && !headers_sent()) {
-        setcookie('lang', $locale, [
-            'expires' => time() + (365 * 24 * 60 * 60),
-            'path' => locale_cookie_path(),
-            'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-            'httponly' => false,
-            'samesite' => 'Lax',
-        ]);
+        $cookieExpires = time() + (365 * 24 * 60 * 60);
+        $cookiePath = locale_cookie_path();
+        $cookieSecure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        $cookieHttpOnly = false;
+
+        if (PHP_VERSION_ID >= 70300) {
+            setcookie('lang', $locale, [
+                'expires' => $cookieExpires,
+                'path' => $cookiePath,
+                'secure' => $cookieSecure,
+                'httponly' => $cookieHttpOnly,
+                'samesite' => 'Lax',
+            ]);
+        } else {
+            $pathWithSameSite = $cookiePath === '' ? '/' : $cookiePath;
+            if (stripos($pathWithSameSite, 'samesite=') === false) {
+                if (substr($pathWithSameSite, -1) !== ';') {
+                    $pathWithSameSite .= ';';
+                }
+                $pathWithSameSite .= ' SameSite=Lax';
+            }
+
+            setcookie('lang', $locale, $cookieExpires, $pathWithSameSite, '', $cookieSecure, $cookieHttpOnly);
+        }
     }
 
     return $locale;
