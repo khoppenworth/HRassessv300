@@ -20,6 +20,11 @@ const Builder = (() => {
     metaCsrf: 'meta[name="csrf-token"]',
   };
 
+  let sectionNavTargets = [];
+  let sectionNavActiveId = null;
+  let sectionNavScrollScheduled = false;
+  let sectionNavListenersAttached = false;
+
   const STORAGE_KEYS = {
     active: 'hrassess:qb:last-active',
   };
@@ -111,6 +116,7 @@ const Builder = (() => {
       list.addEventListener('input', handleInputChange);
       list.addEventListener('change', handleInputChange);
       list.addEventListener('click', handleActionClick);
+      list.addEventListener('focusin', handleBuilderFocus);
     }
 
     if (tabs) {
@@ -121,6 +127,7 @@ const Builder = (() => {
 
     if (sectionNav) {
       sectionNav.addEventListener('click', handleSectionNavClick);
+      ensureSectionNavListeners();
     }
 
     fetchData();
@@ -1350,6 +1357,147 @@ const Builder = (() => {
     }
   }
 
+  function ensureSectionNavListeners() {
+    if (sectionNavListenersAttached || typeof window === 'undefined' || !window) {
+      return;
+    }
+    sectionNavListenersAttached = true;
+    try {
+      window.addEventListener('scroll', handleSectionNavScroll, { passive: true });
+    } catch (error) {
+      window.addEventListener('scroll', handleSectionNavScroll);
+    }
+    window.addEventListener('resize', handleSectionNavScroll);
+  }
+
+  function handleSectionNavScroll() {
+    if (!sectionNavTargets.length) {
+      return;
+    }
+    if (sectionNavScrollScheduled) {
+      return;
+    }
+    sectionNavScrollScheduled = true;
+    const runner = () => {
+      sectionNavScrollScheduled = false;
+      const nextId = findBestSectionTargetId();
+      if (nextId) {
+        setSectionNavActive(nextId);
+      }
+    };
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(runner);
+    } else {
+      window.setTimeout(runner, 100);
+    }
+  }
+
+  function findBestSectionTargetId() {
+    if (!sectionNavTargets.length) {
+      return null;
+    }
+    const viewportHeight = (typeof window !== 'undefined' && window)
+      ? (window.innerHeight || document.documentElement.clientHeight || 800)
+      : 800;
+    const anchor = Math.min(viewportHeight * 0.3, 240);
+    let bestId = null;
+    let bestDistance = Infinity;
+    let fallbackId = sectionNavTargets[0] ? sectionNavTargets[0].id : null;
+    sectionNavTargets.forEach((entry) => {
+      if (!entry || !entry.element || typeof entry.element.getBoundingClientRect !== 'function') {
+        return;
+      }
+      const rect = entry.element.getBoundingClientRect();
+      if (rect.bottom <= 0) {
+        fallbackId = entry.id;
+        return;
+      }
+      if (rect.top >= viewportHeight) {
+        return;
+      }
+      const distance = Math.abs(rect.top - anchor);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestId = entry.id;
+      }
+    });
+    return bestId || fallbackId;
+  }
+
+  function setSectionNavActive(targetId) {
+    sectionNavActiveId = targetId || null;
+    const nav = document.querySelector(selectors.sectionNav);
+    if (!nav) {
+      return;
+    }
+    const items = nav.querySelectorAll('.qb-section-nav-item');
+    items.forEach((item) => {
+      const button = item.querySelector('.qb-section-nav-button');
+      if (!button) {
+        return;
+      }
+      const isActive = Boolean(targetId && button.dataset.sectionTarget === targetId);
+      if (isActive) {
+        button.classList.add('is-active');
+        button.setAttribute('aria-current', 'true');
+      } else {
+        button.classList.remove('is-active');
+        button.removeAttribute('aria-current');
+      }
+      item.classList.toggle('is-active', isActive);
+    });
+  }
+
+  function collectSectionNavTargets(questionnaire) {
+    if (!questionnaire) {
+      return [];
+    }
+    const targets = [];
+    const rootId = domIdFor('qb-root-items', questionnaire);
+    const rootEl = document.getElementById(rootId);
+    if (rootEl && rootEl.childElementCount > 0) {
+      targets.push({ id: rootId, element: rootEl });
+    }
+    const sections = Array.isArray(questionnaire.sections) ? questionnaire.sections : [];
+    sections.forEach((section) => {
+      const sectionId = domIdFor('qb-section', section);
+      const sectionEl = document.getElementById(sectionId);
+      if (sectionEl) {
+        targets.push({ id: sectionId, element: sectionEl });
+      }
+    });
+    return targets;
+  }
+
+  function refreshSectionNavTargets() {
+    const active = state.questionnaires.find((q) => keyFor(q) === state.activeKey);
+    sectionNavTargets = collectSectionNavTargets(active);
+    if (!sectionNavTargets.length) {
+      setSectionNavActive(null);
+      return;
+    }
+    if (!sectionNavTargets.some((entry) => entry.id === sectionNavActiveId)) {
+      sectionNavActiveId = null;
+    }
+    handleSectionNavScroll();
+  }
+
+  function handleBuilderFocus(event) {
+    const target = event.target;
+    if (!target || typeof target.closest !== 'function') {
+      return;
+    }
+    const sectionEl = target.closest('.qb-section');
+    if (sectionEl && sectionEl.id) {
+      setSectionNavActive(sectionEl.id);
+      return;
+    }
+    const rootItems = target.closest('.qb-root-items');
+    if (rootItems && rootItems.id) {
+      setSectionNavActive(rootItems.id);
+    }
+  }
+
   function renderSectionNav() {
     const nav = document.querySelector(selectors.sectionNav);
     if (!nav) return;
@@ -1365,6 +1513,8 @@ const Builder = (() => {
       empty.className = 'qb-section-nav-empty';
       empty.textContent = emptyLabel;
       nav.appendChild(empty);
+      setSectionNavActive(null);
+      refreshSectionNavTargets();
       return;
     }
 
@@ -1402,10 +1552,14 @@ const Builder = (() => {
       empty.className = 'qb-section-nav-empty';
       empty.textContent = emptyLabel;
       nav.appendChild(empty);
+      setSectionNavActive(null);
+      refreshSectionNavTargets();
       return;
     }
 
     nav.appendChild(list);
+    setSectionNavActive(sectionNavActiveId);
+    refreshSectionNavTargets();
   }
 
   function buildSectionNavItem(label, targetId, itemCount) {
@@ -1417,6 +1571,9 @@ const Builder = (() => {
     button.className = 'qb-section-nav-button';
     button.textContent = label;
     button.dataset.sectionTarget = targetId;
+    if (targetId) {
+      button.setAttribute('aria-controls', targetId);
+    }
     listItem.appendChild(button);
 
     if (typeof itemCount === 'number') {
@@ -1437,6 +1594,7 @@ const Builder = (() => {
     if (!targetId) return;
     const target = document.getElementById(targetId);
     if (!target) return;
+    setSectionNavActive(targetId);
     if (typeof target.scrollIntoView === 'function') {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -1448,6 +1606,9 @@ const Builder = (() => {
       return;
     }
     element.classList.add('qb-section-highlight');
+    if (element.id) {
+      setSectionNavActive(element.id);
+    }
     window.setTimeout(() => {
       element.classList.remove('qb-section-highlight');
     }, 1500);
