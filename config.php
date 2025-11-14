@@ -634,6 +634,7 @@ function ensure_users_schema(PDO $pdo): void
     }
 
     $changes = [
+        'work_function' => "ALTER TABLE users ADD COLUMN work_function VARCHAR(191) NULL AFTER role",
         'account_status' => "ALTER TABLE users ADD COLUMN account_status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active' AFTER language",
         'must_reset_password' => "ALTER TABLE users ADD COLUMN must_reset_password TINYINT(1) NOT NULL DEFAULT 0 AFTER account_status",
         'next_assessment_date' => 'ALTER TABLE users ADD COLUMN next_assessment_date DATE NULL AFTER account_status',
