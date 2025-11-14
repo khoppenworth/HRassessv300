@@ -565,6 +565,16 @@ $pageHelpKey = 'admin.dashboard';
     <div class="md-alert<?=$alertClass?>"><?=htmlspecialchars($flashMessage, ENT_QUOTES, 'UTF-8')?></div>
   <?php endif; ?>
 
+  <div class="md-upgrade-progress" data-upgrade-progress hidden aria-hidden="true">
+    <div class="md-upgrade-progress__backdrop" aria-hidden="true"></div>
+    <div class="md-upgrade-progress__dialog" role="status" aria-live="assertive">
+      <div class="md-upgrade-progress__spinner" aria-hidden="true"></div>
+      <p class="md-upgrade-progress__message" data-upgrade-progress-message>
+        <?=t($t, 'upgrade_progress_default', 'Applying update. This may take a few moments...')?>
+      </p>
+    </div>
+  </div>
+
     <section class="md-upgrade-surface">
     <div class="md-upgrade-overview-grid">
       <article class="md-card md-upgrade-card md-upgrade-card--accent">
@@ -638,7 +648,7 @@ $pageHelpKey = 'admin.dashboard';
             <input type="hidden" name="action" value="check_upgrade">
             <button type="submit" class="md-button md-elev-1 md-upgrade-action-button"><?=t($t,'check_for_upgrade','Check for Upgrade')?></button>
           </form>
-          <form method="post">
+          <form method="post" data-upgrade-progress-trigger data-upgrade-progress-message="<?=htmlspecialchars(t($t, 'upgrade_progress_install', 'Installing update. Please keep this page open until the process completes.'), ENT_QUOTES, 'UTF-8')?>">
             <input type="hidden" name="csrf" value="<?=csrf_token()?>">
             <input type="hidden" name="action" value="install_upgrade">
             <button type="submit" class="md-button md-primary md-elev-2 md-upgrade-action-button" <?=($upgradeRepoDisplay === '' ? 'disabled' : '')?>><?=t($t,'install_upgrade','Install Upgrade')?></button>
