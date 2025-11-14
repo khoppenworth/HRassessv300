@@ -479,6 +479,8 @@
   "upgrade_failed": "The upgrade could not be completed. Review the logs and database permissions, then try again.",
   "upgrade_hint": "Ensure a recent backup has been downloaded before applying upgrades.",
   "upgrade_hint_script": "Le script de mise à jour crée automatiquement des sauvegardes avant d'appliquer les modifications. Téléchargez des sauvegardes manuelles lorsque vous avez besoin d'une copie supplémentaire.",
+  "upgrade_progress_default": "Application de la mise à jour. Cela peut prendre quelques instants...",
+  "upgrade_progress_install": "Installation de la mise à jour. Veuillez laisser cette page ouverte jusqu'à la fin du processus.",
   "upgrade_actions_heading": "Actions de mise à jour",
   "upgrade_overview_current": "Version installée",
   "upgrade_overview_status": "État des mises à jour",

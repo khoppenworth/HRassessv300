@@ -775,6 +775,68 @@
     }
   });
 
+  const upgradeProgressOverlay = document.querySelector('[data-upgrade-progress]');
+  if (upgradeProgressOverlay) {
+    const progressMessageEl = upgradeProgressOverlay.querySelector('[data-upgrade-progress-message]');
+    const showUpgradeProgress = (messageText) => {
+      if (progressMessageEl && typeof messageText === 'string' && messageText.trim() !== '') {
+        progressMessageEl.textContent = messageText.trim();
+      }
+      upgradeProgressOverlay.hidden = false;
+      upgradeProgressOverlay.setAttribute('aria-hidden', 'false');
+      upgradeProgressOverlay.setAttribute('aria-busy', 'true');
+      if (document.body) {
+        document.body.classList.add('md-lock-scroll');
+      }
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => {
+          upgradeProgressOverlay.classList.add('is-visible');
+        });
+      } else {
+        upgradeProgressOverlay.classList.add('is-visible');
+      }
+    };
+
+    const disableSubmitControls = (form) => {
+      if (!(form instanceof HTMLFormElement)) {
+        return;
+      }
+      const interactiveSelector = 'button, input[type="submit"], input[type="button"], input[type="reset"]';
+      form.querySelectorAll(interactiveSelector).forEach((control) => {
+        if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+          if (control.type === 'hidden') {
+            return;
+          }
+          control.disabled = true;
+          control.setAttribute('aria-busy', 'true');
+        }
+      });
+    };
+
+    const upgradeForms = document.querySelectorAll('[data-upgrade-progress-trigger]');
+    upgradeForms.forEach((form) => {
+      form.addEventListener('submit', () => {
+        if (!(form instanceof HTMLFormElement)) {
+          return;
+        }
+        if (form.dataset.upgradeProgressActive === '1') {
+          return;
+        }
+        form.dataset.upgradeProgressActive = '1';
+        disableSubmitControls(form);
+        const customMessage = form.getAttribute('data-upgrade-progress-message') || '';
+        showUpgradeProgress(customMessage);
+        if (document.activeElement instanceof HTMLElement) {
+          try {
+            document.activeElement.blur();
+          } catch (err) {
+            // Ignore focus errors.
+          }
+        }
+      });
+    });
+  }
+
   const offlineStorageKeys = {
     credentials: 'hrassess:offlineCredentials',
     pending: 'hrassess:offlineCredentials:pending',

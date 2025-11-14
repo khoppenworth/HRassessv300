@@ -471,6 +471,8 @@
   "upgrade_failed": "The upgrade could not be completed. Review the logs and database permissions, then try again.",
   "upgrade_hint": "Ensure a recent backup has been downloaded before applying upgrades.",
   "upgrade_hint_script": "The upgrade script automatically creates backups before applying changes. Download manual backups whenever you need an extra copy.",
+  "upgrade_progress_default": "Applying update. This may take a few moments...",
+  "upgrade_progress_install": "Installing update. Please keep this page open until the process completes.",
   "upgrade_actions_heading": "Upgrade actions",
   "upgrade_overview_current": "Current release",
   "upgrade_overview_status": "Update status",
