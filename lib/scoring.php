@@ -86,13 +86,8 @@ function questionnaire_resolve_effective_weight(array $item, array $likertWeight
         return 0.0;
     }
     $type = strtolower((string)($item['type'] ?? ''));
-    $key = questionnaire_item_weight_key($item);
-    if ($type === 'likert' && $key !== '' && isset($likertWeights[$key])) {
-        return (float)$likertWeights[$key];
-    }
-    if ($likertWeights !== [] && $type !== 'likert') {
-        return 0.0;
-    }
+
+    // Respect explicit weights first, even when auto weights for Likert items are present.
     foreach (['weight_percent', 'weight'] as $field) {
         if (!array_key_exists($field, $item)) {
             continue;
@@ -106,5 +101,17 @@ function questionnaire_resolve_effective_weight(array $item, array $likertWeight
             return $candidate;
         }
     }
+
+    $key = questionnaire_item_weight_key($item);
+    if ($type === 'likert' && $key !== '' && isset($likertWeights[$key])) {
+        return (float)$likertWeights[$key];
+    }
+
+    // When Likert auto weights exist, non-Likert items without an explicit weight
+    // should not silently contribute to scoring.
+    if ($likertWeights !== [] && $type !== 'likert') {
+        return 0.0;
+    }
+
     return 1.0;
 }
