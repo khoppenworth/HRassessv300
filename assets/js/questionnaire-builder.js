@@ -24,6 +24,8 @@ const Builder = (() => {
   let sectionNavActiveId = null;
   let sectionNavScrollScheduled = false;
   let sectionNavListenersAttached = false;
+  let sectionNavObserver = null;
+  let sectionNavVisibility = new Map();
 
   const STORAGE_KEYS = {
     active: 'hrassess:qb:last-active',
@@ -1362,15 +1364,55 @@ const Builder = (() => {
       return;
     }
     sectionNavListenersAttached = true;
-    try {
-      window.addEventListener('scroll', handleSectionNavScroll, { passive: true });
-    } catch (error) {
-      window.addEventListener('scroll', handleSectionNavScroll);
+    if (!sectionNavObserver && 'IntersectionObserver' in window && typeof window.IntersectionObserver === 'function') {
+      try {
+        const thresholds = [];
+        for (let i = 0; i <= 10; i += 1) {
+          thresholds.push(i / 10);
+        }
+        sectionNavObserver = new window.IntersectionObserver(handleSectionNavIntersection, {
+          root: null,
+          rootMargin: '-35% 0px -55% 0px',
+          threshold: thresholds,
+        });
+      } catch (error) {
+        console.warn('Failed to initialize IntersectionObserver for section navigation', error);
+        sectionNavObserver = null;
+      }
     }
-    window.addEventListener('resize', handleSectionNavScroll);
+    if (!sectionNavObserver) {
+      try {
+        window.addEventListener('scroll', handleSectionNavScrollFallback, { passive: true });
+      } catch (error) {
+        window.addEventListener('scroll', handleSectionNavScrollFallback);
+      }
+    }
+    window.addEventListener('resize', handleSectionNavResize);
   }
 
-  function handleSectionNavScroll() {
+  function handleSectionNavResize() {
+    if (sectionNavObserver) {
+      sectionNavVisibility = new Map(sectionNavVisibility);
+      sectionNavTargets.forEach((entry) => {
+        if (!entry || !entry.element || typeof entry.element.getBoundingClientRect !== 'function') {
+          return;
+        }
+        const rect = entry.element.getBoundingClientRect();
+        const existing = sectionNavVisibility.get(entry.id) || {};
+        sectionNavVisibility.set(entry.id, {
+          ratio: existing.ratio ?? 0,
+          isIntersecting: existing.isIntersecting ?? false,
+          top: rect.top,
+          bottom: rect.bottom,
+        });
+      });
+      updateSectionNavActiveFromVisibility();
+      return;
+    }
+    handleSectionNavScrollFallback();
+  }
+
+  function handleSectionNavScrollFallback() {
     if (!sectionNavTargets.length) {
       return;
     }
@@ -1389,6 +1431,77 @@ const Builder = (() => {
       window.requestAnimationFrame(runner);
     } else {
       window.setTimeout(runner, 100);
+    }
+  }
+
+  function handleSectionNavIntersection(entries) {
+    if (!entries || !entries.length) {
+      return;
+    }
+    let changed = false;
+    sectionNavVisibility = new Map(sectionNavVisibility);
+    entries.forEach((entry) => {
+      if (!entry || !entry.target || !entry.target.id) {
+        return;
+      }
+      const rect = entry.target.getBoundingClientRect
+        ? entry.target.getBoundingClientRect()
+        : entry.boundingClientRect;
+      sectionNavVisibility.set(entry.target.id, {
+        ratio: typeof entry.intersectionRatio === 'number'
+          ? entry.intersectionRatio
+          : (entry.isIntersecting ? 1 : 0),
+        isIntersecting: Boolean(entry.isIntersecting),
+        top: rect ? rect.top : 0,
+        bottom: rect ? rect.bottom : 0,
+      });
+      changed = true;
+    });
+    if (changed) {
+      updateSectionNavActiveFromVisibility();
+    }
+  }
+
+  function updateSectionNavActiveFromVisibility() {
+    if (!sectionNavTargets.length) {
+      setSectionNavActive(null);
+      return;
+    }
+    const viewportHeight = (typeof window !== 'undefined' && window)
+      ? (window.innerHeight || document.documentElement.clientHeight || 800)
+      : 800;
+    let fallbackId = sectionNavTargets[0] ? sectionNavTargets[0].id : null;
+    let bestId = null;
+    let bestScore = -Infinity;
+    sectionNavTargets.forEach((entry) => {
+      const metrics = sectionNavVisibility.get(entry.id);
+      if (!metrics) {
+        if (entry.element && typeof entry.element.getBoundingClientRect === 'function') {
+          const rect = entry.element.getBoundingClientRect();
+          if (rect.bottom <= 0) {
+            fallbackId = entry.id;
+          }
+        }
+        return;
+      }
+      const { ratio, isIntersecting, top, bottom } = metrics;
+      if (!isIntersecting || ratio <= 0) {
+        if (bottom <= 0) {
+          fallbackId = entry.id;
+        }
+        return;
+      }
+      const distance = Math.abs(top);
+      const distanceScore = 1 - Math.min(distance / Math.max(viewportHeight, 1), 1);
+      const score = (ratio * 2) + distanceScore;
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = entry.id;
+      }
+    });
+    const targetId = bestId || fallbackId;
+    if (targetId) {
+      setSectionNavActive(targetId);
     }
   }
 
@@ -1473,13 +1586,43 @@ const Builder = (() => {
     const active = state.questionnaires.find((q) => keyFor(q) === state.activeKey);
     sectionNavTargets = collectSectionNavTargets(active);
     if (!sectionNavTargets.length) {
+      if (sectionNavObserver) {
+        sectionNavObserver.disconnect();
+        sectionNavVisibility = new Map();
+      }
       setSectionNavActive(null);
       return;
     }
     if (!sectionNavTargets.some((entry) => entry.id === sectionNavActiveId)) {
       sectionNavActiveId = null;
     }
-    handleSectionNavScroll();
+    if (sectionNavObserver) {
+      sectionNavObserver.disconnect();
+      sectionNavVisibility = new Map();
+      const viewportHeight = (typeof window !== 'undefined' && window)
+        ? (window.innerHeight || document.documentElement.clientHeight || 0)
+        : 0;
+      sectionNavTargets.forEach((entry) => {
+        if (!entry || !entry.element) {
+          return;
+        }
+        sectionNavObserver.observe(entry.element);
+        if (typeof entry.element.getBoundingClientRect === 'function') {
+          const rect = entry.element.getBoundingClientRect();
+          sectionNavVisibility.set(entry.id, {
+            ratio: 0,
+            isIntersecting: viewportHeight > 0
+              ? (rect.top < viewportHeight && rect.bottom > 0)
+              : (rect.bottom > 0),
+            top: rect.top,
+            bottom: rect.bottom,
+          });
+        }
+      });
+      updateSectionNavActiveFromVisibility();
+      return;
+    }
+    handleSectionNavScrollFallback();
   }
 
   function handleBuilderFocus(event) {
@@ -1518,6 +1661,7 @@ const Builder = (() => {
       return;
     }
 
+    const fragment = document.createDocumentFragment();
     const summary = document.createElement('div');
     summary.className = 'qb-section-nav-summary';
     const activeIndex = state.questionnaires.findIndex((q) => keyFor(q) === state.activeKey);
@@ -1525,7 +1669,7 @@ const Builder = (() => {
     summary.textContent = active.title && active.title.trim() !== ''
       ? active.title
       : fallbackLabel;
-    nav.appendChild(summary);
+    fragment.appendChild(summary);
 
     const list = document.createElement('ul');
     list.className = 'qb-section-nav-list';
@@ -1557,7 +1701,8 @@ const Builder = (() => {
       return;
     }
 
-    nav.appendChild(list);
+    fragment.appendChild(list);
+    nav.appendChild(fragment);
     setSectionNavActive(sectionNavActiveId);
     refreshSectionNavTargets();
   }
@@ -1624,9 +1769,10 @@ const Builder = (() => {
     }
     list.innerHTML = '';
     const tabEntries = [];
+    const listFragment = document.createDocumentFragment();
     state.questionnaires.forEach((questionnaire, qIndex) => {
       const card = buildQuestionnaireCard(questionnaire, qIndex);
-      list.appendChild(card);
+      listFragment.appendChild(card);
       if (tabs) {
         const key = keyFor(questionnaire);
         const label = questionnaire.title && questionnaire.title.trim() !== ''
@@ -1640,6 +1786,7 @@ const Builder = (() => {
         });
       }
     });
+    list.appendChild(listFragment);
     if (tabs && tabEntries.length) {
       const collator = (typeof Intl !== 'undefined' && typeof Intl.Collator === 'function')
         ? new Intl.Collator(undefined, { sensitivity: 'base', usage: 'sort' })
@@ -1650,6 +1797,7 @@ const Builder = (() => {
         }
         return a.label.localeCompare(b.label);
       });
+      const tabFragment = document.createDocumentFragment();
       tabEntries.forEach((entry) => {
         const tab = document.createElement('button');
         tab.type = 'button';
@@ -1661,8 +1809,9 @@ const Builder = (() => {
         const isActive = entry.isActive;
         tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
         tab.setAttribute('tabindex', isActive ? '0' : '-1');
-        tabs.appendChild(tab);
+        tabFragment.appendChild(tab);
       });
+      tabs.appendChild(tabFragment);
     }
     initSortable();
     updateDirtyState();
