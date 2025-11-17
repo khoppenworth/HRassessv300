@@ -308,6 +308,11 @@
   font-size: 0.85rem;
 }
 
+.qb-scoring-actions-buttons .md-button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .qb-list {
   margin-top: 0.75rem;
   display: flex;
