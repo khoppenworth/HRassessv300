@@ -75,6 +75,12 @@ const Builder = (() => {
     clearNoop: 'No weights to clear.',
   };
 
+  const SCORING_ACTIONS = [
+    { action: 'normalize-weights', label: STRINGS.normalizeWeights, flag: 'canNormalize' },
+    { action: 'even-weights', label: STRINGS.evenWeights, flag: 'canDistribute' },
+    { action: 'clear-weights', label: STRINGS.clearWeights, flag: 'canClear' },
+  ];
+
   const NON_SCORABLE_TYPES = ['display', 'group', 'section'];
 
   const baseMeta = document.querySelector('meta[name="app-base-url"]');
@@ -449,34 +455,10 @@ const Builder = (() => {
     const actionsButtons = container.querySelector('[data-role="scoring-actions-buttons"]');
     const actionsWrapper = container.querySelector('.qb-scoring-actions');
     if (actionsButtons) {
-      actionsButtons.innerHTML = '';
-      actionsButtons.dataset.qIndex = summary.qIndex !== null && summary.qIndex !== undefined
-        ? String(summary.qIndex)
-        : '';
-      const createButton = (label, action) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'md-button md-outline qb-action';
-        btn.textContent = label;
-        btn.dataset.action = action;
-        if (summary.qIndex !== null && summary.qIndex !== undefined) {
-          btn.dataset.qIndex = String(summary.qIndex);
-        }
-        return btn;
-      };
-      if (summary.canNormalize) {
-        actionsButtons.appendChild(createButton(STRINGS.normalizeWeights, 'normalize-weights'));
-      }
-      if (summary.canDistribute) {
-        actionsButtons.appendChild(createButton(STRINGS.evenWeights, 'even-weights'));
-      }
-      if (summary.canClear) {
-        actionsButtons.appendChild(createButton(STRINGS.clearWeights, 'clear-weights'));
-      }
+      updateScoringActionButtons(actionsButtons, summary);
     }
     if (actionsWrapper) {
-      const hasButtons = actionsButtons && actionsButtons.childElementCount > 0;
-      actionsWrapper.hidden = !hasButtons;
+      actionsWrapper.hidden = false;
     }
   }
 
@@ -529,11 +511,45 @@ const Builder = (() => {
     const actionsButtons = document.createElement('div');
     actionsButtons.className = 'qb-scoring-actions-buttons';
     actionsButtons.dataset.role = 'scoring-actions-buttons';
+    SCORING_ACTIONS.forEach((config) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'md-button md-outline qb-action';
+      btn.textContent = config.label;
+      btn.dataset.action = config.action;
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      actionsButtons.appendChild(btn);
+    });
     actionsWrapper.appendChild(actionsButtons);
     container.appendChild(actionsWrapper);
 
     updateScoringSummaryElement(container, summary);
     return container;
+  }
+
+  function updateScoringActionButtons(actionsButtons, summary) {
+    if (!actionsButtons || !summary) {
+      return;
+    }
+    const qIndexValue = summary.qIndex !== null && summary.qIndex !== undefined
+      ? String(summary.qIndex)
+      : '';
+    actionsButtons.dataset.qIndex = qIndexValue;
+    SCORING_ACTIONS.forEach((config) => {
+      const button = actionsButtons.querySelector(`[data-action="${config.action}"]`);
+      if (!button) {
+        return;
+      }
+      if (qIndexValue) {
+        button.dataset.qIndex = qIndexValue;
+      } else {
+        delete button.dataset.qIndex;
+      }
+      const canUse = Boolean(summary[config.flag]);
+      button.disabled = !canUse;
+      button.setAttribute('aria-disabled', canUse ? 'false' : 'true');
+    });
   }
 
   function refreshScoringSummary(qIndex) {
@@ -795,6 +811,7 @@ const Builder = (() => {
   function handleActionClick(event) {
     const button = event.target.closest('[data-action]');
     if (!button) return;
+    if (button.disabled) return;
     event.preventDefault();
     const action = button.dataset.action;
     const qIndex = parseInt(button.dataset.qIndex ?? '-1', 10);
