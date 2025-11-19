@@ -70,14 +70,7 @@ if (!defined('APP_BOOTSTRAPPED')) {
 
     try {
         $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
-        ensure_site_config_schema($pdo);
-        ensure_users_schema($pdo);
-        ensure_questionnaire_item_schema($pdo);
-        ensure_questionnaire_work_function_schema($pdo);
-        ensure_work_function_catalog($pdo);
-        ensure_questionnaire_assignment_schema($pdo);
-        ensure_biannual_performance_periods($pdo);
-        ensure_analytics_report_schedule_schema($pdo);
+        initialize_database_schema($pdo);
     } catch (PDOException $e) {
         $friendly = 'Unable to connect to the application database. Please try again later or contact support.';
         error_log('DB connection failed: ' . $e->getMessage());
@@ -378,6 +371,26 @@ function site_config_available_columns(PDO $pdo, bool $refresh = false): array
     }
 
     return $cache ?? [];
+}
+
+function initialize_database_schema(PDO $pdo): void
+{
+    static $schemaInitialized = false;
+
+    if ($schemaInitialized) {
+        return;
+    }
+
+    ensure_site_config_schema($pdo);
+    ensure_users_schema($pdo);
+    ensure_questionnaire_item_schema($pdo);
+    ensure_questionnaire_work_function_schema($pdo);
+    ensure_work_function_catalog($pdo);
+    ensure_questionnaire_assignment_schema($pdo);
+    ensure_biannual_performance_periods($pdo);
+    ensure_analytics_report_schedule_schema($pdo);
+
+    $schemaInitialized = true;
 }
 
 function decode_enabled_locales($value): array
