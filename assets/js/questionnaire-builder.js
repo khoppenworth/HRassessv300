@@ -95,11 +95,6 @@ const Builder = (() => {
   function withBase(path) {
     if (!path.startsWith('/')) {
       path = '/' + path;
-    } else if (selector) {
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = 'No questionnaires yet';
-      selector.appendChild(placeholder);
     }
     return normalizedBase + path;
   }
