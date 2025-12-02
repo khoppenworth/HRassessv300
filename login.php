@@ -113,6 +113,11 @@ $offlineWarmRoutes = htmlspecialchars(implode(',', [
 $offlineUnavailable = htmlspecialchars(t($t, 'offline_login_unavailable', 'Offline login is not available yet. Connect to the internet and sign in once to enable offline access.'), ENT_QUOTES, 'UTF-8');
 $offlineInvalid = htmlspecialchars(t($t, 'offline_login_invalid', 'Offline sign-in failed. Double-check your username and password.'), ENT_QUOTES, 'UTF-8');
 $offlineError = htmlspecialchars(t($t, 'offline_login_error', 'We could not complete offline sign-in. Try again when you have a connection.'), ENT_QUOTES, 'UTF-8');
+$loginHighlights = [
+    htmlspecialchars(t($t, 'login_highlight_one', 'Single, secure access for every role.'), ENT_QUOTES, 'UTF-8'),
+    htmlspecialchars(t($t, 'login_highlight_two', 'Keep your assessments and feedback in sync.'), ENT_QUOTES, 'UTF-8'),
+    htmlspecialchars(t($t, 'login_highlight_three', 'Optimized for fast check-ins on any device.'), ENT_QUOTES, 'UTF-8'),
+];
 ?>
 <!doctype html>
 <html lang="<?= $langAttr ?>" data-base-url="<?= $baseUrl ?>">
@@ -127,27 +132,195 @@ $offlineError = htmlspecialchars(t($t, 'offline_login_error', 'We could not comp
   <?php if ($brandStyle !== ''): ?>
     <style id="md-brand-style"><?= htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8') ?></style>
   <?php endif; ?>
+  <style>
+    .login-shell {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+      background: linear-gradient(135deg, #f4f7fb 0%, #eaf0f7 100%);
+    }
+
+    .login-tile {
+      display: flex;
+      width: min(1120px, 98vw);
+      background: #fff;
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 14px 60px rgba(15, 27, 56, 0.16);
+    }
+
+    .login-visual {
+      flex: 1;
+      padding: 48px;
+      background: linear-gradient(135deg, #0d63d9 0%, #2ba7ff 100%);
+      color: #f7fbff;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .login-visual__brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .login-visual__logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.16);
+      padding: 10px;
+      object-fit: contain;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    }
+
+    .login-visual__intro {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .login-visual__highlights {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 12px;
+    }
+
+    .login-visual__highlights li {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: start;
+      gap: 10px;
+      font-weight: 600;
+    }
+
+    .login-visual__bullet {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.85);
+      margin-top: 6px;
+    }
+
+    .login-panel {
+      flex: 1;
+      padding: 48px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      border-left: 1px solid #edf1f5;
+    }
+
+    .login-panel__card {
+      background: #f8fafc;
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .login-panel__header h2 {
+      margin: 0 0 6px;
+    }
+
+    .login-panel__header p {
+      margin: 0;
+      color: #4f5b66;
+    }
+
+    .login-panel__footer {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      font-size: 0.95rem;
+      color: #4f5b66;
+    }
+
+    .login-panel__footer .md-login-footer-label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #1d2939;
+    }
+
+    .md-login-footer-hint {
+      margin: 6px 0 0;
+      color: #5f6b7a;
+    }
+
+    .md-login-footer-link {
+      color: #0d63d9;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .md-login-footer-link:hover {
+      text-decoration: underline;
+    }
+
+    .md-sso-buttons {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+
+    @media (max-width: 900px) {
+      .login-tile {
+        flex-direction: column;
+      }
+
+      .login-panel {
+        border-left: none;
+        padding: 32px 24px;
+      }
+
+      .login-visual {
+        padding: 32px 24px;
+      }
+    }
+  </style>
 </head>
 <body class="<?= $bodyClass ?>" style="<?= $bodyStyle ?>">
-  <div class="md-container">
-    <div class="md-card md-elev-3 md-login md-login--simple">
-      <div class="md-login-simple">
-        <header class="md-login-simple__header">
-          <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="md-login-simple__logo">
-          <div class="md-login-simple__titles">
-            <p class="md-login-simple__eyebrow"><?= htmlspecialchars(t($t, 'login_tagline', 'Secure staff performance portal'), ENT_QUOTES, 'UTF-8') ?></p>
-            <h1><?= $siteName ?></h1>
-            <?php if ($introText !== ''): ?>
-              <p class="md-login-simple__intro"><?= $introText ?></p>
+  <div class="login-shell">
+    <div class="login-tile">
+      <div class="login-visual">
+        <div class="login-visual__brand">
+          <img src="<?= $logo ?>" alt="<?= $logoAlt ?>" class="login-visual__logo">
+          <div>
+            <p class="md-login-simple__eyebrow" style="margin: 0; opacity: 0.9;"><?= htmlspecialchars(t($t, 'login_tagline', 'Secure staff performance portal'), ENT_QUOTES, 'UTF-8') ?></p>
+            <h1 style="margin: 4px 0 0;"><?= $siteName ?></h1>
+          </div>
+        </div>
+        <?php if ($introText !== ''): ?>
+          <p class="login-visual__intro"><?= $introText ?></p>
+        <?php endif; ?>
+        <ul class="login-visual__highlights" role="list">
+          <?php foreach ($loginHighlights as $highlight): ?>
+            <li>
+              <span class="login-visual__bullet" aria-hidden="true"></span>
+              <span><?= $highlight ?></span>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+
+      <div class="login-panel">
+        <section class="login-panel__card" aria-labelledby="sign-in-heading">
+          <div class="login-panel__header">
+            <h2 id="sign-in-heading"><?= htmlspecialchars($signInHeading, ENT_QUOTES, 'UTF-8') ?></h2>
+            <?php if (trim($signInSubheading) !== ''): ?>
+              <p><?= htmlspecialchars($signInSubheading, ENT_QUOTES, 'UTF-8') ?></p>
             <?php endif; ?>
           </div>
-        </header>
-
-        <section class="md-login-simple__body" aria-labelledby="sign-in-heading">
-          <h2 id="sign-in-heading"><?= htmlspecialchars($signInHeading, ENT_QUOTES, 'UTF-8') ?></h2>
-          <?php if (trim($signInSubheading) !== ''): ?>
-            <p class="md-muted"><?= htmlspecialchars($signInSubheading, ENT_QUOTES, 'UTF-8') ?></p>
-          <?php endif; ?>
 
           <?php if ($err !== ''): ?>
             <div class="md-alert error" role="alert"><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
@@ -192,7 +365,7 @@ $offlineError = htmlspecialchars(t($t, 'offline_login_error', 'We could not comp
           <?php endif; ?>
         </section>
 
-        <footer class="md-login-simple__footer">
+        <div class="login-panel__footer">
           <?php if ($address !== ''): ?>
             <div>
               <span class="md-login-footer-label"><?= t($t, 'address_label', 'Address') ?></span>
@@ -222,7 +395,7 @@ $offlineError = htmlspecialchars(t($t, 'offline_login_error', 'We could not comp
               <?php endforeach; ?>
             </nav>
           </div>
-        </footer>
+        </div>
       </div>
     </div>
   </div>
