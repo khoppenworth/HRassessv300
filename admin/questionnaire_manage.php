@@ -133,6 +133,76 @@ function qb_import_normalize_nullable_string($value, int $maxLength): ?string
     return qb_import_truncate($normalized, $maxLength);
 }
 
+function qb_questionnaire_to_fhir_resource(array $questionnaire): array
+{
+    $resource = [
+        'resourceType' => 'Questionnaire',
+        'status' => in_array(strtolower((string)($questionnaire['status'] ?? 'draft')), ['published', 'active'], true)
+            ? 'active'
+            : 'draft',
+        'title' => $questionnaire['title'] ?? 'Questionnaire',
+    ];
+    if (!empty($questionnaire['description'])) {
+        $resource['description'] = $questionnaire['description'];
+    }
+
+    $items = [];
+    $sections = $questionnaire['sections'] ?? [];
+    foreach ($sections as $section) {
+        $items[] = [
+            'linkId' => (string)($section['id'] ?? $section['title'] ?? uniqid('section', true)),
+            'text' => $section['title'] ?: t(load_lang(ensure_locale()), 'section', 'Section'),
+            'type' => 'group',
+            'item' => qb_questionnaire_items_to_fhir_items($section['items'] ?? []),
+        ];
+    }
+    $rootItems = qb_questionnaire_items_to_fhir_items($questionnaire['items'] ?? []);
+    $resource['item'] = array_values(array_merge($items, $rootItems));
+
+    if (!empty($questionnaire['id'])) {
+        $resource['identifier'] = [
+            [
+                'system' => 'urn:hrassess:questionnaire',
+                'value' => (string)$questionnaire['id'],
+            ],
+        ];
+    }
+
+    return $resource;
+}
+
+function qb_questionnaire_items_to_fhir_items(array $items): array
+{
+    $fhirItems = [];
+    foreach ($items as $item) {
+        $type = strtolower((string)($item['type'] ?? ''));
+        $fhirType = 'string';
+        if ($type === 'textarea') {
+            $fhirType = 'text';
+        } elseif ($type === 'boolean') {
+            $fhirType = 'boolean';
+        } elseif ($type === 'choice' || $type === 'likert') {
+            $fhirType = 'choice';
+        }
+
+        $fhirItem = [
+            'linkId' => (string)($item['linkId'] ?? uniqid('item', true)),
+            'text' => $item['text'] ?? '',
+            'type' => $fhirType,
+        ];
+        if (!empty($item['is_required'])) {
+            $fhirItem['required'] = true;
+        }
+        if ($fhirType === 'choice' && !empty($item['options'])) {
+            $fhirItem['answerOption'] = array_map(static function ($option) {
+                return ['valueString' => (string)($option['value'] ?? '')];
+            }, $item['options']);
+        }
+        $fhirItems[] = $fhirItem;
+    }
+    return $fhirItems;
+}
+
 function send_json(array $payload, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json');
@@ -168,12 +238,8 @@ function ensure_csrf(?array $payload = null): void {
 
 $action = $_GET['action'] ?? '';
 
-if ($action === 'fetch') {
-    if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-        send_json(['status' => 'error', 'message' => 'Method not allowed'], 405);
-    }
-    ensure_csrf();
-
+function qb_fetch_questionnaires(PDO $pdo): array
+{
     $qsRows = $pdo->query('SELECT * FROM questionnaire ORDER BY id DESC')->fetchAll();
     $sectionsRows = $pdo->query('SELECT * FROM questionnaire_section ORDER BY questionnaire_id, order_index, id')->fetchAll();
     $itemsRows = $pdo->query('SELECT * FROM questionnaire_item ORDER BY questionnaire_id, order_index, id')->fetchAll();
@@ -310,11 +376,51 @@ if ($action === 'fetch') {
         ];
     }
 
+    return $questionnaires;
+}
+
+if ($action === 'fetch') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+        send_json(['status' => 'error', 'message' => 'Method not allowed'], 405);
+    }
+    ensure_csrf();
+
+    $questionnaires = qb_fetch_questionnaires($pdo);
     send_json([
         'status' => 'ok',
         'csrf' => csrf_token(),
         'questionnaires' => $questionnaires,
     ]);
+}
+
+if ($action === 'export') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+        send_json(['status' => 'error', 'message' => 'Method not allowed'], 405);
+    }
+    ensure_csrf();
+    $qid = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    if ($qid <= 0) {
+        send_json(['status' => 'error', 'message' => 'Missing questionnaire id'], 400);
+    }
+
+    $questionnaires = qb_fetch_questionnaires($pdo);
+    $match = null;
+    foreach ($questionnaires as $questionnaire) {
+        if ((int)($questionnaire['id'] ?? 0) === $qid) {
+            $match = $questionnaire;
+            break;
+        }
+    }
+    if (!$match) {
+        send_json(['status' => 'error', 'message' => 'Questionnaire not found'], 404);
+    }
+
+    $resource = qb_questionnaire_to_fhir_resource($match);
+    $filename = 'questionnaire-' . $qid . '.json';
+    header('Content-Type: application/fhir+json');
+    header('Content-Disposition: attachment; filename=' . $filename);
+    echo json_encode($resource, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    exit;
 }
 
 if ($action === 'upgrade') {
@@ -1083,6 +1189,8 @@ if (isset($_POST['import'])) {
     header('Location: ' . url_for('admin/questionnaire_manage.php'));
     exit;
 }
+
+$bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
 ?>
 <!doctype html>
 <html lang="<?=htmlspecialchars($locale, ENT_QUOTES, 'UTF-8')?>" data-base-url="<?=htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8')?>">
@@ -1097,6 +1205,7 @@ if (isset($_POST['import'])) {
 <link rel="stylesheet" href="<?=asset_url('assets/css/styles.css')?>">
 <link rel="stylesheet" href="<?=asset_url('assets/css/questionnaire-builder.css')?>">
 <script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">window.QB_STRINGS = <?=json_encode($qbStrings, JSON_THROW_ON_ERROR)?>;</script>
+<script nonce="<?=htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8')?>">window.QB_BOOTSTRAP = <?=json_encode($bootstrapQuestionnaires, JSON_THROW_ON_ERROR)?>;</script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js" defer></script>
 <script type="module" src="<?=asset_url('assets/js/questionnaire-builder.js')?>" defer></script>
 </head>
@@ -1118,6 +1227,7 @@ if (isset($_POST['import'])) {
           </div>
           <div class="qb-toolbar-actions">
             <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
+            <button class="md-button md-outline md-elev-1" id="qb-export-questionnaire"><?=t($t,'export_fhir','Export FHIR')?></button>
             <button class="md-button md-elev-2" id="qb-save" disabled><?=t($t,'save','Save Changes')?></button>
             <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
           </div>
