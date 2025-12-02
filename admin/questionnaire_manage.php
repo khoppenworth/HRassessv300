@@ -1114,7 +1114,6 @@ if (isset($_POST['import'])) {
             <label class="qb-select-label" for="qb-selector"><?=t($t,'choose_questionnaire','Questionnaire')?></label>
             <div class="qb-select-wrap">
               <select id="qb-selector" class="qb-select-input"></select>
-              <button class="md-button md-outline md-elev-1" id="qb-upgrade" type="button"><?=t($t,'qb_upgrade_structure','Update structure')?></button>
             </div>
           </div>
           <div class="qb-toolbar-actions">

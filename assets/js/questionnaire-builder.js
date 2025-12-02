@@ -13,7 +13,6 @@ const Builder = (() => {
     addButton: '#qb-add-questionnaire',
     saveButton: '#qb-save',
     publishButton: '#qb-publish',
-    upgradeButton: '#qb-upgrade',
     message: '#qb-message',
     list: '#qb-list',
     tabs: '#qb-tabs',
@@ -95,11 +94,6 @@ const Builder = (() => {
   function withBase(path) {
     if (!path.startsWith('/')) {
       path = '/' + path;
-    } else if (selector) {
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = 'No questionnaires yet';
-      selector.appendChild(placeholder);
     }
     return normalizedBase + path;
   }
@@ -112,7 +106,6 @@ const Builder = (() => {
     const addBtn = document.querySelector(selectors.addButton);
     const saveBtn = document.querySelector(selectors.saveButton);
     const publishBtn = document.querySelector(selectors.publishButton);
-    const upgradeBtn = document.querySelector(selectors.upgradeButton);
     const tabs = document.querySelector(selectors.tabs);
     const sectionNav = document.querySelector(selectors.sectionNav);
     const selector = document.querySelector(selectors.questionnaireSelect);
@@ -127,9 +120,6 @@ const Builder = (() => {
 
     saveBtn.addEventListener('click', () => saveStructure(false));
     publishBtn.addEventListener('click', () => saveStructure(true));
-    if (upgradeBtn) {
-      upgradeBtn.addEventListener('click', upgradeActiveQuestionnaire);
-    }
 
     const list = document.querySelector(selectors.list);
     if (list) {
@@ -835,6 +825,8 @@ const Builder = (() => {
 
     if (action === 'delete-questionnaire') {
       removeQuestionnaire(qIndex);
+    } else if (action === 'upgrade-questionnaire') {
+      upgradeActiveQuestionnaire(qIndex);
     } else if (action === 'add-section') {
       addSection(qIndex);
     } else if (action === 'delete-section') {
@@ -1865,6 +1857,12 @@ const Builder = (() => {
       }
       if (selector) {
         const selectFragment = document.createDocumentFragment();
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select a questionnaire';
+        placeholder.disabled = true;
+        placeholder.selected = !tabEntries.some((entry) => entry.isActive);
+        selectFragment.appendChild(placeholder);
         tabEntries.forEach((entry) => {
           const opt = document.createElement('option');
           opt.value = entry.key;
@@ -1876,6 +1874,13 @@ const Builder = (() => {
         });
         selector.appendChild(selectFragment);
       }
+    } else if (selector) {
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'No questionnaires available';
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      selector.appendChild(placeholder);
     }
     initSortable();
     updateDirtyState();
@@ -1964,6 +1969,17 @@ const Builder = (() => {
 
     const actions = document.createElement('div');
     actions.className = 'qb-questionnaire-actions';
+
+    const upgradeBtn = document.createElement('button');
+    upgradeBtn.className = 'md-button md-outline qb-action';
+    upgradeBtn.textContent = 'Update structure';
+    upgradeBtn.dataset.action = 'upgrade-questionnaire';
+    upgradeBtn.dataset.qIndex = String(qIndex);
+    if (!questionnaire.id) {
+      upgradeBtn.disabled = true;
+      upgradeBtn.title = 'Save the questionnaire before updating its structure';
+    }
+    actions.appendChild(upgradeBtn);
 
     const addSectionBtn = document.createElement('button');
     addSectionBtn.className = 'md-button qb-action';
@@ -2467,16 +2483,19 @@ const Builder = (() => {
     window.Sortable.create(element, options);
   }
 
-  async function upgradeActiveQuestionnaire() {
-    const active = state.questionnaires.find((q) => keyFor(q) === state.activeKey);
-    if (!active) {
+  async function upgradeActiveQuestionnaire(qIndex = null) {
+    const target = Number.isInteger(qIndex) && qIndex >= 0
+      ? state.questionnaires[qIndex]
+      : state.questionnaires.find((q) => keyFor(q) === state.activeKey);
+    if (!target) {
       setMessage('Select a questionnaire to update.', 'warning');
       return;
     }
-    if (!active.id) {
+    if (!target.id) {
       setMessage('Save the questionnaire before updating its structure.', 'warning');
       return;
     }
+    setActiveKey(keyFor(target));
     setMessage('Updating questionnaire structure…', 'info');
     try {
       const response = await fetch(withBase('/admin/questionnaire_manage.php?action=upgrade'), {
@@ -2487,7 +2506,7 @@ const Builder = (() => {
           'Accept': 'application/json',
         },
         credentials: 'same-origin',
-        body: JSON.stringify({ questionnaire_id: active.id, csrf: state.csrfToken }),
+        body: JSON.stringify({ questionnaire_id: target.id, csrf: state.csrfToken }),
       });
       if (!response.ok) {
         throw new Error(`Failed to update questionnaire (${response.status})`);
