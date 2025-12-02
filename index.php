@@ -30,7 +30,6 @@ $heroSubtitle = $landingText !== ''
     ), ENT_QUOTES, 'UTF-8');
 
 $primaryCta = htmlspecialchars(t($t, 'sign_in', 'Sign In'), ENT_QUOTES, 'UTF-8');
-$secondaryCta = htmlspecialchars(t($t, 'login_now', 'Go to secure login'), ENT_QUOTES, 'UTF-8');
 $addressLabel = htmlspecialchars(t($t, 'address_label', 'Address'), ENT_QUOTES, 'UTF-8');
 $contactLabel = htmlspecialchars(t($t, 'contact_label', 'Contact'), ENT_QUOTES, 'UTF-8');
 $metricSubmissions = htmlspecialchars(number_format((int)($cfg['landing_metric_submissions'] ?? 4280)), ENT_QUOTES, 'UTF-8');
@@ -90,6 +89,27 @@ $featureItems = [
   <?php if ($brandStyle !== ''): ?>
     <style id="md-brand-style"><?= htmlspecialchars($brandStyle, ENT_QUOTES, 'UTF-8') ?></style>
   <?php endif; ?>
+  <style>
+    .landing-hero__content {
+      max-width: 780px;
+    }
+
+    .landing-hero__actions {
+      gap: 0.85rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .landing-hero__cta-note {
+      margin: 0;
+      color: #4f5b66;
+      font-size: 0.95rem;
+    }
+
+    .landing-summary__stats {
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+  </style>
 </head>
 <body class="<?= $bodyClass ?>" style="<?= $bodyStyle ?>">
   <div class="landing-page">
@@ -103,7 +123,7 @@ $featureItems = [
         <p class="landing-hero__subtitle"><?= $heroSubtitle ?></p>
         <div class="landing-hero__actions">
           <a class="landing-button landing-button--primary" href="<?= $loginUrl ?>"><?= $primaryCta ?></a>
-          <a class="landing-button landing-button--ghost" href="<?= $loginUrl ?>"><?= $secondaryCta ?></a>
+          <p class="landing-hero__cta-note"><?= htmlspecialchars(t($t, 'landing_cta_note', 'One secure sign-in for managers, reviewers, and employees.'), ENT_QUOTES, 'UTF-8') ?></p>
         </div>
         <ul class="landing-hero__highlights" role="list">
           <?php foreach ($highlightItems as $highlight): ?>
@@ -174,9 +194,6 @@ $featureItems = [
           }
           echo implode(' · ', $links);
           ?>
-        </div>
-        <div class="landing-footer__secondary-link">
-          <a href="<?= $loginUrl ?>"><?= $secondaryCta ?></a>
         </div>
       </div>
     </footer>
