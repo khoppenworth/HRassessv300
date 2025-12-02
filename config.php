@@ -158,7 +158,14 @@ function refresh_current_user(PDO $pdo): void {
 }
 
 function auth_required(array $roles = []): void {
-    if (!isset($_SESSION['user'])) { header('Location: ' . BASE_URL . 'login.php'); exit; }
+    if (!isset($_SESSION['user'])) {
+        $loginTarget = 'login.php';
+        if ($roles && in_array('admin', $roles, true)) {
+            $loginTarget = 'admin/login.php';
+        }
+        header('Location: ' . url_for($loginTarget));
+        exit;
+    }
     $status = $_SESSION['user']['account_status'] ?? 'active';
     if ($status === 'disabled') {
         $_SESSION['auth_error'] = 'Your account has been disabled. Please contact your administrator.';
@@ -318,6 +325,7 @@ function ensure_site_config_schema(PDO $pdo): void {
         'microsoft_oauth_tenant' => 'ALTER TABLE site_config ADD COLUMN microsoft_oauth_tenant VARCHAR(255) NULL',
         'color_theme' => "ALTER TABLE site_config ADD COLUMN color_theme VARCHAR(50) NOT NULL DEFAULT 'light'",
         'brand_color' => "ALTER TABLE site_config ADD COLUMN brand_color VARCHAR(7) NULL AFTER color_theme",
+        'local_login_enabled' => 'ALTER TABLE site_config ADD COLUMN local_login_enabled TINYINT(1) NOT NULL DEFAULT 1',
         'smtp_enabled' => 'ALTER TABLE site_config ADD COLUMN smtp_enabled TINYINT(1) NOT NULL DEFAULT 0',
         'smtp_host' => 'ALTER TABLE site_config ADD COLUMN smtp_host VARCHAR(255) NULL',
         'smtp_port' => 'ALTER TABLE site_config ADD COLUMN smtp_port INT NULL',
@@ -443,6 +451,7 @@ function site_config_defaults(): array
         'footer_hotline_label' => 'Hotline 939',
         'footer_hotline_number' => '939',
         'footer_rights' => 'All rights reserved.',
+        'local_login_enabled' => 1,
         'google_oauth_enabled' => 0,
         'google_oauth_client_id' => null,
         'google_oauth_client_secret' => null,
@@ -477,7 +486,7 @@ function get_site_config(PDO $pdo): array
         ensure_site_config_schema($pdo);
         $defaultTemplatesJson = encode_email_templates(default_email_templates());
         $quotedTemplates = $pdo->quote($defaultTemplatesJson);
-        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, enabled_locales, upgrade_repo, review_enabled, email_templates) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20, '[\"en\",\"fr\",\"am\"]', 'khoppenworth/HRassessv300', 1, $quotedTemplates)");
+        $pdo->exec("INSERT IGNORE INTO site_config (id, site_name, landing_text, address, contact, logo_path, footer_org_name, footer_org_short, footer_website_label, footer_website_url, footer_email, footer_phone, footer_hotline_label, footer_hotline_number, footer_rights, local_login_enabled, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret, microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant, color_theme, brand_color, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, enabled_locales, upgrade_repo, review_enabled, email_templates) VALUES (1, 'My Performance', NULL, NULL, NULL, NULL, 'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et', 'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939', 'All rights reserved.', 1, 0, NULL, NULL, 0, NULL, NULL, 'common', 'light', '#2073bf', 0, NULL, 587, NULL, NULL, 'none', NULL, NULL, 20, '[\"en\",\"fr\",\"am\"]', 'khoppenworth/HRassessv300', 1, $quotedTemplates)");
         $cfg = $pdo->query('SELECT * FROM site_config WHERE id=1')->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         error_log('get_site_config failed: ' . $e->getMessage());
