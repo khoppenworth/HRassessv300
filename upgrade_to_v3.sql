@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS site_config (
   footer_hotline_label VARCHAR(255) NULL,
   footer_hotline_number VARCHAR(50) NULL,
   footer_rights VARCHAR(255) NULL,
+  local_login_enabled TINYINT(1) NOT NULL DEFAULT 1,
   google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
   google_oauth_client_id VARCHAR(255) NULL,
   google_oauth_client_secret VARCHAR(255) NULL,
@@ -57,6 +58,7 @@ ALTER TABLE site_config
   ADD COLUMN IF NOT EXISTS footer_hotline_label VARCHAR(255) NULL,
   ADD COLUMN IF NOT EXISTS footer_hotline_number VARCHAR(50) NULL,
   ADD COLUMN IF NOT EXISTS footer_rights VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS local_login_enabled TINYINT(1) NOT NULL DEFAULT 1,
   ADD COLUMN IF NOT EXISTS google_oauth_enabled TINYINT(1) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS google_oauth_client_id VARCHAR(255) NULL,
   ADD COLUMN IF NOT EXISTS google_oauth_client_secret VARCHAR(255) NULL,
@@ -84,7 +86,7 @@ INSERT INTO site_config (
   id, site_name, landing_text, address, contact, logo_path,
   footer_org_name, footer_org_short, footer_website_label, footer_website_url,
   footer_email, footer_phone, footer_hotline_label, footer_hotline_number,
-  footer_rights, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret,
+  footer_rights, local_login_enabled, google_oauth_enabled, google_oauth_client_id, google_oauth_client_secret,
   microsoft_oauth_enabled, microsoft_oauth_client_id, microsoft_oauth_client_secret, microsoft_oauth_tenant,
   color_theme, brand_color, enabled_locales, smtp_enabled, smtp_host, smtp_port, smtp_username, smtp_password,
   smtp_encryption, smtp_from_email, smtp_from_name, smtp_timeout, upgrade_repo, review_enabled, email_templates
@@ -92,7 +94,7 @@ INSERT INTO site_config (
   1, 'My Performance', NULL, NULL, NULL, NULL,
   'Ethiopian Pharmaceutical Supply Service', 'EPSS / EPS', 'epss.gov.et', 'https://epss.gov.et',
   'info@epss.gov.et', '+251 11 155 9900', 'Hotline 939', '939',
-  'All rights reserved.', 0, NULL, NULL,
+  'All rights reserved.', 1, 0, NULL, NULL,
   0, NULL, NULL, 'common',
   'light', '#2073bf', '["en","fr","am"]', 0, NULL, 587, NULL, NULL,
   'none', NULL, NULL, 20, 'khoppenworth/HRassessv300', 1, '{}'

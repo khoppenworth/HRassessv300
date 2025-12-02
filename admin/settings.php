@@ -43,6 +43,7 @@ try {
         csrf_check();
 
         $review_enabled = isset($_POST['review_enabled']) ? 1 : 0;
+        $local_login_enabled = isset($_POST['local_login_enabled']) ? 1 : 0;
         $google_oauth_enabled = isset($_POST['google_oauth_enabled']) ? 1 : 0;
         $google_oauth_client_id = trim($_POST['google_oauth_client_id'] ?? '');
         $google_oauth_client_secret = trim($_POST['google_oauth_client_secret'] ?? '');
@@ -123,6 +124,7 @@ try {
             'microsoft_oauth_tenant' => $microsoft_oauth_tenant,
             'color_theme' => $color_theme,
             'brand_color' => $brand_color !== '' ? $brand_color : null,
+            'local_login_enabled' => $local_login_enabled,
             'smtp_enabled' => $smtp_enabled,
             'smtp_host' => $smtp_host !== '' ? $smtp_host : null,
             'smtp_port' => $smtp_port > 0 ? $smtp_port : 587,
@@ -313,6 +315,15 @@ $pageHelpKey = 'admin.settings';
         </label>
       </div>
       <h3 class="md-subhead"><?=t($t,'sso_settings','Single Sign-On (SSO)')?></h3>
+      <div class="md-control">
+        <label>
+          <input type="checkbox" name="local_login_enabled" value="1" <?=((int)($cfg['local_login_enabled'] ?? 1) === 1) ? 'checked' : ''?>>
+          <span><?=t($t,'enable_local_login','Allow username/password sign-in')?></span>
+        </label>
+        <p class="md-help-note" style="margin: 6px 0 0;">
+          <?=t($t,'local_login_toggle_hint','Disable this option to require SSO (for example, Google) on the main login page. Administrators can still use the dedicated admin login.')?>
+        </p>
+      </div>
       <div class="md-control">
         <label>
           <input type="checkbox" name="google_oauth_enabled" value="1" <?=((int)($cfg['google_oauth_enabled'] ?? 0) === 1) ? 'checked' : ''?>>

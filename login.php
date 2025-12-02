@@ -7,6 +7,7 @@ $cfg = get_site_config($pdo);
 $availableLocales = available_locales();
 $defaultLocale = $availableLocales[0] ?? 'en';
 $err = '';
+$localLoginEnabled = (int)($cfg['local_login_enabled'] ?? 1) === 1;
 
 $oauthProviders = [];
 if (
@@ -35,6 +36,19 @@ if (!empty($_SESSION['auth_error'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
+    if (!$localLoginEnabled) {
+        $err = t(
+            $t,
+            'local_login_disabled',
+            'Local account sign-in is disabled. Use single sign-on to continue.'
+        );
+    }
+
+    if ($err !== '') {
+        // Skip credential processing when local login is disabled.
+        goto render_login;
+    }
+
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
@@ -118,6 +132,8 @@ $loginHighlights = [
     htmlspecialchars(t($t, 'login_highlight_two', 'Keep your assessments and feedback in sync.'), ENT_QUOTES, 'UTF-8'),
     htmlspecialchars(t($t, 'login_highlight_three', 'Optimized for fast check-ins on any device.'), ENT_QUOTES, 'UTF-8'),
 ];
+
+render_login:
 ?>
 <!doctype html>
 <html lang="<?= $langAttr ?>" data-base-url="<?= $baseUrl ?>">
@@ -326,31 +342,37 @@ $loginHighlights = [
             <div class="md-alert error" role="alert"><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
           <?php endif; ?>
 
-          <form
-            method="post"
-            class="md-form md-login-form"
-            action="<?= $formAction ?>"
-            data-offline-redirect="<?= $offlineRedirect ?>"
-            data-offline-unavailable="<?= $offlineUnavailable ?>"
-            data-offline-invalid="<?= $offlineInvalid ?>"
-            data-offline-error="<?= $offlineError ?>"
-            data-offline-warm-routes="<?= $offlineWarmRoutes ?>"
-          >
-            <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-            <label class="md-field">
-              <span><?= t($t, 'username', 'Username') ?></span>
-              <input name="username" autocomplete="username" required>
-            </label>
-            <label class="md-field">
-              <span><?= t($t, 'password', 'Password') ?></span>
-              <input type="password" name="password" autocomplete="current-password" required>
-            </label>
-            <div class="md-form-actions md-form-actions--center md-login-actions">
-              <button class="md-button md-primary md-elev-2" type="submit">
-                <?= t($t, 'sign_in', 'Sign In') ?>
-              </button>
+          <?php if ($localLoginEnabled): ?>
+            <form
+              method="post"
+              class="md-form md-login-form"
+              action="<?= $formAction ?>"
+              data-offline-redirect="<?= $offlineRedirect ?>"
+              data-offline-unavailable="<?= $offlineUnavailable ?>"
+              data-offline-invalid="<?= $offlineInvalid ?>"
+              data-offline-error="<?= $offlineError ?>"
+              data-offline-warm-routes="<?= $offlineWarmRoutes ?>"
+            >
+              <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+              <label class="md-field">
+                <span><?= t($t, 'username', 'Username') ?></span>
+                <input name="username" autocomplete="username" required>
+              </label>
+              <label class="md-field">
+                <span><?= t($t, 'password', 'Password') ?></span>
+                <input type="password" name="password" autocomplete="current-password" required>
+              </label>
+              <div class="md-form-actions md-form-actions--center md-login-actions">
+                <button class="md-button md-primary md-elev-2" type="submit">
+                  <?= t($t, 'sign_in', 'Sign In') ?>
+                </button>
+              </div>
+            </form>
+          <?php else: ?>
+            <div class="md-alert info" role="note">
+              <?= htmlspecialchars(t($t, 'local_login_disabled_notice', 'Local account sign-in is disabled. Use Google single sign-on to continue.'), ENT_QUOTES, 'UTF-8') ?>
             </div>
-          </form>
+          <?php endif; ?>
 
           <?php if (!empty($oauthProviders)): ?>
             <div class="md-login-divider"><span><?= htmlspecialchars(t($t, 'or_continue_with', 'or continue with'), ENT_QUOTES, 'UTF-8') ?></span></div>
@@ -363,6 +385,13 @@ $loginHighlights = [
               <?php endforeach; ?>
             </div>
           <?php endif; ?>
+
+          <p class="md-help-note" style="text-align: center; margin-bottom: 0;">
+            <?= htmlspecialchars(t($t, 'admin_login_hint', 'Administrators can sign in using the dedicated admin login page.'), ENT_QUOTES, 'UTF-8') ?>
+            <a class="md-login-footer-link" href="<?= htmlspecialchars(url_for('admin/login.php'), ENT_QUOTES, 'UTF-8') ?>">
+              <?= htmlspecialchars(t($t, 'admin_login_link', 'Go to admin login'), ENT_QUOTES, 'UTF-8') ?>
+            </a>
+          </p>
         </section>
 
         <div class="login-panel__footer">
