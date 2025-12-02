@@ -13,9 +13,11 @@ const Builder = (() => {
     addButton: '#qb-add-questionnaire',
     saveButton: '#qb-save',
     publishButton: '#qb-publish',
+    upgradeButton: '#qb-upgrade',
     message: '#qb-message',
     list: '#qb-list',
     tabs: '#qb-tabs',
+    questionnaireSelect: '#qb-selector',
     sectionNav: '#qb-section-nav',
     metaCsrf: 'meta[name="csrf-token"]',
   };
@@ -93,6 +95,11 @@ const Builder = (() => {
   function withBase(path) {
     if (!path.startsWith('/')) {
       path = '/' + path;
+    } else if (selector) {
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'No questionnaires yet';
+      selector.appendChild(placeholder);
     }
     return normalizedBase + path;
   }
@@ -105,8 +112,10 @@ const Builder = (() => {
     const addBtn = document.querySelector(selectors.addButton);
     const saveBtn = document.querySelector(selectors.saveButton);
     const publishBtn = document.querySelector(selectors.publishButton);
+    const upgradeBtn = document.querySelector(selectors.upgradeButton);
     const tabs = document.querySelector(selectors.tabs);
     const sectionNav = document.querySelector(selectors.sectionNav);
+    const selector = document.querySelector(selectors.questionnaireSelect);
 
     if (!addBtn || !saveBtn || !publishBtn) {
       return;
@@ -118,6 +127,9 @@ const Builder = (() => {
 
     saveBtn.addEventListener('click', () => saveStructure(false));
     publishBtn.addEventListener('click', () => saveStructure(true));
+    if (upgradeBtn) {
+      upgradeBtn.addEventListener('click', upgradeActiveQuestionnaire);
+    }
 
     const list = document.querySelector(selectors.list);
     if (list) {
@@ -131,6 +143,10 @@ const Builder = (() => {
       tabs.addEventListener('click', handleTabClick);
       tabs.addEventListener('keydown', handleTabKeydown);
       tabs.setAttribute('role', 'tablist');
+    }
+
+    if (selector) {
+      selector.addEventListener('change', handleSelectChange);
     }
 
     if (sectionNav) {
@@ -882,6 +898,12 @@ const Builder = (() => {
     }
   }
 
+  function handleSelectChange(event) {
+    const { value } = event.target;
+    if (!value) return;
+    setActiveKey(value);
+  }
+
   function parseSectionIndex(value) {
     if (value === 'root') return 'root';
     const parsed = parseInt(value ?? '-1', 10);
@@ -1304,17 +1326,23 @@ const Builder = (() => {
 
   function updateTabLabel(qIndex) {
     const tabs = document.querySelector(selectors.tabs);
-    if (!tabs) return;
+    const selector = document.querySelector(selectors.questionnaireSelect);
+    if (!tabs && !selector) return;
     const questionnaire = state.questionnaires[qIndex];
     if (!questionnaire) return;
     const key = keyFor(questionnaire);
-    const selector = `[data-q-key="${escapeSelector(key)}"]`;
-    const tab = tabs.querySelector(selector);
-    if (!tab) return;
+    const selectorQuery = `[data-q-key="${escapeSelector(key)}"]`;
+    const tab = tabs.querySelector(selectorQuery);
+    const option = selector ? selector.querySelector(`option[value="${escapeSelector(key)}"]`) : null;
     const label = questionnaire.title && questionnaire.title.trim() !== ''
       ? questionnaire.title
       : `Questionnaire ${qIndex + 1}`;
-    tab.textContent = label;
+    if (tab) {
+      tab.textContent = label;
+    }
+    if (option) {
+      option.textContent = label;
+    }
     renderSectionNav();
   }
 
@@ -1781,8 +1809,12 @@ const Builder = (() => {
     if (!list) return;
     ensureActiveKey();
     const tabs = document.querySelector(selectors.tabs);
+    const selector = document.querySelector(selectors.questionnaireSelect);
     if (tabs) {
       tabs.innerHTML = '';
+    }
+    if (selector) {
+      selector.innerHTML = '';
     }
     list.innerHTML = '';
     const tabEntries = [];
@@ -1804,7 +1836,7 @@ const Builder = (() => {
       }
     });
     list.appendChild(listFragment);
-    if (tabs && tabEntries.length) {
+    if (tabEntries.length) {
       const collator = (typeof Intl !== 'undefined' && typeof Intl.Collator === 'function')
         ? new Intl.Collator(undefined, { sensitivity: 'base', usage: 'sort' })
         : null;
@@ -1814,21 +1846,36 @@ const Builder = (() => {
         }
         return a.label.localeCompare(b.label);
       });
-      const tabFragment = document.createDocumentFragment();
-      tabEntries.forEach((entry) => {
-        const tab = document.createElement('button');
-        tab.type = 'button';
-        tab.className = 'qb-tab';
-        tab.setAttribute('role', 'tab');
-        tab.setAttribute('data-q-key', entry.key);
-        tab.dataset.qIndex = String(entry.qIndex);
-        tab.textContent = entry.label;
-        const isActive = entry.isActive;
-        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-        tab.setAttribute('tabindex', isActive ? '0' : '-1');
-        tabFragment.appendChild(tab);
-      });
-      tabs.appendChild(tabFragment);
+      if (tabs) {
+        const tabFragment = document.createDocumentFragment();
+        tabEntries.forEach((entry) => {
+          const tab = document.createElement('button');
+          tab.type = 'button';
+          tab.className = 'qb-tab';
+          tab.setAttribute('role', 'tab');
+          tab.setAttribute('data-q-key', entry.key);
+          tab.dataset.qIndex = String(entry.qIndex);
+          tab.textContent = entry.label;
+          const isActive = entry.isActive;
+          tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+          tab.setAttribute('tabindex', isActive ? '0' : '-1');
+          tabFragment.appendChild(tab);
+        });
+        tabs.appendChild(tabFragment);
+      }
+      if (selector) {
+        const selectFragment = document.createDocumentFragment();
+        tabEntries.forEach((entry) => {
+          const opt = document.createElement('option');
+          opt.value = entry.key;
+          opt.textContent = entry.label;
+          if (entry.isActive) {
+            opt.selected = true;
+          }
+          selectFragment.appendChild(opt);
+        });
+        selector.appendChild(selectFragment);
+      }
     }
     initSortable();
     updateDirtyState();
@@ -2418,6 +2465,43 @@ const Builder = (() => {
     const existing = window.Sortable.get(element);
     if (existing) existing.destroy();
     window.Sortable.create(element, options);
+  }
+
+  async function upgradeActiveQuestionnaire() {
+    const active = state.questionnaires.find((q) => keyFor(q) === state.activeKey);
+    if (!active) {
+      setMessage('Select a questionnaire to update.', 'warning');
+      return;
+    }
+    if (!active.id) {
+      setMessage('Save the questionnaire before updating its structure.', 'warning');
+      return;
+    }
+    setMessage('Updating questionnaire structure…', 'info');
+    try {
+      const response = await fetch(withBase('/admin/questionnaire_manage.php?action=upgrade'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': state.csrfToken,
+          'Accept': 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ questionnaire_id: active.id, csrf: state.csrfToken }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to update questionnaire (${response.status})`);
+      }
+      const data = await response.json();
+      if (data.csrf) {
+        updateCsrf(data.csrf);
+      }
+      await fetchData({ silent: true });
+      setMessage(data.message || 'Questionnaire updated', 'success');
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || 'Unable to update questionnaire', 'error');
+    }
   }
 
   async function saveStructure(publish = false) {
