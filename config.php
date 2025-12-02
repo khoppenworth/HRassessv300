@@ -160,7 +160,8 @@ function refresh_current_user(PDO $pdo): void {
 function auth_required(array $roles = []): void {
     if (!isset($_SESSION['user'])) {
         $loginTarget = 'login.php';
-        if ($roles && in_array('admin', $roles, true)) {
+        $adminOnly = $roles && empty(array_diff($roles, ['admin']));
+        if ($adminOnly) {
             $loginTarget = 'admin/login.php';
         }
         header('Location: ' . url_for($loginTarget));
