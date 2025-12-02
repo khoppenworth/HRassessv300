@@ -317,6 +317,93 @@ if ($action === 'fetch') {
     ]);
 }
 
+if ($action === 'upgrade') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        send_json(['status' => 'error', 'message' => 'Method not allowed'], 405);
+    }
+    $payload = json_decode(file_get_contents('php://input'), true);
+    ensure_csrf($payload);
+    $targetId = isset($payload['questionnaire_id']) ? (int)$payload['questionnaire_id'] : 0;
+    if ($targetId <= 0) {
+        send_json(['status' => 'error', 'message' => 'Invalid questionnaire id'], 400);
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $itemStmt = $pdo->prepare('SELECT * FROM questionnaire_item WHERE questionnaire_id=? ORDER BY order_index, id');
+        $optionStmt = $pdo->prepare('SELECT * FROM questionnaire_item_option WHERE questionnaire_item_id=? ORDER BY order_index, id');
+        $updateItemStmt = $pdo->prepare('UPDATE questionnaire_item SET weight_percent=? WHERE id=?');
+        $insertOptionStmt = $pdo->prepare('INSERT INTO questionnaire_item_option (questionnaire_item_id, value, order_index) VALUES (?, ?, ?)');
+
+        $itemStmt->execute([$targetId]);
+        $items = $itemStmt->fetchAll();
+
+        $likertItems = [];
+        $otherItems = [];
+        foreach ($items as $row) {
+            $type = strtolower((string)($row['type'] ?? ''));
+            if ($type === 'likert') {
+                $likertItems[] = $row;
+            } else {
+                $otherItems[] = $row;
+            }
+        }
+
+        $updates = 0;
+        $optionInserts = 0;
+        if ($likertItems) {
+            $count = count($likertItems);
+            $base = (int)floor(100 / $count);
+            $remainder = 100 - ($base * $count);
+            foreach ($likertItems as $index => $row) {
+                $targetWeight = $base + ($remainder > 0 ? 1 : 0);
+                if ($remainder > 0) {
+                    $remainder -= 1;
+                }
+                $currentWeight = (int)($row['weight_percent'] ?? 0);
+                if ($currentWeight !== $targetWeight) {
+                    $updateItemStmt->execute([$targetWeight, (int)$row['id']]);
+                    $updates += 1;
+                }
+
+                $optionStmt->execute([(int)$row['id']]);
+                $existingOptions = $optionStmt->fetchAll();
+                if (!$existingOptions) {
+                    $order = 1;
+                    foreach (LIKERT_DEFAULT_OPTIONS as $label) {
+                        $insertOptionStmt->execute([(int)$row['id'], $label, $order]);
+                        $order += 1;
+                        $optionInserts += 1;
+                    }
+                }
+            }
+            foreach ($otherItems as $row) {
+                if ((int)($row['weight_percent'] ?? 0) !== 0) {
+                    $updateItemStmt->execute([0, (int)$row['id']]);
+                    $updates += 1;
+                }
+            }
+        }
+
+        $pdo->commit();
+        $message = 'Questionnaire updated';
+        if ($updates === 0 && $optionInserts === 0) {
+            $message = 'Questionnaire already up to date';
+        }
+        send_json([
+            'status' => 'ok',
+            'message' => $message,
+            'updated_items' => $updates,
+            'added_options' => $optionInserts,
+            'csrf' => csrf_token(),
+        ]);
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('questionnaire_manage upgrade failed: ' . $e->getMessage());
+        send_json(['status' => 'error', 'message' => 'Unable to update questionnaire'], 500);
+    }
+}
+
 if ($action === 'save' || $action === 'publish') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         send_json(['status' => 'error', 'message' => 'Method not allowed'], 405);
@@ -1023,10 +1110,18 @@ if (isset($_POST['import'])) {
     <div class="qb-manager-main">
       <div class="md-card md-elev-2 qb-builder-card">
         <div class="qb-toolbar">
-          <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
-          <div class="qb-toolbar-spacer"></div>
-          <button class="md-button md-elev-2" id="qb-save" disabled><?=t($t,'save','Save Changes')?></button>
-          <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
+          <div class="qb-toolbar-group">
+            <label class="qb-select-label" for="qb-selector"><?=t($t,'choose_questionnaire','Questionnaire')?></label>
+            <div class="qb-select-wrap">
+              <select id="qb-selector" class="qb-select-input"></select>
+              <button class="md-button md-outline md-elev-1" id="qb-upgrade" type="button"><?=t($t,'qb_upgrade_structure','Update structure')?></button>
+            </div>
+          </div>
+          <div class="qb-toolbar-actions">
+            <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
+            <button class="md-button md-elev-2" id="qb-save" disabled><?=t($t,'save','Save Changes')?></button>
+            <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
+          </div>
         </div>
         <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
         <div id="qb-list" class="qb-list" aria-live="polite"></div>
@@ -1035,7 +1130,6 @@ if (isset($_POST['import'])) {
     <aside class="qb-manager-sidebar" aria-label="<?=htmlspecialchars(t($t,'questionnaire_side_menu','Questionnaire side menu'), ENT_QUOTES, 'UTF-8')?>">
       <div class="md-card md-elev-2 qb-sidebar-card">
         <h3 class="md-card-title"><?=t($t,'questionnaire_navigation','Questionnaire Navigation')?></h3>
-        <div id="qb-tabs" class="qb-tabs qb-tabs-vertical" role="tablist" aria-label="<?=htmlspecialchars(t($t,'questionnaire_tabs','Questionnaire navigation'), ENT_QUOTES, 'UTF-8')?>"></div>
         <nav id="qb-section-nav" class="qb-section-nav" aria-label="<?=htmlspecialchars(t($t,'section_navigation','Section navigation'), ENT_QUOTES, 'UTF-8')?>" data-empty-label="<?=htmlspecialchars(t($t,'select_questionnaire_to_view_sections','Select a questionnaire to view its sections'), ENT_QUOTES, 'UTF-8')?>" data-root-label="<?=htmlspecialchars(t($t,'items_without_section','Items without a section'), ENT_QUOTES, 'UTF-8')?>" data-untitled-label="<?=htmlspecialchars(t($t,'untitled_questionnaire','Untitled questionnaire'), ENT_QUOTES, 'UTF-8')?>">
           <p class="qb-section-nav-empty"><?=t($t,'select_questionnaire_to_view_sections','Select a questionnaire to view its sections')?></p>
         </nav>
@@ -1050,23 +1144,28 @@ if (isset($_POST['import'])) {
           )?></p>
         </div>
       </div>
-      <div class="md-card md-elev-2 qb-sidebar-card">
-        <h3 class="md-card-title"><?=t($t,'fhir_import','FHIR Import')?></h3>
-        <form method="post" enctype="multipart/form-data" class="qb-import-form" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
-          <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-          <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
-          <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
-        </form>
-        <div class="qb-import-actions">
-          <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(url_for('scripts/download_questionnaire_template.php'), ENT_QUOTES, 'UTF-8')?>" download>
-            <?=t($t,'download_xml_template','Download XML template')?>
-          </a>
-          <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
-            <?=t($t,'download_import_guide','Download Import Guide')?>
-          </a>
-        </div>
-      </div>
     </aside>
+  </div>
+</section>
+<section class="qb-import-banner">
+  <div class="md-card md-elev-1 qb-import-card">
+    <div class="qb-import-card-header">
+      <h3 class="md-card-title"><?=t($t,'fhir_import','Questionnaire import')?></h3>
+      <p class="md-hint"><?=t($t,'qb_import_hint','Update or add questionnaires from a FHIR XML file.')?></p>
+    </div>
+    <form method="post" enctype="multipart/form-data" class="qb-import-form qb-import-inline" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
+      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+      <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
+      <div class="qb-import-actions">
+        <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
+        <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(url_for('scripts/download_questionnaire_template.php'), ENT_QUOTES, 'UTF-8')?>" download>
+          <?=t($t,'download_xml_template','Download XML template')?>
+        </a>
+        <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
+          <?=t($t,'download_import_guide','Download Import Guide')?>
+        </a>
+      </div>
+    </form>
   </div>
 </section>
 <?php if ($recentImportId): ?>
