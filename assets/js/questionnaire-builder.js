@@ -11,6 +11,7 @@ const Builder = (() => {
 
   const selectors = {
     addButton: '#qb-add-questionnaire',
+    exportButton: '#qb-export-questionnaire',
     saveButton: '#qb-save',
     publishButton: '#qb-publish',
     message: '#qb-message',
@@ -79,6 +80,7 @@ const Builder = (() => {
   const SCORING_ACTIONS = [
     { action: 'normalize-weights', label: STRINGS.normalizeWeights, flag: 'canNormalize' },
     { action: 'even-weights', label: STRINGS.evenWeights, flag: 'canDistribute' },
+    { action: 'likert-weights', label: 'Auto-weight Likert', flag: 'hasLikert' },
     { action: 'clear-weights', label: STRINGS.clearWeights, flag: 'canClear' },
   ];
 
@@ -109,6 +111,7 @@ const Builder = (() => {
     const tabs = document.querySelector(selectors.tabs);
     const sectionNav = document.querySelector(selectors.sectionNav);
     const selector = document.querySelector(selectors.questionnaireSelect);
+    const exportBtn = document.querySelector(selectors.exportButton);
 
     if (!addBtn || !saveBtn || !publishBtn) {
       return;
@@ -120,6 +123,9 @@ const Builder = (() => {
 
     saveBtn.addEventListener('click', () => saveStructure(false));
     publishBtn.addEventListener('click', () => saveStructure(true));
+    if (exportBtn) {
+      exportBtn.addEventListener('click', handleExportClick);
+    }
 
     const list = document.querySelector(selectors.list);
     if (list) {
@@ -144,7 +150,13 @@ const Builder = (() => {
       ensureSectionNavListeners();
     }
 
-    fetchData();
+    const bootstrap = Array.isArray(window.QB_BOOTSTRAP) ? window.QB_BOOTSTRAP : [];
+    if (bootstrap.length) {
+      state.questionnaires = bootstrap.map(normalizeQuestionnaire);
+      ensureActiveKey();
+      render();
+    }
+    fetchData({ silent: bootstrap.length > 0 });
   }
 
   function rememberActiveKey(key) {
@@ -709,6 +721,38 @@ const Builder = (() => {
     setMessage(STRINGS.evenSuccess, 'success');
   }
 
+  function weightLikertQuestions(qIndex) {
+    const questionnaire = state.questionnaires[qIndex];
+    if (!questionnaire) return;
+    const likertItems = collectQuestionnaireItems(questionnaire)
+      .map((entry) => entry.item)
+      .filter((item) => item && item.is_active !== false && String(item.type || '').toLowerCase() === 'likert');
+    if (!likertItems.length) {
+      setMessage('Add Likert questions to auto-weight.', 'info');
+      refreshScoringSummary(qIndex);
+      return;
+    }
+    const evenWeights = evenLikertWeights(likertItems, 100);
+    let changed = false;
+    likertItems.forEach((item) => {
+      const key = weightKeyForItem(item);
+      if (!key || typeof evenWeights[key] === 'undefined') return;
+      const next = Math.round(evenWeights[key]);
+      if ((Number(item.weight_percent) || 0) !== next) {
+        item.weight_percent = next;
+        changed = true;
+      }
+    });
+    if (!changed) {
+      setMessage('Likert weights already distributed.', 'info');
+      refreshScoringSummary(qIndex);
+      return;
+    }
+    markDirty();
+    render();
+    setMessage('Likert questions weighted evenly.', 'success');
+  }
+
   function clearQuestionnaireWeights(qIndex) {
     const questionnaire = state.questionnaires[qIndex];
     if (!questionnaire) return;
@@ -852,6 +896,8 @@ const Builder = (() => {
       normalizeQuestionnaireWeights(qIndex);
     } else if (action === 'even-weights') {
       evenQuestionnaireWeights(qIndex);
+    } else if (action === 'likert-weights') {
+      weightLikertQuestions(qIndex);
     } else if (action === 'clear-weights') {
       clearQuestionnaireWeights(qIndex);
     }
@@ -894,6 +940,16 @@ const Builder = (() => {
     const { value } = event.target;
     if (!value) return;
     setActiveKey(value);
+  }
+
+  function handleExportClick() {
+    const active = getActiveQuestionnaire();
+    if (!active || !active.id) {
+      setMessage('Select a saved questionnaire to export.', 'error');
+      return;
+    }
+    const url = withBase(`/admin/questionnaire_manage.php?action=export&id=${encodeURIComponent(active.id)}&csrf=${encodeURIComponent(state.csrfToken)}`);
+    window.open(url, '_blank', 'noopener');
   }
 
   function parseSectionIndex(value) {
@@ -1356,6 +1412,13 @@ const Builder = (() => {
     state.activeKey = keyFor(state.questionnaires[0]);
     state.pendingActiveKey = state.activeKey;
     rememberActiveKey(state.activeKey);
+  }
+
+  function getActiveQuestionnaire() {
+    if (!state.activeKey) {
+      return null;
+    }
+    return state.questionnaires.find((q) => keyFor(q) === state.activeKey) || null;
   }
 
   function setActiveKey(key) {
