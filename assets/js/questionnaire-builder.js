@@ -12,7 +12,6 @@ const Builder = (() => {
   const selectors = {
     addButton: '#qb-add-questionnaire',
     exportButton: '#qb-export-questionnaire',
-    openSelectedButton: '#qb-open-selected',
     saveButton: '#qb-save',
     publishButton: '#qb-publish',
     message: '#qb-message',
@@ -113,7 +112,6 @@ const Builder = (() => {
     const sectionNav = document.querySelector(selectors.sectionNav);
     const selector = document.querySelector(selectors.questionnaireSelect);
     const exportBtn = document.querySelector(selectors.exportButton);
-    const openBtn = document.querySelector(selectors.openSelectedButton);
 
     if (!addBtn || !saveBtn || !publishBtn) {
       return;
@@ -127,9 +125,6 @@ const Builder = (() => {
     publishBtn.addEventListener('click', () => saveStructure(true));
     if (exportBtn) {
       exportBtn.addEventListener('click', handleExportClick);
-    }
-    if (openBtn) {
-      openBtn.addEventListener('click', handleOpenSelectedClick);
     }
 
     const list = document.querySelector(selectors.list);
@@ -945,17 +940,6 @@ const Builder = (() => {
     const { value } = event.target;
     if (!value) return;
     setActiveKey(value);
-  }
-
-  function handleOpenSelectedClick(event) {
-    event.preventDefault();
-    const selector = document.querySelector(selectors.questionnaireSelect);
-    if (!selector || !selector.value) {
-      setMessage('Select a questionnaire to edit.', 'error');
-      if (selector) selector.focus();
-      return;
-    }
-    setActiveKey(selector.value);
   }
 
   function handleExportClick() {
