@@ -1215,16 +1215,50 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
   <?php if ($msg): ?>
     <div class="md-alert"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div>
   <?php endif; ?>
+  <div class="qb-start-grid">
+    <div class="md-card md-elev-2 qb-start-card">
+      <div class="qb-start-card-header">
+        <p class="md-overline"><?=t($t,'qb_start_create_label','Start new')?></p>
+        <h2 class="md-card-title"><?=t($t,'qb_start_create_title','Create a questionnaire')?></h2>
+        <p class="md-hint"><?=t($t,'qb_start_create_hint','Begin from scratch with a fresh questionnaire layout.')?></p>
+      </div>
+      <div class="qb-start-actions">
+        <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
+      </div>
+    </div>
+    <div class="md-card md-elev-2 qb-start-card">
+      <div class="qb-start-card-header">
+        <p class="md-overline"><?=t($t,'qb_start_edit_label','Edit')?></p>
+        <h2 class="md-card-title"><?=t($t,'qb_start_edit_title','Open an existing questionnaire')?></h2>
+        <p class="md-hint"><?=t($t,'qb_start_edit_hint','Choose a questionnaire to load it into the builder for updates.')?></p>
+      </div>
+      <label class="qb-select-label" for="qb-selector"><?=t($t,'choose_questionnaire','Questionnaire')?></label>
+      <div class="qb-select-wrap">
+        <select id="qb-selector" class="qb-select-input"></select>
+      </div>
+      <div class="qb-start-actions">
+        <button class="md-button md-elev-2" id="qb-open-selected"><?=t($t,'edit_selected','Edit selected')?></button>
+        <button class="md-button md-outline md-elev-1" id="qb-export-questionnaire"><?=t($t,'export_fhir','Export FHIR')?></button>
+      </div>
+    </div>
+    <div class="md-card md-elev-2 qb-start-card qb-import-start">
+      <div class="qb-start-card-header">
+        <p class="md-overline"><?=t($t,'qb_start_import_label','Import')?></p>
+        <h2 class="md-card-title"><?=t($t,'qb_start_import_title','Import or align a questionnaire')?></h2>
+        <p class="md-hint"><?=t($t,'qb_start_import_hint','Pull in a FHIR XML file or download our template to mirror other survey tools.')?></p>
+      </div>
+      <div class="qb-start-actions">
+        <a class="md-button md-elev-2" href="#qb-import-anchor"><?=t($t,'go_to_import','Go to import tools')?></a>
+        <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
+          <?=t($t,'download_import_guide','Download Import Guide')?>
+        </a>
+      </div>
+    </div>
+  </div>
   <div class="qb-manager-layout">
     <div class="qb-manager-main">
       <div class="md-card md-elev-2 qb-builder-card">
         <div class="qb-toolbar">
-          <div class="qb-toolbar-group">
-            <label class="qb-select-label" for="qb-selector"><?=t($t,'choose_questionnaire','Questionnaire')?></label>
-            <div class="qb-select-wrap">
-              <select id="qb-selector" class="qb-select-input"></select>
-            </div>
-          </div>
           <div class="qb-toolbar-actions">
             <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
             <button class="md-button md-outline md-elev-1" id="qb-export-questionnaire"><?=t($t,'export_fhir','Export FHIR')?></button>
@@ -1256,7 +1290,7 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
     </aside>
   </div>
 </section>
-<section class="qb-import-banner">
+<section class="qb-import-banner" id="qb-import-anchor">
   <div class="md-card md-elev-1 qb-import-card">
     <div class="qb-import-card-header">
       <h3 class="md-card-title"><?=t($t,'fhir_import','Questionnaire import')?></h3>
