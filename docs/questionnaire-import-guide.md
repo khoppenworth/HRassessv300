@@ -37,7 +37,7 @@ Each row represents a single questionnaire item. Duplicate the questionnaire and
 ## Import Steps
 
 1. Sign in as an administrator and navigate to **Manage Questionnaires** from the drawer.
-2. Scroll to the **FHIR Import** card.
+2. Scroll to the **Questionnaire Import** card.
 3. Click **Choose File** and select your prepared XML file.
 4. Press **Import** to upload the file. The system will parse sections, items, options, and work function assignments.
 5. After a successful import you will see a confirmation banner, and the imported questionnaire will open automatically in the builder tabs for review.
