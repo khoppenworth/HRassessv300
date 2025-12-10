@@ -531,14 +531,14 @@ const Builder = (() => {
     const entries = [
       {
         key: 'root',
-        label: active.title?.trim() || untitled,
-        helper: rootLabel,
+        label: truncateWithTooltip(active.title?.trim() || untitled),
+        helper: truncateWithTooltip(rootLabel),
         count: active.items.length,
       },
       ...active.sections.map((section, idx) => ({
         key: section.clientId,
-        label: section.title?.trim() || `${rootLabel} ${idx + 1}`,
-        helper: section.description?.trim() || 'Section',
+        label: truncateWithTooltip(section.title?.trim() || `${rootLabel} ${idx + 1}`),
+        helper: truncateWithTooltip(section.description?.trim() || 'Section'),
         count: section.items.length,
       })),
     ];
@@ -552,8 +552,8 @@ const Builder = (() => {
             (entry) => `
               <li class="qb-section-nav-item" data-nav="${entry.key}">
                 <button type="button" class="qb-section-nav-button" data-nav="${entry.key}">
-                  <span class="qb-section-nav-label">${escapeHtml(entry.label)}</span>
-                  <span class="qb-section-nav-sub">${escapeHtml(entry.helper)}</span>
+                  <span class="qb-section-nav-label" title="${escapeAttr(entry.label.title)}">${escapeHtml(entry.label.display)}</span>
+                  <span class="qb-section-nav-sub" title="${escapeAttr(entry.helper.title)}">${escapeHtml(entry.helper.display)}</span>
                 </button>
                 <span class="qb-section-nav-count">${entry.count || 0} ${entry.count === 1 ? 'item' : 'items'}</span>
               </li>`
@@ -968,16 +968,38 @@ const Builder = (() => {
     return escapeHtml(value).replace(/`/g, '&#96;');
   }
 
+  function truncateWithTooltip(value, limit = 50) {
+    const full = String(value || '').trim();
+    if (full.length <= limit) return { display: full, title: full };
+    return { display: `${full.slice(0, limit)}…`, title: full };
+  }
+
+  function slugify(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '')
+      || 'questionnaire-export';
+  }
+
   function labelForQuestionnaire(q) {
     const label = q.title?.trim() || 'Untitled Questionnaire';
     const suffix = q.status === 'published' ? ' (Published)' : q.status === 'inactive' ? ' (Inactive)' : '';
     return `${label}${suffix}`;
   }
 
-  function renderMessage(text) {
+  function renderMessage(text, tone = 'info') {
     const message = document.querySelector(selectors.message);
     if (!message) return;
     message.textContent = text || '';
+    if (tone === 'error') {
+      message.dataset.state = 'error';
+    } else if (tone === 'success') {
+      message.dataset.state = 'success';
+    } else {
+      message.dataset.state = '';
+    }
   }
 
   function bindSortables() {
@@ -1054,10 +1076,10 @@ const Builder = (() => {
         if (data?.status !== 'ok') throw new Error(data?.message || 'Failed to save');
         state.csrf = data.csrf || state.csrf;
         state.dirty = false;
-        renderMessage(data.message || 'Changes saved');
+        renderMessage(data.message || 'Changes saved', 'success');
         fetchData({ silent: true });
       })
-      .catch((err) => renderMessage(err.message || 'Save failed'))
+      .catch((err) => renderMessage(err.message || 'Save failed', 'error'))
       .finally(() => {
         state.saving = false;
         toggleSaveButtons();
@@ -1113,11 +1135,35 @@ const Builder = (() => {
   function handleExport() {
     const active = state.questionnaires.find((q) => q.clientId === state.activeKey);
     if (!active?.id) {
-      renderMessage('Save questionnaire before exporting.');
+      renderMessage('Save questionnaire before exporting.', 'error');
       return;
     }
+    renderMessage('Preparing export…');
     const params = new URLSearchParams({ action: 'export', id: active.id, csrf: state.csrf });
-    window.location.href = withBase(`/admin/questionnaire_manage.php?${params.toString()}`);
+    const url = withBase(`/admin/questionnaire_manage.php?${params.toString()}`);
+
+    fetch(url, { credentials: 'same-origin' })
+      .then((resp) => {
+        if (!resp.ok) throw new Error('Export failed');
+        const disposition = resp.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        const filename = match?.[1] || `${slugify(labelForQuestionnaire(active))}.xml`;
+        return resp.blob().then((blob) => ({ blob, filename }));
+      })
+      .then(({ blob, filename }) => {
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(blobUrl);
+        renderMessage('Questionnaire exported successfully.', 'success');
+      })
+      .catch((err) => {
+        renderMessage(err.message || 'Export failed', 'error');
+      });
   }
 
   return { init };

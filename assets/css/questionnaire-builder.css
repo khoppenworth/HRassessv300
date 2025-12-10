@@ -76,7 +76,7 @@
 }
 
 .qb-import-start {
-  background: var(--app-primary-soft);
+  background: var(--md-surface, var(--app-surface, #fff));
 }
 
 .qb-manager-layout {
