@@ -2,7 +2,7 @@
 
 Performance assessment portal built with PHP and MySQL.
 
-## Quick start
+## Quick start ONLY for localhost testing
 
 1. Verify PHP extension requirements via Composer:
    ```sh
