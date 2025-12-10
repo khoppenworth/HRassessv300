@@ -2,67 +2,6 @@
 
 Performance assessment portal built with PHP and MySQL.
 
-## Quick start ONLY for localhost testing
-
-1. Verify PHP extension requirements via Composer:
-   ```sh
-   composer check-platform-reqs
-   ```
-   The application requires PHP 8.1+ with the `curl`, `gd`, `json`, `mbstring`, `pdo_mysql`, `simplexml`, and `zip` extensions enabled.
-2. Copy `.env.example` to `.env` and adjust values as needed.
-3. Create the database schema:
-   ```sh
-   mysql -u root -p < init.sql
-   ```
-   The placeholder admin, supervisor, and staff accounts created by the script remain disabled until you assign new passwords.
-4. (Optional) Load demo content:
-   ```sh
-   mysql -u root -p < dummy_data.sql
-   ```
-   Demo users share the temporary password `DemoUserPass123!` and must choose a new one on their first login.
-5. Seed a default administrator account:
-   ```sh
-   make seed-admin
-   ```
-   The command prints the generated password to the console.
-   All seeded accounts are flagged to require a password change at first sign-in.
-6. (Optional) Rebuild the database from scratch, loading migrations, demo data, and an admin user:
-   ```sh
-   make rebuild
-   ```
-   Pass `ARGS="--no-dummy"` or `ARGS="--no-admin"` to the make target (or run `php scripts/rebuild_app.php` directly) if you want to exclude demo rows or the admin seeding step.
-7. Launch the development web server:
-   ```sh
-   make run
-   ```
-8. Visit [http://localhost:8080](http://localhost:8080) and sign in with the seeded administrator credentials.
-
-## Testing
-
-The repository includes lightweight smoke tests that exercise the questionnaire
-weighting helpers, work-function defaults, and analytics snapshot builder. Run
-them individually from the project root:
-
-```sh
-php tests/work_function_assignments_test.php
-php tests/questionnaire_scoring_test.php
-php tests/analytics_report_snapshot_test.php
-```
-
-These scripts create in-memory SQLite schemas so they do not require the MySQL
-server. Extend them or convert to PHPUnit tests as you grow coverage around the
-questionnaire lifecycle and analytics endpoints.
-
-## Scheduled analytics reports
-
-Administrators can configure recurring analytics emails from the **Analytics → Scheduled analytics reports** card. Once a schedule is active, add the CLI helper to cron so PDFs are generated and emailed on time:
-
-```sh
-php scripts/send_scheduled_reports.php
-```
-
-The command checks for all due schedules, renders the latest analytics snapshot, and emails recipients using the SMTP configuration stored in **Settings → Notifications**. Review the script output (or cron logs) periodically to confirm reports are delivered successfully.
-
 ## LAMP deployment guide
 
 The application runs on a traditional Linux + Apache + MySQL/MariaDB + PHP stack. The steps below assume Ubuntu 22.04 with
@@ -339,3 +278,64 @@ delivery workflow with ISO/IEC 12207 (software life cycle), ISO/IEC 25010
 
 `manifest.php` and `service-worker.js` are referenced with the configured base URL to ensure they resolve when deployed
 in a subdirectory.
+
+## Quick start ONLY for localhost testing
+
+1. Verify PHP extension requirements via Composer:
+   ```sh
+   composer check-platform-reqs
+   ```
+   The application requires PHP 8.1+ with the `curl`, `gd`, `json`, `mbstring`, `pdo_mysql`, `simplexml`, and `zip` extensions enabled.
+2. Copy `.env.example` to `.env` and adjust values as needed.
+3. Create the database schema:
+   ```sh
+   mysql -u root -p < init.sql
+   ```
+   The placeholder admin, supervisor, and staff accounts created by the script remain disabled until you assign new passwords.
+4. (Optional) Load demo content:
+   ```sh
+   mysql -u root -p < dummy_data.sql
+   ```
+   Demo users share the temporary password `DemoUserPass123!` and must choose a new one on their first login.
+5. Seed a default administrator account:
+   ```sh
+   make seed-admin
+   ```
+   The command prints the generated password to the console.
+   All seeded accounts are flagged to require a password change at first sign-in.
+6. (Optional) Rebuild the database from scratch, loading migrations, demo data, and an admin user:
+   ```sh
+   make rebuild
+   ```
+   Pass `ARGS="--no-dummy"` or `ARGS="--no-admin"` to the make target (or run `php scripts/rebuild_app.php` directly) if you want to exclude demo rows or the admin seeding step.
+7. Launch the development web server:
+   ```sh
+   make run
+   ```
+8. Visit [http://localhost:8080](http://localhost:8080) and sign in with the seeded administrator credentials.
+
+## Testing
+
+The repository includes lightweight smoke tests that exercise the questionnaire
+weighting helpers, work-function defaults, and analytics snapshot builder. Run
+them individually from the project root:
+
+```sh
+php tests/work_function_assignments_test.php
+php tests/questionnaire_scoring_test.php
+php tests/analytics_report_snapshot_test.php
+```
+
+These scripts create in-memory SQLite schemas so they do not require the MySQL
+server. Extend them or convert to PHPUnit tests as you grow coverage around the
+questionnaire lifecycle and analytics endpoints.
+
+## Scheduled analytics reports
+
+Administrators can configure recurring analytics emails from the **Analytics → Scheduled analytics reports** card. Once a schedule is active, add the CLI helper to cron so PDFs are generated and emailed on time:
+
+```sh
+php scripts/send_scheduled_reports.php
+```
+
+The command checks for all due schedules, renders the latest analytics snapshot, and emails recipients using the SMTP configuration stored in **Settings → Notifications**. Review the script output (or cron logs) periodically to confirm reports are delivered successfully.
