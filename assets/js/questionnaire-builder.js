@@ -75,6 +75,7 @@ const Builder = (() => {
   const state = {
     questionnaires: [],
     activeKey: null,
+    navActiveKey: 'root',
     dirty: false,
     loading: false,
     saving: false,
@@ -254,10 +255,12 @@ const Builder = (() => {
       const match = state.questionnaires.find((q) => q.clientId === remembered || `${q.id}` === `${remembered}`);
       if (match) {
         state.activeKey = match.clientId;
+        state.navActiveKey = 'root';
         return;
       }
     }
     state.activeKey = state.questionnaires[0].clientId;
+    state.navActiveKey = 'root';
   }
 
   function rememberSet(key, value) {
@@ -279,6 +282,7 @@ const Builder = (() => {
   function setActive(key) {
     if (!key) return;
     state.activeKey = key;
+    state.navActiveKey = 'root';
     rememberSet(STORAGE_KEYS.active, key);
     render();
   }
@@ -292,6 +296,7 @@ const Builder = (() => {
     });
     state.questionnaires.unshift(next);
     state.activeKey = next.clientId;
+    state.navActiveKey = 'root';
     rememberSet(STORAGE_KEYS.active, next.clientId);
     markDirty();
     render();
@@ -518,19 +523,63 @@ const Builder = (() => {
     const active = state.questionnaires.find((q) => q.clientId === state.activeKey);
     if (!active) {
       nav.innerHTML = `<p class="qb-section-nav-empty">${nav.dataset.emptyLabel || 'Select a questionnaire to view its sections'}</p>`;
+      state.navActiveKey = 'root';
       return;
     }
     const rootLabel = nav.dataset.rootLabel || 'Items without a section';
     const untitled = nav.dataset.untitledLabel || 'Untitled questionnaire';
-    const items = [
-      `<li><button type="button" data-nav="root">${escapeHtml(active.title || untitled)}</button></li>`,
-      ...active.sections.map(
-        (section) => `<li><button type="button" data-nav="${section.clientId}">${escapeHtml(section.title || rootLabel)}</button></li>`
-      ),
+    const entries = [
+      {
+        key: 'root',
+        label: active.title?.trim() || untitled,
+        helper: rootLabel,
+        count: active.items.length,
+      },
+      ...active.sections.map((section, idx) => ({
+        key: section.clientId,
+        label: section.title?.trim() || `${rootLabel} ${idx + 1}`,
+        helper: section.description?.trim() || 'Section',
+        count: section.items.length,
+      })),
     ];
-    nav.innerHTML = `<ul>${items.join('')}</ul>`;
-    nav.querySelectorAll('button').forEach((btn) => {
-      btn.addEventListener('click', () => scrollToSection(btn.getAttribute('data-nav')));
+    if (!entries.some((entry) => entry.key === state.navActiveKey)) {
+      state.navActiveKey = 'root';
+    }
+    nav.innerHTML = `
+      <ul class="qb-section-nav-list">
+        ${entries
+          .map(
+            (entry) => `
+              <li class="qb-section-nav-item" data-nav="${entry.key}">
+                <button type="button" class="qb-section-nav-button" data-nav="${entry.key}">
+                  <span class="qb-section-nav-label">${escapeHtml(entry.label)}</span>
+                  <span class="qb-section-nav-sub">${escapeHtml(entry.helper)}</span>
+                </button>
+                <span class="qb-section-nav-count">${entry.count || 0} ${entry.count === 1 ? 'item' : 'items'}</span>
+              </li>`
+          )
+          .join('')}
+      </ul>
+    `;
+    nav.querySelectorAll('button[data-nav]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetKey = btn.getAttribute('data-nav');
+        state.navActiveKey = targetKey;
+        setSectionNavActive(nav, targetKey);
+        scrollToSection(targetKey);
+      });
+    });
+    setSectionNavActive(nav, state.navActiveKey || 'root');
+  }
+
+  function setSectionNavActive(nav, key) {
+    nav.querySelectorAll('.qb-section-nav-item').forEach((item) => {
+      const isActive = item.getAttribute('data-nav') === key;
+      item.classList.toggle('is-active', isActive);
+      const btn = item.querySelector('button');
+      if (btn) {
+        btn.setAttribute('aria-current', isActive ? 'true' : 'false');
+      }
     });
   }
 

@@ -1238,14 +1238,14 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
       </div>
       <div class="qb-start-actions">
         <button class="md-button md-elev-2" id="qb-open-selected"><?=t($t,'edit_selected','Edit selected')?></button>
-        <button class="md-button md-outline md-elev-1" id="qb-export-questionnaire"><?=t($t,'export_fhir','Export FHIR')?></button>
+        <button class="md-button md-outline md-elev-1" id="qb-export-questionnaire"><?=t($t,'export_fhir','Export questionnaire')?></button>
       </div>
     </div>
     <div class="md-card md-elev-2 qb-start-card qb-import-start">
       <div class="qb-start-card-header">
         <p class="md-overline"><?=t($t,'qb_start_import_label','Import')?></p>
         <h2 class="md-card-title"><?=t($t,'qb_start_import_title','Import or align a questionnaire')?></h2>
-        <p class="md-hint"><?=t($t,'qb_start_import_hint','Pull in a FHIR XML file or download our template to mirror other survey tools.')?></p>
+        <p class="md-hint"><?=t($t,'qb_start_import_hint','Upload a questionnaire XML file or download our template to mirror other survey tools.')?></p>
       </div>
       <div class="qb-start-actions">
         <a class="md-button md-elev-2" href="#qb-import-anchor"><?=t($t,'go_to_import','Go to import tools')?></a>
@@ -1256,23 +1256,10 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
     </div>
   </div>
   <div class="qb-manager-layout">
-    <div class="qb-manager-main">
-      <div class="md-card md-elev-2 qb-builder-card">
-        <div class="qb-toolbar">
-          <div class="qb-toolbar-actions">
-            <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
-            <button class="md-button md-outline md-elev-1" id="qb-export-questionnaire"><?=t($t,'export_fhir','Export FHIR')?></button>
-            <button class="md-button md-elev-2" id="qb-save" disabled><?=t($t,'save','Save Changes')?></button>
-            <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
-          </div>
-        </div>
-        <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
-        <div id="qb-list" class="qb-list" aria-live="polite"></div>
-      </div>
-    </div>
     <aside class="qb-manager-sidebar" aria-label="<?=htmlspecialchars(t($t,'questionnaire_side_menu','Questionnaire side menu'), ENT_QUOTES, 'UTF-8')?>">
       <div class="md-card md-elev-2 qb-sidebar-card">
         <h3 class="md-card-title"><?=t($t,'questionnaire_navigation','Questionnaire Navigation')?></h3>
+        <p class="qb-section-nav-help"><?=t($t,'qb_navigation_hint','Use the section list to jump around large questionnaires without losing your place.')?></p>
         <nav id="qb-section-nav" class="qb-section-nav" aria-label="<?=htmlspecialchars(t($t,'section_navigation','Section navigation'), ENT_QUOTES, 'UTF-8')?>" data-empty-label="<?=htmlspecialchars(t($t,'select_questionnaire_to_view_sections','Select a questionnaire to view its sections'), ENT_QUOTES, 'UTF-8')?>" data-root-label="<?=htmlspecialchars(t($t,'items_without_section','Items without a section'), ENT_QUOTES, 'UTF-8')?>" data-untitled-label="<?=htmlspecialchars(t($t,'untitled_questionnaire','Untitled questionnaire'), ENT_QUOTES, 'UTF-8')?>">
           <p class="qb-section-nav-empty"><?=t($t,'select_questionnaire_to_view_sections','Select a questionnaire to view its sections')?></p>
         </nav>
@@ -1288,13 +1275,27 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
         </div>
       </div>
     </aside>
+    <div class="qb-manager-main">
+      <div class="md-card md-elev-2 qb-builder-card">
+        <div class="qb-toolbar">
+          <div class="qb-toolbar-actions">
+            <button class="md-button md-primary md-elev-2" id="qb-add-questionnaire"><?=t($t,'add_questionnaire','Add Questionnaire')?></button>
+            <button class="md-button md-outline md-elev-1" id="qb-export-questionnaire"><?=t($t,'export_fhir','Export questionnaire')?></button>
+            <button class="md-button md-elev-2" id="qb-save" disabled><?=t($t,'save','Save Changes')?></button>
+            <button class="md-button md-secondary md-elev-2" id="qb-publish" disabled><?=t($t,'publish','Publish')?></button>
+          </div>
+        </div>
+        <div id="qb-message" class="qb-message" role="status" aria-live="polite"></div>
+        <div id="qb-list" class="qb-list" aria-live="polite"></div>
+      </div>
+    </div>
   </div>
 </section>
 <section class="qb-import-banner" id="qb-import-anchor">
   <div class="md-card md-elev-1 qb-import-card">
     <div class="qb-import-card-header">
       <h3 class="md-card-title"><?=t($t,'fhir_import','Questionnaire import')?></h3>
-      <p class="md-hint"><?=t($t,'qb_import_hint','Update or add questionnaires from a FHIR XML file.')?></p>
+      <p class="md-hint"><?=t($t,'qb_import_hint','Update or add questionnaires from an XML file.')?></p>
     </div>
     <form method="post" enctype="multipart/form-data" class="qb-import-form qb-import-inline" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
       <input type="hidden" name="csrf" value="<?=csrf_token()?>">
