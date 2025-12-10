@@ -91,23 +91,23 @@ $featureItems = [
   <?php endif; ?>
   <style>
     .landing-hero__content {
-      max-width: 780px;
+      max-width: 720px;
     }
 
     .landing-hero__actions {
-      gap: 0.85rem;
+      gap: 0.75rem;
       flex-wrap: wrap;
       align-items: center;
     }
 
     .landing-hero__cta-note {
       margin: 0;
-      color: #4f5b66;
-      font-size: 0.95rem;
+      color: #2b3c55;
+      font-size: 0.98rem;
     }
 
     .landing-summary__stats {
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     }
   </style>
 </head>
@@ -134,6 +134,26 @@ $featureItems = [
           <?php endforeach; ?>
         </ul>
       </div>
+      <aside class="landing-hero__summary" aria-label="<?= htmlspecialchars(t($t, 'landing_summary_title', 'Built for confident, modern HR teams'), ENT_QUOTES, 'UTF-8') ?>">
+        <div class="landing-summary__card">
+          <h2><?= htmlspecialchars(t($t, 'landing_summary_title', 'Built for confident, modern HR teams'), ENT_QUOTES, 'UTF-8') ?></h2>
+          <p><?= htmlspecialchars(t($t, 'landing_summary_body', 'Use a single hub to align feedback, track completion, and surface development wins.'), ENT_QUOTES, 'UTF-8') ?></p>
+          <dl class="landing-summary__stats">
+            <div>
+              <dt><?= htmlspecialchars(t($t, 'landing_summary_metric_one', 'Assessments submitted'), ENT_QUOTES, 'UTF-8') ?></dt>
+              <dd><?= $metricSubmissions ?></dd>
+            </div>
+            <div>
+              <dt><?= htmlspecialchars(t($t, 'landing_summary_metric_two', 'Average completion time'), ENT_QUOTES, 'UTF-8') ?></dt>
+              <dd><?= $metricCompletion ?></dd>
+            </div>
+            <div>
+              <dt><?= htmlspecialchars(t($t, 'landing_summary_metric_three', 'Leadership adoption'), ENT_QUOTES, 'UTF-8') ?></dt>
+              <dd><?= $metricAdoption ?></dd>
+            </div>
+          </dl>
+        </div>
+      </aside>
     </header>
 
     <main class="landing-main" aria-labelledby="features-heading">
