@@ -1212,6 +1212,12 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
 <body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>" style="<?=htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
+  <header class="md-page-header qb-page-header">
+    <div class="md-page-header__content">
+      <h1 class="md-page-title" id="qb-page-title" tabindex="-1"><?=t($t,'manage_questionnaires','Manage Questionnaires')?></h1>
+      <p class="md-page-subtitle"><?=t($t,'qb_builder_intro','Build and organize questionnaires for upcoming assessments.')?></p>
+    </div>
+  </header>
   <?php if ($msg): ?>
     <div class="md-alert"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div>
   <?php endif; ?>
@@ -1234,7 +1240,7 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
       </div>
       <label class="qb-select-label" for="qb-selector"><?=t($t,'choose_questionnaire','Questionnaire')?></label>
       <div class="qb-select-wrap">
-        <select id="qb-selector" class="qb-select-input"></select>
+        <select id="qb-selector" class="qb-select qb-select-input"></select>
       </div>
       <div class="qb-start-actions">
         <button class="md-button md-elev-2" id="qb-open-selected"><?=t($t,'edit_selected','Edit selected')?></button>
@@ -1247,12 +1253,21 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
         <h2 class="md-card-title"><?=t($t,'qb_start_import_title','Import or align a questionnaire')?></h2>
         <p class="md-hint"><?=t($t,'qb_start_import_hint','Upload a questionnaire XML file or download our template to mirror other survey tools.')?></p>
       </div>
-      <div class="qb-start-actions">
-        <a class="md-button md-elev-2" href="#qb-import-anchor"><?=t($t,'go_to_import','Go to import tools')?></a>
-        <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
-          <?=t($t,'download_import_guide','Download Import Guide')?>
-        </a>
-      </div>
+      <form method="post" enctype="multipart/form-data" class="qb-import-form" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
+        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+        <div class="qb-import-inline">
+          <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
+          <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
+        </div>
+        <div class="qb-start-actions">
+          <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(url_for('scripts/download_questionnaire_template.php'), ENT_QUOTES, 'UTF-8')?>" download>
+            <?=t($t,'download_xml_template','Download XML template')?>
+          </a>
+          <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
+            <?=t($t,'download_import_guide','Download Import Guide')?>
+          </a>
+        </div>
+      </form>
     </div>
   </div>
   <div class="qb-manager-layout">
@@ -1276,6 +1291,10 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
       </div>
     </aside>
     <div class="qb-manager-main">
+      <button type="button" class="md-button md-secondary md-elev-2 qb-scroll-top" id="qb-scroll-top" aria-label="<?=t($t,'qb_scroll_to_top','Back to top')?>" aria-hidden="true" tabindex="-1">
+        <span class="qb-scroll-top-icon" aria-hidden="true">⇧</span>
+        <span class="qb-scroll-top-label"><?=t($t,'qb_scroll_to_top','Back to top')?></span>
+      </button>
       <div class="md-card md-elev-2 qb-builder-card">
         <div class="qb-toolbar">
           <div class="qb-toolbar-actions">
@@ -1288,27 +1307,6 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
         <div id="qb-list" class="qb-list" aria-live="polite"></div>
       </div>
     </div>
-  </div>
-</section>
-<section class="qb-import-banner" id="qb-import-anchor">
-  <div class="md-card md-elev-1 qb-import-card">
-    <div class="qb-import-card-header">
-      <h3 class="md-card-title"><?=t($t,'fhir_import','Questionnaire import')?></h3>
-      <p class="md-hint"><?=t($t,'qb_import_hint','Update or add questionnaires from an XML file.')?></p>
-    </div>
-    <form method="post" enctype="multipart/form-data" class="qb-import-form qb-import-inline" action="<?=htmlspecialchars(url_for('admin/questionnaire_manage.php'), ENT_QUOTES, 'UTF-8')?>">
-      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-      <label class="md-field"><span><?=t($t,'file','File')?></span><input type="file" name="file" required></label>
-      <div class="qb-import-actions">
-        <button class="md-button md-elev-2" name="import"><?=t($t,'import','Import')?></button>
-        <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(url_for('scripts/download_questionnaire_template.php'), ENT_QUOTES, 'UTF-8')?>" download>
-          <?=t($t,'download_xml_template','Download XML template')?>
-        </a>
-        <a class="md-button md-outline md-elev-1" href="<?=htmlspecialchars(asset_url('docs/questionnaire-import-guide.md'), ENT_QUOTES, 'UTF-8')?>" download>
-          <?=t($t,'download_import_guide','Download Import Guide')?>
-        </a>
-      </div>
-    </form>
   </div>
 </section>
 <?php if ($recentImportId): ?>

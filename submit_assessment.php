@@ -264,12 +264,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $questionnaireDetails = null;
 $sections = [];
 $items = [];
+$sectionAnchors = [];
+$additionalAnchor = null;
 $availablePeriods = $periods;
 $taken = [];
 $finalizedPeriods = [];
 $draftMap = [];
 $currentAnswers = [];
 $currentResponse = null;
+$buildAnchorId = static function (string $prefix, string $value): string {
+    $normalized = preg_replace('/[^a-zA-Z0-9_-]+/', '-', strtolower($value));
+    $normalized = trim((string)$normalized, '-');
+    if ($normalized === '') {
+        $normalized = 'item';
+    }
+    return $prefix . '-' . $normalized;
+};
 if ($qid) {
     $detailStmt = $pdo->prepare('SELECT id, title, description FROM questionnaire WHERE id=?');
     $detailStmt->execute([$qid]);
@@ -294,6 +304,25 @@ if ($qid) {
             $itemRow['allow_multiple'] = (bool)$itemRow['allow_multiple'];
         }
         unset($itemRow);
+    }
+    foreach ($sections as &$sectionRow) {
+        $sectionIdSource = (string)($sectionRow['id'] ?? ($sectionRow['title'] ?? uniqid('section')));
+        $sectionRow['anchor'] = $buildAnchorId('section', $sectionIdSource);
+        $sectionAnchors[(int)($sectionRow['id'] ?? count($sectionAnchors))] = $sectionRow['anchor'];
+    }
+    unset($sectionRow);
+    $hasRootItems = false;
+    foreach ($items as &$itemRow) {
+        if ($itemRow['section_id'] === null) {
+            $hasRootItems = true;
+        }
+        $linkId = (string)($itemRow['linkId'] ?? '');
+        $anchorSource = $linkId !== '' ? $linkId : (string)($itemRow['id'] ?? uniqid('item'));
+        $itemRow['question_anchor'] = $buildAnchorId('question', $anchorSource);
+    }
+    unset($itemRow);
+    if ($hasRootItems) {
+        $additionalAnchor = $buildAnchorId('section', 'additional');
     }
     $takenStmt = $pdo->prepare('SELECT performance_period_id, status, created_at, id FROM questionnaire_response WHERE user_id=? AND questionnaire_id=? ORDER BY created_at DESC');
     $takenStmt->execute([$user['id'], $qid]);
@@ -335,10 +364,11 @@ if ($qid) {
     }
 }
 
-$renderQuestionField = static function (array $it, array $t, array $answers): string {
+$renderQuestionField = static function (array $it, array $t, array $answers) use ($buildAnchorId): string {
     $options = $it['options'] ?? [];
     $allowMultiple = !empty($it['allow_multiple']);
     $linkId = (string)($it['linkId'] ?? '');
+    $anchorId = $it['question_anchor'] ?? $buildAnchorId('question', $linkId !== '' ? $linkId : (string)($it['id'] ?? uniqid('item')));
     $answerEntries = $answers[$linkId] ?? [];
     $checkedValues = [];
     if (is_array($answerEntries)) {
@@ -359,7 +389,12 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
     $ariaRequired = $required ? ' aria-required="true"' : '';
     ob_start();
     ?>
-    <label class="<?=htmlspecialchars($fieldClass, ENT_QUOTES, 'UTF-8')?>">
+    <label
+      class="<?=htmlspecialchars($fieldClass, ENT_QUOTES, 'UTF-8')?>"
+      id="<?=htmlspecialchars($anchorId, ENT_QUOTES, 'UTF-8')?>"
+      data-question-anchor
+      tabindex="-1"
+    >
       <span><?=htmlspecialchars($it['text'] ?? '', ENT_QUOTES, 'UTF-8')?></span>
       <?php if (($it['type'] ?? '') === 'boolean'): ?>
         <?php $isChecked = false;
@@ -502,52 +537,145 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
   <?php if ($qid && empty($availablePeriods)): ?>
     <p><?=t($t,'all_periods_used','You have already submitted for every period available for this questionnaire.')?></p>
   <?php elseif ($qid): ?>
-  <form
-    method="post"
-    action="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>"
-    id="assessment-form"
-    class="md-assessment-form"
-    data-offline-draft="true"
-    data-offline-saved-label="<?=htmlspecialchars(t($t, 'offline_draft_saved', 'Offline copy saved at %s.'), ENT_QUOTES, 'UTF-8')?>"
-    data-offline-restored-label="<?=htmlspecialchars(t($t, 'offline_draft_restored', 'Restored offline responses from %s.'), ENT_QUOTES, 'UTF-8')?>"
-    data-offline-queued-label="<?=htmlspecialchars(t($t, 'offline_draft_queued', 'You are offline. We saved your responses locally. Reconnect and submit to sync.'), ENT_QUOTES, 'UTF-8')?>"
-    data-offline-reminder-label="<?=htmlspecialchars(t($t, 'offline_draft_reminder', 'Back online. Submit to upload your saved responses.'), ENT_QUOTES, 'UTF-8')?>"
-    data-offline-error-label="<?=htmlspecialchars(t($t, 'offline_draft_error', 'We could not save an offline copy of your responses.'), ENT_QUOTES, 'UTF-8')?>"
-  >
-    <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-    <input type="hidden" name="qid" value="<?=$qid?>">
-    <input type="hidden" name="performance_period_id" value="<?=$periodId?>">
-    <?php if ($questionnaireDetails): ?>
-      <div class="md-questionnaire-header">
-        <h3 class="md-section-title"><?=htmlspecialchars($questionnaireDetails['title'])?></h3>
-        <?php if (!empty($questionnaireDetails['description'])): ?>
-          <p class="md-muted"><?=htmlspecialchars($questionnaireDetails['description'])?></p>
-        <?php endif; ?>
-        <div class="md-divider"></div>
+  <div class="md-questionnaire-layout" data-questionnaire-layout data-nav-open="false">
+    <button
+      type="button"
+      class="md-nav-trigger"
+      data-nav-toggle
+      aria-controls="questionnaire-nav"
+      aria-expanded="false"
+    >
+      <span class="md-nav-trigger__icon" aria-hidden="true">☰</span>
+      <span class="md-nav-trigger__label"><?=t($t, 'questionnaire_tabs', 'Questionnaire navigation')?></span>
+    </button>
+    <aside
+      id="questionnaire-nav"
+      class="md-questionnaire-nav"
+      data-questionnaire-nav
+      role="navigation"
+      aria-label="<?=htmlspecialchars(t($t, 'questionnaire_tabs', 'Questionnaire navigation'), ENT_QUOTES, 'UTF-8')?>"
+      aria-hidden="true"
+    >
+      <div class="md-questionnaire-nav__header">
+        <div class="md-questionnaire-nav__title">
+          <span class="md-questionnaire-nav__glyph" aria-hidden="true">🧭</span>
+          <span><?=t($t, 'questionnaire_tabs', 'Questionnaire navigation')?></span>
+        </div>
+        <button
+          type="button"
+          class="md-questionnaire-nav__close"
+          data-nav-close
+          aria-label="<?=htmlspecialchars(t($t, 'close_menu', 'Close menu'), ENT_QUOTES, 'UTF-8')?>"
+        >
+          &times;
+        </button>
       </div>
-    <?php endif; ?>
-    <?php foreach ($sections as $sec): ?>
-      <h3 class="md-section-title"><?=htmlspecialchars($sec['title'])?></h3>
-      <p class="md-muted"><?=htmlspecialchars($sec['description'])?></p>
-      <div class="md-divider"></div>
-      <?php foreach ($items as $it): if ((int)$it['section_id'] !== (int)$sec['id']) continue; ?>
-        <?=$renderQuestionField($it, $t, $currentAnswers ?? [])?>
-      <?php endforeach; ?>
-    <?php endforeach; ?>
-    <?php $renderedRoot = false; ?>
-    <?php foreach ($items as $it): if ($it['section_id'] !== null) continue; ?>
-      <?php if (!$renderedRoot): ?>
-        <h3 class="md-section-title"><?=htmlspecialchars(t($t,'additional_items','Additional questions'), ENT_QUOTES, 'UTF-8')?></h3>
-        <div class="md-divider"></div>
-        <?php $renderedRoot = true; ?>
-      <?php endif; ?>
-      <?=$renderQuestionField($it, $t, $currentAnswers ?? [])?>
-    <?php endforeach; ?>
-    <div class="md-form-actions md-form-actions--stack">
-      <button class="md-button md-outline md-floating-save-draft" name="action" value="save_draft" type="submit" formnovalidate><?=t($t,'save_draft','Save Draft')?></button>
-      <button class="md-button md-primary md-elev-2" name="action" value="submit_final" type="submit"><?=t($t,'submit','Submit')?></button>
+      <div class="md-questionnaire-nav__body" data-nav-body>
+        <?php foreach ($sections as $sec):
+          $sectionAnchor = $sec['anchor'] ?? $buildAnchorId('section', (string)($sec['id'] ?? $sec['title'] ?? uniqid('section')));
+          $sectionHasItems = false;
+        ?>
+          <div class="md-questionnaire-nav__group">
+            <a href="#<?=htmlspecialchars($sectionAnchor, ENT_QUOTES, 'UTF-8')?>" class="md-questionnaire-nav__section" data-nav-link>
+              <span class="md-questionnaire-nav__icon" aria-hidden="true">📂</span>
+              <span class="md-questionnaire-nav__label"><?=htmlspecialchars($sec['title'] ?? t($t, 'questionnaire', 'Questionnaire'), ENT_QUOTES, 'UTF-8')?></span>
+            </a>
+            <ul class="md-questionnaire-nav__list" role="list">
+              <?php foreach ($items as $it): if ((int)$it['section_id'] !== (int)$sec['id']) continue; $sectionHasItems = true; ?>
+                <?php $questionAnchor = $it['question_anchor'] ?? $buildAnchorId('question', (string)($it['linkId'] ?? $it['id'] ?? uniqid('item'))); ?>
+                <li>
+                  <a href="#<?=htmlspecialchars($questionAnchor, ENT_QUOTES, 'UTF-8')?>" class="md-questionnaire-nav__link" data-nav-link>
+                    <span class="md-questionnaire-nav__dot" aria-hidden="true">•</span>
+                    <span class="md-questionnaire-nav__label"><?=htmlspecialchars($it['text'] ?? t($t, 'questionnaire', 'Questionnaire'), ENT_QUOTES, 'UTF-8')?></span>
+                  </a>
+                </li>
+              <?php endforeach; ?>
+            </ul>
+            <?php if (!$sectionHasItems): ?>
+              <p class="md-questionnaire-nav__empty md-muted"><?=t($t, 'no_questionnaire', 'No questionnaire found.')?></p>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+        <?php if ($additionalAnchor): ?>
+          <div class="md-questionnaire-nav__group">
+            <a href="#<?=htmlspecialchars($additionalAnchor, ENT_QUOTES, 'UTF-8')?>" class="md-questionnaire-nav__section" data-nav-link>
+              <span class="md-questionnaire-nav__icon" aria-hidden="true">📝</span>
+              <span class="md-questionnaire-nav__label"><?=htmlspecialchars(t($t, 'additional_items', 'Additional questions'), ENT_QUOTES, 'UTF-8')?></span>
+            </a>
+            <ul class="md-questionnaire-nav__list" role="list">
+              <?php foreach ($items as $it): if ($it['section_id'] !== null) continue; ?>
+                <?php $questionAnchor = $it['question_anchor'] ?? $buildAnchorId('question', (string)($it['linkId'] ?? $it['id'] ?? uniqid('item'))); ?>
+                <li>
+                  <a href="#<?=htmlspecialchars($questionAnchor, ENT_QUOTES, 'UTF-8')?>" class="md-questionnaire-nav__link" data-nav-link>
+                    <span class="md-questionnaire-nav__dot" aria-hidden="true">•</span>
+                    <span class="md-questionnaire-nav__label"><?=htmlspecialchars($it['text'] ?? t($t, 'questionnaire', 'Questionnaire'), ENT_QUOTES, 'UTF-8')?></span>
+                  </a>
+                </li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+        <?php endif; ?>
+      </div>
+    </aside>
+    <div class="md-questionnaire-content">
+      <form
+        method="post"
+        action="<?=htmlspecialchars(url_for('submit_assessment.php'), ENT_QUOTES, 'UTF-8')?>"
+        id="assessment-form"
+        class="md-assessment-form"
+        data-offline-draft="true"
+        data-offline-saved-label="<?=htmlspecialchars(t($t, 'offline_draft_saved', 'Offline copy saved at %s.'), ENT_QUOTES, 'UTF-8')?>"
+        data-offline-restored-label="<?=htmlspecialchars(t($t, 'offline_draft_restored', 'Restored offline responses from %s.'), ENT_QUOTES, 'UTF-8')?>"
+        data-offline-queued-label="<?=htmlspecialchars(t($t, 'offline_draft_queued', 'You are offline. We saved your responses locally. Reconnect and submit to sync.'), ENT_QUOTES, 'UTF-8')?>"
+        data-offline-reminder-label="<?=htmlspecialchars(t($t, 'offline_draft_reminder', 'Back online. Submit to upload your saved responses.'), ENT_QUOTES, 'UTF-8')?>"
+        data-offline-error-label="<?=htmlspecialchars(t($t, 'offline_draft_error', 'We could not save an offline copy of your responses.'), ENT_QUOTES, 'UTF-8')?>"
+      >
+        <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+        <input type="hidden" name="qid" value="<?=$qid?>">
+        <input type="hidden" name="performance_period_id" value="<?=$periodId?>">
+        <?php if ($questionnaireDetails): ?>
+          <div class="md-questionnaire-header">
+            <h3
+              class="md-section-title"
+              id="<?=htmlspecialchars($questionnaireDetails['anchor'] ?? $buildAnchorId('section', (string)($questionnaireDetails['id'] ?? $questionnaireDetails['title'] ?? 'questionnaire')), ENT_QUOTES, 'UTF-8')?>"
+              data-section-anchor
+              tabindex="-1"
+            >
+              <?=htmlspecialchars($questionnaireDetails['title'])?>
+            </h3>
+            <?php if (!empty($questionnaireDetails['description'])): ?>
+              <p class="md-muted"><?=htmlspecialchars($questionnaireDetails['description'])?></p>
+            <?php endif; ?>
+            <div class="md-divider"></div>
+          </div>
+        <?php endif; ?>
+        <?php foreach ($sections as $sec):
+          $sectionAnchor = $sec['anchor'] ?? $buildAnchorId('section', (string)($sec['id'] ?? $sec['title'] ?? uniqid('section')));
+        ?>
+          <h3 class="md-section-title" id="<?=htmlspecialchars($sectionAnchor, ENT_QUOTES, 'UTF-8')?>" data-section-anchor tabindex="-1"><?=htmlspecialchars($sec['title'])?></h3>
+          <p class="md-muted"><?=htmlspecialchars($sec['description'])?></p>
+          <div class="md-divider"></div>
+          <?php foreach ($items as $it): if ((int)$it['section_id'] !== (int)$sec['id']) continue; ?>
+            <?=$renderQuestionField($it, $t, $currentAnswers ?? [])?>
+          <?php endforeach; ?>
+        <?php endforeach; ?>
+        <?php $renderedRoot = false; ?>
+        <?php foreach ($items as $it): if ($it['section_id'] !== null) continue; ?>
+          <?php if (!$renderedRoot): ?>
+            <h3 class="md-section-title" id="<?=htmlspecialchars($additionalAnchor, ENT_QUOTES, 'UTF-8')?>" data-section-anchor tabindex="-1"><?=htmlspecialchars(t($t,'additional_items','Additional questions'), ENT_QUOTES, 'UTF-8')?></h3>
+            <div class="md-divider"></div>
+            <?php $renderedRoot = true; ?>
+          <?php endif; ?>
+          <?=$renderQuestionField($it, $t, $currentAnswers ?? [])?>
+        <?php endforeach; ?>
+        <div class="md-form-actions md-form-actions--stack">
+          <button class="md-button md-outline md-floating-save-draft" name="action" value="save_draft" type="submit" formnovalidate><?=t($t,'save_draft','Save Draft')?></button>
+          <button class="md-button md-primary md-elev-2" name="action" value="submit_final" type="submit"><?=t($t,'submit','Submit')?></button>
+        </div>
+      </form>
     </div>
-  </form>
+    <div class="md-questionnaire-nav__backdrop" data-nav-backdrop hidden></div>
+  </div>
   <?php else: ?>
     <p><?=t($t,'no_questionnaire','No questionnaire found.')?></p>
   <?php endif; ?>
@@ -560,9 +688,96 @@ $renderQuestionField = static function (array $it, array $t, array $answers): st
     const questionnaireSelect = form.querySelector('[data-questionnaire-select]');
     const periodSelect = form.querySelector('[data-performance-period-select]');
     const assessmentForm = document.getElementById('assessment-form');
+    const layout = document.querySelector('[data-questionnaire-layout]');
+    const nav = document.querySelector('[data-questionnaire-nav]');
+    const navLinks = nav ? Array.from(nav.querySelectorAll('[data-nav-link]')) : [];
+    const navToggleButtons = Array.from(document.querySelectorAll('[data-nav-toggle]'));
+    const navCloseButtons = Array.from(document.querySelectorAll('[data-nav-close]'));
+    const navBackdrop = document.querySelector('[data-nav-backdrop]');
+    const desktopMedia = window.matchMedia('(min-width: 1025px)');
     const connectivity = (window.AppConnectivity && typeof window.AppConnectivity.subscribe === 'function')
       ? window.AppConnectivity
       : null;
+    const setNavOpen = (open) => {
+      if (!layout || !nav) {
+        return;
+      }
+      const next = open === true;
+      layout.dataset.navOpen = next ? 'true' : 'false';
+      nav.setAttribute('aria-hidden', next ? 'false' : 'true');
+      navToggleButtons.forEach((btn) => btn.setAttribute('aria-expanded', next ? 'true' : 'false'));
+      if (navBackdrop) {
+        navBackdrop.hidden = desktopMedia.matches ? true : !next;
+      }
+    };
+    const syncNavToViewport = () => {
+      if (!layout || !nav) {
+        return;
+      }
+      if (desktopMedia.matches) {
+        layout.dataset.navOpen = 'true';
+        nav.setAttribute('aria-hidden', 'false');
+        if (navBackdrop) {
+          navBackdrop.hidden = true;
+        }
+        navToggleButtons.forEach((btn) => btn.setAttribute('aria-expanded', 'true'));
+      } else {
+        setNavOpen(false);
+      }
+    };
+
+    desktopMedia.addEventListener('change', syncNavToViewport);
+    syncNavToViewport();
+
+    navToggleButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!layout) {
+          return;
+        }
+        const isOpen = layout.dataset.navOpen === 'true';
+        setNavOpen(!isOpen);
+      });
+    });
+
+    navCloseButtons.forEach((btn) => btn.addEventListener('click', () => setNavOpen(false)));
+
+    if (navBackdrop) {
+      navBackdrop.addEventListener('click', () => setNavOpen(false));
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !desktopMedia.matches) {
+        setNavOpen(false);
+      }
+    });
+
+    const scrollToAnchor = (selector) => {
+      if (!selector || typeof selector !== 'string' || selector.charAt(0) !== '#') {
+        return;
+      }
+      const target = document.querySelector(selector);
+      if (!target) {
+        return;
+      }
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (typeof target.focus === 'function') {
+        target.focus({ preventScroll: true });
+      }
+    };
+
+    navLinks.forEach((link) => {
+      link.addEventListener('click', (event) => {
+        const targetSelector = link.getAttribute('href') || link.getAttribute('data-target');
+        if (!targetSelector) {
+          return;
+        }
+        event.preventDefault();
+        scrollToAnchor(targetSelector);
+        if (!desktopMedia.matches) {
+          setNavOpen(false);
+        }
+      });
+    });
     const isAppOnline = () => {
       if (connectivity) {
         try {
