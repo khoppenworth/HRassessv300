@@ -29,6 +29,8 @@ const Builder = (() => {
     selector: '#qb-selector',
     sectionNav: '#qb-section-nav',
     metaCsrf: 'meta[name="csrf-token"]',
+    scrollTopButton: '#qb-scroll-top',
+    pageTitle: '#qb-page-title',
   };
 
   const QUESTION_TYPES = ['likert', 'choice', 'text', 'textarea', 'boolean'];
@@ -188,6 +190,7 @@ const Builder = (() => {
     const selector = document.querySelector(selectors.selector);
     const list = document.querySelector(selectors.list);
     const tabs = document.querySelector(selectors.tabs);
+    const scrollTopBtn = document.querySelector(selectors.scrollTopButton);
 
     addBtn?.addEventListener('click', () => {
       addQuestionnaire();
@@ -196,6 +199,7 @@ const Builder = (() => {
     saveBtn?.addEventListener('click', () => saveAll(false));
     publishBtn?.addEventListener('click', () => saveAll(true));
     exportBtn?.addEventListener('click', handleExport);
+    scrollTopBtn?.addEventListener('click', handleScrollToTop);
 
     selector?.addEventListener('change', (event) => {
       const key = event.target.value;
@@ -212,6 +216,11 @@ const Builder = (() => {
     list?.addEventListener('input', handleListInput);
     list?.addEventListener('change', handleListInput);
     list?.addEventListener('click', handleListClick);
+
+    if (scrollTopBtn) {
+      window.addEventListener('scroll', toggleScrollTopVisibility, { passive: true });
+      toggleScrollTopVisibility();
+    }
   }
 
   function fetchData({ silent = false } = {}) {
@@ -591,6 +600,42 @@ const Builder = (() => {
       target = document.querySelector(`.qb-section[data-section="${sectionKey}"]`);
     }
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function toggleScrollTopVisibility() {
+    const btn = document.querySelector(selectors.scrollTopButton);
+    if (!btn) return;
+    const shouldShow = window.scrollY > 280;
+    btn.classList.toggle('is-visible', shouldShow);
+    if (shouldShow) {
+      btn.removeAttribute('aria-hidden');
+      btn.removeAttribute('tabindex');
+    } else {
+      btn.setAttribute('aria-hidden', 'true');
+      btn.setAttribute('tabindex', '-1');
+    }
+  }
+
+  function handleScrollToTop(event) {
+    event?.preventDefault?.();
+    const focusTarget = document.querySelector(selectors.pageTitle);
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+
+    if (!focusTarget) return;
+    if (reduceMotion) {
+      focusTarget.focus({ preventScroll: true });
+      return;
+    }
+
+    const waitForTop = () => {
+      if (window.scrollY <= 2) {
+        focusTarget.focus({ preventScroll: true });
+      } else {
+        window.requestAnimationFrame(waitForTop);
+      }
+    };
+    window.requestAnimationFrame(waitForTop);
   }
 
   function toggleSaveButtons() {
