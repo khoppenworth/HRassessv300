@@ -1290,6 +1290,7 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
     </div>
   </div>
 </section>
+<div id="qb-scoring-dialog" aria-hidden="true"></div>
 <section class="qb-import-banner" id="qb-import-anchor">
   <div class="md-card md-elev-1 qb-import-card">
     <div class="qb-import-card-header">
