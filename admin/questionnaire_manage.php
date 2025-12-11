@@ -1240,7 +1240,7 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
       </div>
       <label class="qb-select-label" for="qb-selector"><?=t($t,'choose_questionnaire','Questionnaire')?></label>
       <div class="qb-select-wrap">
-        <select id="qb-selector" class="qb-select-input"></select>
+        <select id="qb-selector" class="qb-select qb-select-input"></select>
       </div>
       <div class="qb-start-actions">
         <button class="md-button md-elev-2" id="qb-open-selected"><?=t($t,'edit_selected','Edit selected')?></button>
