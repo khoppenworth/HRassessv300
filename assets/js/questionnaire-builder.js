@@ -458,7 +458,7 @@ const Builder = (() => {
       <div class="qb-item" data-item="${item.clientId}" data-section="${sectionClientId || ''}">
         <div class="qb-item-main">
           <div class="qb-field">
-            <label>Link ID</label>
+            <label>Question Code</label>
             <input type="text" data-role="item-link" value="${escapeAttr(item.linkId)}">
           </div>
           <div class="qb-field">
