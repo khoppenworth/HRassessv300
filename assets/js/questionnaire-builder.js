@@ -385,7 +385,7 @@ const Builder = (() => {
           </div>
           <div class="qb-field">
             <label>Status</label>
-            <select data-role="q-status">
+            <select class="qb-select" data-role="q-status">
               ${STATUS_OPTIONS
                 .map((status) => `<option value="${status}" ${status === questionnaire.status ? 'selected' : ''}>${formatStatusLabel(status)}</option>`)
                 .join('')}
@@ -467,7 +467,7 @@ const Builder = (() => {
           </div>
           <div class="qb-field">
             <label>Type</label>
-            <select data-role="item-type">
+            <select class="qb-select" data-role="item-type">
               ${QUESTION_TYPES
                 .map((type) => `<option value="${type}" ${type === item.type ? 'selected' : ''}>${type}</option>`)
                 .join('')}
