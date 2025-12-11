@@ -1,51 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Questionnaire xmlns="http://hl7.org/fhir">
-  <id value="sample-questionnaire"/>
-  <title value="Sample Performance Questionnaire"/>
+  <id value="performance-import-template"/>
+  <title value="Performance Review Questionnaire"/>
+  <description value="Starter template for importing a questionnaire into the EPSS HR Assessment builder."/>
   <status value="draft"/>
   <item>
     <linkId value="section-1"/>
-    <text value="General Performance"/>
+    <text value="Team Delivery"/>
+    <description value="Questions about how work is planned, executed, and shared with teammates."/>
     <type value="group"/>
     <item>
       <linkId value="q1"/>
       <text value="Completes assigned tasks on time."/>
-      <type value="choice"/>
-      <answerOption>
-        <valueString value="Strongly Disagree"/>
-      </answerOption>
-      <answerOption>
-        <valueString value="Disagree"/>
-      </answerOption>
-      <answerOption>
-        <valueString value="Neutral"/>
-      </answerOption>
-      <answerOption>
-        <valueString value="Agree"/>
-      </answerOption>
-      <answerOption>
-        <valueString value="Strongly Agree"/>
-      </answerOption>
+      <type value="likert"/>
+      <answerOption><valueString value="Strongly Disagree"/></answerOption>
+      <answerOption><valueString value="Disagree"/></answerOption>
+      <answerOption><valueString value="Neutral"/></answerOption>
+      <answerOption><valueString value="Agree"/></answerOption>
+      <answerOption><valueString value="Strongly Agree"/></answerOption>
     </item>
     <item>
       <linkId value="q2"/>
-      <text value="Communicates effectively with the team."/>
+      <text value="Which communication channels are used consistently?"/>
       <type value="choice"/>
-      <answerOption>
-        <valueString value="Strongly Disagree"/>
-      </answerOption>
-      <answerOption>
-        <valueString value="Disagree"/>
-      </answerOption>
-      <answerOption>
-        <valueString value="Neutral"/>
-      </answerOption>
-      <answerOption>
-        <valueString value="Agree"/>
-      </answerOption>
-      <answerOption>
-        <valueString value="Strongly Agree"/>
-      </answerOption>
+      <repeats value="true"/>
+      <answerOption><valueString value="Email"/></answerOption>
+      <answerOption><valueString value="Instant messaging"/></answerOption>
+      <answerOption><valueString value="Team meetings"/></answerOption>
+      <answerOption><valueString value="Project management tool"/></answerOption>
+    </item>
+    <item>
+      <linkId value="q3"/>
+      <text value="Provide an example of proactive collaboration this quarter."/>
+      <type value="textarea"/>
+    </item>
+  </item>
+  <item>
+    <linkId value="section-2"/>
+    <text value="Professional Development"/>
+    <description value="Goals, learning, and support needs."/>
+    <type value="group"/>
+    <item>
+      <linkId value="q4"/>
+      <text value="Has a documented development plan for the year."/>
+      <type value="boolean"/>
+      <required value="true"/>
+    </item>
+    <item>
+      <linkId value="q5"/>
+      <text value="Select the most valuable learning format this cycle."/>
+      <type value="choice"/>
+      <answerOption><valueString value="On-the-job shadowing"/></answerOption>
+      <answerOption><valueString value="Instructor-led training"/></answerOption>
+      <answerOption><valueString value="Self-paced online course"/></answerOption>
+      <answerOption><valueString value="Conference or community group"/></answerOption>
+    </item>
+    <item>
+      <linkId value="q6"/>
+      <text value="List the top skill focus areas for the next quarter."/>
+      <type value="text"/>
     </item>
   </item>
 </Questionnaire>

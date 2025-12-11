@@ -1,26 +1,26 @@
 # Questionnaire Import Guide
 
-This guide explains how administrators can import questionnaires using the EPSS HR Assessment builder.
+This guide explains how administrators can import questionnaires using the EPSS HR Assessment builder. The importer accepts FHIR Questionnaire resources in XML (recommended) or JSON.
 
 ## Prerequisites
 
 - Administrator access to the HR Assessment platform.
-- A questionnaire definition file in the supported XML format that follows the structure described below.
+- A questionnaire definition file that matches the structure in `docs/questionnaire-template.xml` (downloadable from the import card).
 - Optional: start from the Excel planning sheet (`scripts/download_questionnaire_template.php`) to capture sections, items, and work-function assignments before generating the XML payload.
-- Familiarity with the work functions (e.g., WIM, ICT, HRM) that determine questionnaire availability.
 
-## Preparing Your XML File
+## Preparing Your XML or JSON File
 
-1. Use the structure outlined in this guide (or generate XML from the Excel planning sheet) to ensure the required elements are present.
-2. Update the `<title>` and `<description>` elements to describe your questionnaire.
-3. Review the `<workFunction>` entries to confirm the target audiences. Include `wim` if the questionnaire should remain available to the Warehouse & Inventory Management (WIM) cadre by default.
-4. For each `<section>` element, supply a unique `order` and update the `title` and `description` values.
-5. Within each `<item>`:
-   - Set a unique `linkId` (used as a stable identifier).
-   - Choose a `type` of `likert`, `choice`, `text`, `textarea`, or `boolean`.
-   - Provide `text` for the question prompt.
-   - For `likert` or `choice` items, define `<option>` values in the desired order.
-6. Validate that the XML is well-formed before uploading.
+1. Use the template as a starting point and update the `<title>` and `<description>` values.
+2. Add section-level `<item>` blocks with `type="group"`; set `<text>` for the section title and `<description>` for optional helper text.
+3. Within each section, create question `<item>` entries with:
+   - A unique `<linkId>` for stable identification.
+   - `<text>` containing the question prompt.
+   - `<type>` set to `likert`, `choice`, `text`, `textarea`, or `boolean` (other FHIR types import as free-text).
+   - `<required value="true">` when a response is mandatory.
+   - `<repeats value="true">` to allow multiple selections for `choice` items.
+   - `<answerOption>` values for `likert` or `choice` items, using either `<valueString>` or `<valueCoding>` with `display` or `code`.
+4. Use `<type value="display">` for headings or instructional text you do not want stored; these entries are skipped during import.
+5. Validate that the XML or JSON is well-formed before uploading.
 
 ## Using the Excel Planning Template
 
@@ -32,20 +32,20 @@ The downloadable Excel workbook contains a single sheet with the following colum
 - **Options (semicolon separated)** — supply response options for `likert` or `choice` items.
 - **Work Functions (semicolon separated)** — list the cadres that should receive the questionnaire (e.g., `general_service;hrm`).
 
-Each row represents a single questionnaire item. Duplicate the questionnaire and section details across rows as needed. After the structure is reviewed, translate the entries into the XML format described below so the importer can create the questionnaire and its related sections automatically.
+Each row represents a single questionnaire item. Duplicate the questionnaire and section details across rows as needed. After the structure is reviewed, translate the entries into the XML format described above so the importer can create the questionnaire and its related sections automatically.
 
 ## Import Steps
 
 1. Sign in as an administrator and navigate to **Manage Questionnaires** from the drawer.
 2. Scroll to the **Questionnaire Import** card.
-3. Click **Choose File** and select your prepared XML file.
-4. Press **Import** to upload the file. The system will parse sections, items, options, and work function assignments.
+3. Click **Choose File** and select your prepared XML or JSON file.
+4. Press **Import** to upload the file. The system will parse sections, items, and options.
 5. After a successful import you will see a confirmation banner, and the imported questionnaire will open automatically in the builder tabs for review.
 
 ## Post-Import Checklist
 
-- Verify that the correct work functions (including `wim`) are assigned; adjust them in the builder if needed.
-- Review each section and question for accuracy.
+- Verify that the correct work functions are assigned; all available work functions are applied by default and can be refined in the builder.
+- Review each section and question for accuracy. Likert items without explicit options receive the default five-point scale.
 - Use the **Save Changes** button to persist edits or **Publish** to make the questionnaire available to end users.
 - Download the latest template or this guide at any time from the import card for future reference.
 
