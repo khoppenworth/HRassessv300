@@ -88,6 +88,47 @@
 
 .qb-manager-main {
   min-width: 0;
+  position: relative;
+}
+
+.qb-scroll-top {
+  position: fixed;
+  bottom: 1.25rem;
+  right: clamp(1rem, 2vw, 1.75rem);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  --md-button-padding-x: 0.9rem;
+  --md-button-padding-y: 0.55rem;
+  z-index: 10;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+}
+
+.qb-scroll-top.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.qb-scroll-top-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary) 85%, transparent);
+  color: var(--md-on-primary, #fff);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.qb-scroll-top-label {
+  white-space: nowrap;
 }
 
 .qb-manager-sidebar {

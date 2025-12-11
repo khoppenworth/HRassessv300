@@ -1212,6 +1212,12 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
 <body class="<?=htmlspecialchars(site_body_classes($cfg), ENT_QUOTES, 'UTF-8')?>" style="<?=htmlspecialchars(site_body_style($cfg), ENT_QUOTES, 'UTF-8')?>">
 <?php include __DIR__.'/../templates/header.php'; ?>
 <section class="md-section">
+  <header class="md-page-header qb-page-header">
+    <div class="md-page-header__content">
+      <h1 class="md-page-title" id="qb-page-title" tabindex="-1"><?=t($t,'manage_questionnaires','Manage Questionnaires')?></h1>
+      <p class="md-page-subtitle"><?=t($t,'qb_builder_intro','Build and organize questionnaires for upcoming assessments.')?></p>
+    </div>
+  </header>
   <?php if ($msg): ?>
     <div class="md-alert"><?=htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')?></div>
   <?php endif; ?>
@@ -1276,6 +1282,10 @@ $bootstrapQuestionnaires = qb_fetch_questionnaires($pdo);
       </div>
     </aside>
     <div class="qb-manager-main">
+      <button type="button" class="md-button md-secondary md-elev-2 qb-scroll-top" id="qb-scroll-top" aria-label="<?=t($t,'qb_scroll_to_top','Back to top')?>" aria-hidden="true" tabindex="-1">
+        <span class="qb-scroll-top-icon" aria-hidden="true">⇧</span>
+        <span class="qb-scroll-top-label"><?=t($t,'qb_scroll_to_top','Back to top')?></span>
+      </button>
       <div class="md-card md-elev-2 qb-builder-card">
         <div class="qb-toolbar">
           <div class="qb-toolbar-actions">
