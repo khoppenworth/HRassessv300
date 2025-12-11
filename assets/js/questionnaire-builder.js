@@ -80,6 +80,7 @@ const Builder = (() => {
     loading: false,
     saving: false,
     csrf: '',
+    scoringDialogKey: null,
   };
 
   const baseMeta = document.querySelector('meta[name="app-base-url"]');
@@ -188,6 +189,7 @@ const Builder = (() => {
     const selector = document.querySelector(selectors.selector);
     const list = document.querySelector(selectors.list);
     const tabs = document.querySelector(selectors.tabs);
+    const scoringDialog = document.querySelector('#qb-scoring-dialog');
 
     addBtn?.addEventListener('click', () => {
       addQuestionnaire();
@@ -212,6 +214,7 @@ const Builder = (() => {
     list?.addEventListener('input', handleListInput);
     list?.addEventListener('change', handleListInput);
     list?.addEventListener('click', handleListClick);
+    scoringDialog?.addEventListener('click', handleScoringDialogClick);
   }
 
   function fetchData({ silent = false } = {}) {
@@ -330,6 +333,7 @@ const Builder = (() => {
     renderQuestionnaires();
     renderSectionNav();
     toggleSaveButtons();
+    renderScoringDialog();
   }
 
   function renderSelector() {
@@ -688,22 +692,51 @@ const Builder = (() => {
         break;
       }
       case 'normalize-weights':
-        normalizeWeights(questionnaire);
-        break;
+        if (!handleScoringAction(questionnaire, role)) return;
+        return;
       case 'even-weights':
-        evenWeights(questionnaire);
-        break;
+        if (!handleScoringAction(questionnaire, role)) return;
+        return;
       case 'likert-weights':
-        autoWeightLikert(questionnaire);
-        break;
+        if (!handleScoringAction(questionnaire, role)) return;
+        return;
       case 'clear-weights':
-        clearWeights(questionnaire);
-        break;
+        if (!handleScoringAction(questionnaire, role)) return;
+        return;
+      case 'open-scoring-panel':
+        state.scoringDialogKey = questionnaire.clientId;
+        render();
+        return;
+      case 'close-scoring-panel':
+        state.scoringDialogKey = null;
+        renderScoringDialog();
+        return;
       default:
         return;
     }
     markDirty();
     render();
+  }
+
+  function handleScoringDialogClick(event) {
+    const role = event.target.getAttribute('data-role');
+    if (!role && !event.target.classList.contains('qb-modal-backdrop')) return;
+
+    if (role === 'close-scoring-panel' || event.target.classList.contains('qb-modal-backdrop')) {
+      state.scoringDialogKey = null;
+      renderScoringDialog();
+      return;
+    }
+
+    const container = event.currentTarget.querySelector('[data-q]');
+    const qid = container?.getAttribute('data-q');
+    const questionnaire = state.questionnaires.find((q) => q.clientId === qid);
+    if (!questionnaire || !role) return;
+
+    const scoringRoles = ['normalize-weights', 'even-weights', 'likert-weights', 'clear-weights'];
+    if (scoringRoles.includes(role)) {
+      handleScoringAction(questionnaire, role);
+    }
   }
 
   function applyFieldChange(questionnaire, input, role) {
@@ -861,41 +894,145 @@ const Builder = (() => {
 
   function renderScoringSummary(questionnaire) {
     const summary = computeScoring(questionnaire);
-    const warnings = [];
-    if (summary.scorableCount === 0) warnings.push(STRINGS.noScorableNote);
-    if (summary.weightedCount === 0) warnings.push(STRINGS.missingWeightsWarning);
-    if (summary.hasLikert) warnings.push(STRINGS.likertAutoNote, STRINGS.nonLikertIgnoredNote);
-
-    const actions = [
-      { role: 'normalize-weights', label: STRINGS.normalizeWeights, enabled: summary.canNormalize },
-      { role: 'even-weights', label: STRINGS.evenWeights, enabled: summary.canDistribute },
-      { role: 'likert-weights', label: 'Auto-weight Likert', enabled: summary.scorableCount > 0 },
-      { role: 'clear-weights', label: STRINGS.clearWeights, enabled: summary.canClear },
-    ]
-      .map(
-        (action) =>
-          `<button type="button" class="md-button md-ghost" data-role="${action.role}" ${action.enabled ? '' : 'disabled'}>${escapeHtml(action.label)}</button>`
-      )
-      .join('');
-
     const manualLabel = (summary.manualTotal === 100 ? STRINGS.manualTotalOk : STRINGS.manualTotalOffWarning).replace(
       '%s',
       summary.manualTotal.toFixed(1)
     );
 
     return `
-      <div class="qb-scoring">
-        <h4>${STRINGS.scoringSummaryTitle}</h4>
-        <dl class="qb-scoring-grid">
-          <div><dt>${STRINGS.scoringSummaryManualLabel}</dt><dd>${manualLabel}</dd></div>
-          <div><dt>${STRINGS.scoringSummaryEffectiveLabel}</dt><dd>${summary.effectiveTotal.toFixed(1)}%</dd></div>
-          <div><dt>${STRINGS.scoringSummaryCountLabel}</dt><dd>${summary.scorableCount}</dd></div>
-          <div><dt>${STRINGS.scoringSummaryWeightedLabel}</dt><dd>${summary.weightedCount}</dd></div>
+      <div class="qb-scoring-summary">
+        <div class="qb-scoring-summary-header">
+          <div>
+            <p class="qb-scoring-summary-subtitle">${STRINGS.scoringSummaryTitle}</p>
+            <h4 class="qb-scoring-summary-heading">${escapeHtml(questionnaire.title || 'Untitled Questionnaire')}</h4>
+          </div>
+          <div class="qb-scoring-summary-actions">
+            <button type="button" class="md-button md-outline" data-role="open-scoring-panel">${STRINGS.scoringSummaryActionsLabel}</button>
+          </div>
+        </div>
+        <dl class="qb-scoring-metrics">
+          <div class="qb-scoring-metric"><dt>${STRINGS.scoringSummaryManualLabel}</dt><dd>${manualLabel}</dd></div>
+          <div class="qb-scoring-metric"><dt>${STRINGS.scoringSummaryEffectiveLabel}</dt><dd>${summary.effectiveTotal.toFixed(1)}%</dd></div>
+          <div class="qb-scoring-metric"><dt>${STRINGS.scoringSummaryCountLabel}</dt><dd>${summary.scorableCount}</dd></div>
+          <div class="qb-scoring-metric"><dt>${STRINGS.scoringSummaryWeightedLabel}</dt><dd>${summary.weightedCount}</dd></div>
         </dl>
-        <div class="qb-scoring-actions"><span>${STRINGS.scoringSummaryActionsLabel}</span>${actions}</div>
-        ${warnings.length ? `<ul class="qb-scoring-warnings">${warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join('')}</ul>` : ''}
+        ${buildScoringWarnings(summary)}
       </div>
     `;
+  }
+
+  function buildScoringWarnings(summary) {
+    const warnings = [];
+    if (summary.scorableCount === 0) warnings.push(STRINGS.noScorableNote);
+    if (summary.weightedCount === 0) warnings.push(STRINGS.missingWeightsWarning);
+    if (summary.hasLikert) warnings.push(STRINGS.likertAutoNote, STRINGS.nonLikertIgnoredNote);
+
+    if (!warnings.length) return '';
+    return `<ul class="qb-scoring-warnings">${warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join('')}</ul>`;
+  }
+
+  function renderScoringDialog() {
+    const dialog = document.querySelector('#qb-scoring-dialog');
+    if (!dialog) return;
+    const questionnaire = state.questionnaires.find((q) => q.clientId === state.scoringDialogKey);
+    if (!questionnaire) {
+      dialog.classList.remove('is-open');
+      dialog.innerHTML = '';
+      return;
+    }
+
+    const summary = computeScoring(questionnaire);
+    const manualLabel = (summary.manualTotal === 100 ? STRINGS.manualTotalOk : STRINGS.manualTotalOffWarning).replace(
+      '%s',
+      summary.manualTotal.toFixed(1)
+    );
+    const actions = [
+      { role: 'normalize-weights', label: STRINGS.normalizeWeights, enabled: summary.canNormalize },
+      { role: 'even-weights', label: STRINGS.evenWeights, enabled: summary.canDistribute },
+      { role: 'likert-weights', label: 'Auto-weight Likert', enabled: summary.scorableCount > 0 },
+      { role: 'clear-weights', label: STRINGS.clearWeights, enabled: summary.canClear },
+    ];
+
+    dialog.innerHTML = `
+      <div class="qb-modal-backdrop" data-role="close-scoring-panel"></div>
+      <div class="qb-modal" role="dialog" aria-modal="true" aria-label="${escapeAttr(STRINGS.scoringSummaryTitle)}" data-q="${questionnaire.clientId}">
+        <div class="qb-modal-header">
+          <div>
+            <p class="qb-scoring-summary-subtitle">${STRINGS.scoringSummaryTitle}</p>
+            <h3 class="qb-modal-title">${escapeHtml(questionnaire.title || 'Untitled Questionnaire')}</h3>
+          </div>
+          <button type="button" class="md-button md-ghost" data-role="close-scoring-panel">Close</button>
+        </div>
+        <div class="qb-modal-body">
+          <dl class="qb-scoring-metrics">
+            <div class="qb-scoring-metric"><dt>${STRINGS.scoringSummaryManualLabel}</dt><dd>${manualLabel}</dd></div>
+            <div class="qb-scoring-metric"><dt>${STRINGS.scoringSummaryEffectiveLabel}</dt><dd>${summary.effectiveTotal.toFixed(1)}%</dd></div>
+            <div class="qb-scoring-metric"><dt>${STRINGS.scoringSummaryCountLabel}</dt><dd>${summary.scorableCount}</dd></div>
+            <div class="qb-scoring-metric"><dt>${STRINGS.scoringSummaryWeightedLabel}</dt><dd>${summary.weightedCount}</dd></div>
+          </dl>
+          ${buildScoringWarnings(summary)}
+          <div class="qb-scoring-actions">
+            <span class="qb-scoring-actions-label">${STRINGS.scoringSummaryActionsLabel}</span>
+            <div class="qb-scoring-actions-buttons">
+              ${actions
+                .map(
+                  (action) =>
+                    `<button type="button" class="md-button md-outline" data-role="${action.role}" ${action.enabled ? '' : 'disabled'}>${escapeHtml(action.label)}</button>`
+                )
+                .join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    requestAnimationFrame(() => dialog.classList.add('is-open'));
+  }
+
+  function confirmScoringAction(role, summary, questionnaire) {
+    const labels = {
+      'normalize-weights': STRINGS.normalizeWeights,
+      'even-weights': STRINGS.evenWeights,
+      'likert-weights': 'Auto-weight Likert',
+      'clear-weights': STRINGS.clearWeights,
+    };
+    const label = labels[role] || 'Apply changes';
+    let detail = '';
+    if (role === 'normalize-weights') {
+      detail = `Current manual total: ${summary.manualTotal.toFixed(1)}%.`;
+    } else if (role === 'even-weights') {
+      detail = `Scorable items: ${summary.scorableCount}.`;
+    } else if (role === 'likert-weights') {
+      detail = 'Likert items will evenly share 100% unless weights are set.';
+    } else if (role === 'clear-weights') {
+      detail = 'All question weights will be reset to 0%.';
+    }
+    const title = questionnaire.title?.trim() || 'this questionnaire';
+    const message = [`Apply "${label}" to ${title}?`, detail].filter(Boolean).join('\n');
+    return window.confirm(message);
+  }
+
+  function handleScoringAction(questionnaire, role) {
+    const summary = computeScoring(questionnaire);
+    if (!confirmScoringAction(role, summary, questionnaire)) return false;
+    switch (role) {
+      case 'normalize-weights':
+        normalizeWeights(questionnaire);
+        break;
+      case 'even-weights':
+        evenWeights(questionnaire);
+        break;
+      case 'likert-weights':
+        autoWeightLikert(questionnaire);
+        break;
+      case 'clear-weights':
+        clearWeights(questionnaire);
+        break;
+      default:
+        return false;
+    }
+    markDirty();
+    render();
+    return true;
   }
 
   function normalizeWeights(questionnaire) {

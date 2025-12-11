@@ -316,8 +316,29 @@
   gap: 0.6rem;
 }
 
+.qb-scoring-summary-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.qb-scoring-summary-subtitle {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.78rem;
+  color: var(--app-muted);
+}
+
 .qb-scoring-summary-heading {
   margin: 0;
+}
+
+.qb-scoring-summary-actions {
+  display: flex;
+  align-items: center;
 }
 
 .qb-scoring-metrics {
@@ -374,6 +395,19 @@
   color: var(--status-success-text, #1a7f37);
 }
 
+.qb-scoring-warnings {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--app-danger, #b10d0d);
+}
+
+.qb-scoring-warnings li {
+  margin: 0;
+}
+
 .qb-scoring-actions {
   display: flex;
   flex-wrap: wrap;
@@ -404,6 +438,51 @@
 .qb-scoring-actions-buttons .md-button[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+#qb-scoring-dialog {
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 3000;
+}
+
+#qb-scoring-dialog.is-open {
+  display: block;
+}
+
+.qb-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.qb-modal {
+  position: relative;
+  max-width: 780px;
+  margin: 5vh auto;
+  background: var(--app-surface, #fff);
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: var(--app-shadow-strong, 0 20px 40px rgba(0, 0, 0, 0.2));
+}
+
+.qb-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.qb-modal-title {
+  margin: 0;
+}
+
+.qb-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .qb-list {
